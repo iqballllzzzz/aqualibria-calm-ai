@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 import { registerWithEmail, signInWithGoogle } from "@/lib/firebase";
 import { useLanguage } from "@/contexts/LanguageContext";
+import Logo from "@/components/Logo";
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -94,11 +95,9 @@ const Register: React.FC = () => {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="w-full max-w-md"
       >
-        {/* Logo placeholder */}
+        {/* Logo */}
         <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center">
-            <span className="text-2xl font-semibold text-foreground">A</span>
-          </div>
+          <Logo size="lg" className="mx-auto mb-6" />
           <h1 className="text-2xl font-semibold text-foreground mb-2">
             {t("register.title")}
           </h1>
@@ -112,7 +111,7 @@ const Register: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3"
+            className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
           >
             <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
             <p className="text-sm text-destructive">{error}</p>

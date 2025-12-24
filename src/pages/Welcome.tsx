@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Code, BookOpen, Image, Quote, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import Logo from "@/components/Logo";
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const Welcome: React.FC = () => {
     if (typedText.length < fullText.length) {
       const timeout = setTimeout(() => {
         setTypedText(fullText.slice(0, typedText.length + 1));
-      }, 40); // Slow typing speed for calm effect
+      }, 35); // Slow typing speed for calm effect
       return () => clearTimeout(timeout);
     } else {
       setTypingComplete(true);
@@ -72,19 +73,18 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.4 }}
               className="text-center"
             >
-              {/* Logo placeholder */}
+              {/* Logo */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="w-20 h-20 mx-auto mb-10 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center"
               >
-                <span className="text-3xl font-semibold text-foreground">A</span>
+                <Logo size="xl" className="mx-auto mb-10" />
               </motion.div>
 
               {/* Typing text */}
               <div className="min-h-[120px] flex items-center justify-center">
-                <p className="text-xl md:text-2xl text-foreground leading-relaxed">
+                <p className="text-xl md:text-2xl text-foreground leading-relaxed max-w-lg">
                   {typedText}
                   {showCursor && (
                     <span className="inline-block w-0.5 h-6 md:h-7 bg-foreground ml-1 align-middle" />
@@ -116,10 +116,8 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.5 }}
               className="text-center"
             >
-              {/* Logo placeholder */}
-              <div className="w-16 h-16 mx-auto mb-8 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center">
-                <span className="text-2xl font-semibold text-foreground">A</span>
-              </div>
+              {/* Logo */}
+              <Logo size="lg" className="mx-auto mb-8" />
 
               <h2 className="text-xl md:text-2xl text-foreground mb-10">
                 {t("intent.question")}
