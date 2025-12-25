@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Code, BookOpen, Image, Quote, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { setWelcomeShown } from "@/lib/storage";
 import Logo from "@/components/Logo";
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { user } = useAuth();
   const [typedText, setTypedText] = useState("");
   const [showCursor, setShowCursor] = useState(true);
   const [typingComplete, setTypingComplete] = useState(false);
@@ -19,21 +18,18 @@ const Welcome: React.FC = () => {
   const subtitle = t("welcome.subtitle");
   const fullText = `${greeting}. ${subtitle}`;
 
-  // Typing animation
   useEffect(() => {
     if (typedText.length < fullText.length) {
       const timeout = setTimeout(() => {
         setTypedText(fullText.slice(0, typedText.length + 1));
-      }, 35); // Slow typing speed for calm effect
+      }, 35);
       return () => clearTimeout(timeout);
     } else {
       setTypingComplete(true);
-      // Stop cursor blinking after typing is complete
       setTimeout(() => setShowCursor(false), 1000);
     }
   }, [typedText, fullText]);
 
-  // Cursor blinking
   useEffect(() => {
     if (!typingComplete) {
       const interval = setInterval(() => {
@@ -48,8 +44,8 @@ const Welcome: React.FC = () => {
   };
 
   const handleIntentSelect = (intent: string) => {
-    // Store the selected intent
     localStorage.setItem("aqua-user-intent", intent);
+    setWelcomeShown(); // Mark welcome as shown
     navigate("/chat");
   };
 
@@ -61,7 +57,7 @@ const Welcome: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen w-full flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-2xl">
         <AnimatePresence mode="wait">
           {!showIntentSelection ? (
@@ -73,7 +69,6 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.4 }}
               className="text-center"
             >
-              {/* Logo */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -82,7 +77,6 @@ const Welcome: React.FC = () => {
                 <Logo size="xl" className="mx-auto mb-10" />
               </motion.div>
 
-              {/* Typing text */}
               <div className="min-h-[120px] flex items-center justify-center">
                 <p className="text-xl md:text-2xl text-foreground leading-relaxed max-w-lg">
                   {typedText}
@@ -92,7 +86,6 @@ const Welcome: React.FC = () => {
                 </p>
               </div>
 
-              {/* Continue button */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: typingComplete ? 1 : 0, y: typingComplete ? 0 : 10 }}
@@ -116,14 +109,10 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.5 }}
               className="text-center"
             >
-              {/* Logo */}
               <Logo size="lg" className="mx-auto mb-8" />
-
               <h2 className="text-xl md:text-2xl text-foreground mb-10">
                 {t("intent.question")}
               </h2>
-
-              {/* Intent options */}
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                 {intents.map((intent, index) => (
                   <motion.button
@@ -135,9 +124,7 @@ const Welcome: React.FC = () => {
                     className="group p-6 rounded-2xl bg-background-elevated border border-border hover:border-foreground/20 transition-all btn-press"
                   >
                     <intent.icon className="w-7 h-7 mx-auto mb-3 text-foreground-muted group-hover:text-foreground transition-colors" />
-                    <span className="text-foreground font-medium">
-                      {intent.label}
-                    </span>
+                    <span className="text-foreground font-medium">{intent.label}</span>
                   </motion.button>
                 ))}
               </div>
