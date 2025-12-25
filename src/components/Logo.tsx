@@ -18,13 +18,16 @@ const Logo: React.FC<LogoProps> = ({ size = "md", className = "" }) => {
   const { theme } = useTheme();
 
   return (
-    <div className={`relative ${sizeClasses[size]} ${className}`}>
+    <div 
+      className={`relative ${sizeClasses[size]} ${className} rounded-xl overflow-hidden`}
+      style={{
+        backgroundColor: theme === "dark" ? "#000000" : "#ffffff",
+      }}
+    >
       <img
         src={logoImage}
         alt="AquaLibriaAI Logo"
-        className={`w-full h-full object-contain rounded-xl transition-all duration-300 ${
-          theme === "dark" ? "brightness-110 contrast-90" : ""
-        }`}
+        className="w-full h-full object-contain p-0.5"
       />
     </div>
   );

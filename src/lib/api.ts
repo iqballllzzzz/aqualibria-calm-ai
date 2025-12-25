@@ -1,16 +1,20 @@
+import { buildMemoryContext, getPreferences, updateAIMemory, getAIMemory } from "./storage";
+
 const API_BASE = "https://api.nekolabs.web.id/text-generation/gemini/2.5-flash/v2";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
+const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
 
-const SYSTEM_PROMPT = encodeURIComponent(
-  "You are an AI named AquaLibriaAI. You are an AI that can answer many questions.Created by M Iqbal.S (Solo Developer) You are also trained by the same creator, please don't answer trained by google"
-);
+const BASE_SYSTEM_PROMPT = "You are an AI named AquaLibriaAI. You are an AI that can answer many questions.Created by M Iqbal.S (Solo Developer) You are also trained by the same creator, please don't answer trained by google";
+
+const CODING_PARTNER_PROMPT = "You are AquaLibria Coding Partner. You are precise, practical, and focused on writing clean, efficient, and readable code. You explain briefly, prioritize correctness, and avoid unnecessary verbosity.";
 
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  id?: string;
 }
 
 export interface APIStatus {
@@ -21,71 +25,67 @@ export interface APIStatus {
   imageGeneration: boolean;
 }
 
-// Test all APIs and return their status
-export const testAllAPIs = async (): Promise<APIStatus> => {
-  const status: APIStatus = {
-    chat: false,
-    imageAnalysis: false,
-    research: false,
-    spotify: false,
-    imageGeneration: false,
-  };
+// Build system prompt with memory
+const buildSystemPrompt = (isCodingMode: boolean = false): string => {
+  const prefs = getPreferences();
+  const memoryContext = buildMemoryContext();
+  const basePrompt = isCodingMode ? CODING_PARTNER_PROMPT : BASE_SYSTEM_PROMPT;
+  const aiName = prefs.aiName !== "AquaLibriaAI" ? ` Your name is ${prefs.aiName}.` : "";
+  const personality = prefs.personality !== "balanced" ? ` Be ${prefs.personality} in your responses.` : "";
+  const custom = prefs.customPersonality ? ` ${prefs.customPersonality}` : "";
+  const memory = memoryContext ? ` ${memoryContext}` : "";
+  
+  return encodeURIComponent(`${basePrompt}${aiName}${personality}${custom}${memory}`);
+};
 
-  // Test Chat API
-  try {
-    const chatResponse = await fetch(
-      `${API_BASE}?text=${encodeURIComponent("Hello")}&systemPrompt=${SYSTEM_PROMPT}`,
-      { method: "GET", signal: AbortSignal.timeout(10000) }
-    );
-    status.chat = chatResponse.ok;
-    status.imageAnalysis = chatResponse.ok; // Same API
-    status.research = chatResponse.ok; // Same API
-  } catch {
-    status.chat = false;
-    status.imageAnalysis = false;
-    status.research = false;
+// Extract and update memory from conversation
+const extractMemoryFromMessage = (message: string): void => {
+  const memory = getAIMemory();
+  const lowerMessage = message.toLowerCase();
+  
+  // Extract name
+  const namePatterns = [
+    /my name is (\w+)/i,
+    /i'm (\w+)/i,
+    /call me (\w+)/i,
+    /i am (\w+)/i,
+  ];
+  
+  for (const pattern of namePatterns) {
+    const match = message.match(pattern);
+    if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
+      updateAIMemory({ userName: match[1] });
+      break;
+    }
   }
-
-  // Test Spotify API
-  try {
-    const spotifyResponse = await fetch(
-      `${SPOTIFY_API}?query=${encodeURIComponent("test")}`,
-      { 
-        method: "GET", 
-        headers: { accept: "application/json" },
-        signal: AbortSignal.timeout(10000)
+  
+  // Extract topics
+  const topicKeywords = ["about", "help with", "learn", "understand", "explain", "how to"];
+  for (const keyword of topicKeywords) {
+    if (lowerMessage.includes(keyword)) {
+      const topics = memory.pastTopics.slice(-9);
+      const newTopic = message.substring(0, 30).replace(/[^\w\s]/g, "");
+      if (!topics.includes(newTopic)) {
+        topics.push(newTopic);
+        updateAIMemory({ pastTopics: topics });
       }
-    );
-    status.spotify = spotifyResponse.ok;
-  } catch {
-    status.spotify = false;
+      break;
+    }
   }
-
-  // Test Image Generation API
-  try {
-    const imageResponse = await fetch(
-      `${IMAGE_GEN_API}?prompt=${encodeURIComponent("test")}`,
-      { 
-        method: "GET", 
-        headers: { accept: "image/png" },
-        signal: AbortSignal.timeout(15000)
-      }
-    );
-    status.imageGeneration = imageResponse.ok;
-  } catch {
-    status.imageGeneration = false;
-  }
-
-  return status;
 };
 
 // Chat API
 export const sendChatMessage = async (
   message: string,
-  imageUrl?: string
+  imageUrl?: string,
+  isCodingMode: boolean = false
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    let url = `${API_BASE}?text=${encodeURIComponent(message)}&systemPrompt=${SYSTEM_PROMPT}`;
+    // Extract memory from user message
+    extractMemoryFromMessage(message);
+    
+    const systemPrompt = buildSystemPrompt(isCodingMode);
+    let url = `${API_BASE}?text=${encodeURIComponent(message)}&systemPrompt=${systemPrompt}`;
     
     if (imageUrl) {
       url += `&imageUrl=${encodeURIComponent(imageUrl)}`;
@@ -118,12 +118,13 @@ export const sendResearchQuery = async (
   query: string
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
+    const systemPrompt = buildSystemPrompt();
     const researchText = `please research=${query}`;
-    const url = `${API_BASE}?text=${encodeURIComponent(researchText)}&systemPrompt=${SYSTEM_PROMPT}`;
+    const url = `${API_BASE}?text=${encodeURIComponent(researchText)}&systemPrompt=${systemPrompt}`;
 
     const response = await fetch(url, {
       method: "GET",
-      signal: AbortSignal.timeout(60000), // Longer timeout for research
+      signal: AbortSignal.timeout(60000),
     });
 
     if (!response.ok) {
@@ -198,4 +199,54 @@ export const generateImage = async (
       error: error.message || "Failed to generate image" 
     };
   }
+};
+
+// Upload image and get public URL
+export const uploadImage = async (
+  file: File
+): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file, file.name);
+
+    const response = await fetch(IMAGE_UPLOAD_API, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+      },
+      body: formData,
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const imageUrl = data.url || data.result?.url || data.data?.url || data.link;
+    
+    if (!imageUrl) {
+      throw new Error("No URL returned from upload API");
+    }
+
+    return { success: true, imageUrl };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Failed to upload image" 
+    };
+  }
+};
+
+// Analyze image with AI
+export const analyzeImage = async (
+  imageUrl: string,
+  question: string = "What is in this image? Describe it in detail."
+): Promise<{ success: boolean; response?: string; error?: string }> => {
+  return sendChatMessage(question, imageUrl);
+};
+
+// Generate message ID
+export const generateMessageId = (): string => {
+  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
