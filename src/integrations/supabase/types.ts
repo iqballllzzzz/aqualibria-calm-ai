@@ -14,7 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_memory: {
+        Row: {
+          communication_style: string | null
+          created_at: string
+          custom_ai_name: string | null
+          custom_personality: string | null
+          desires: string[] | null
+          firebase_uid: string
+          goals: string[] | null
+          habits: string[] | null
+          id: string
+          personality_traits: string[] | null
+          preferences: string[] | null
+          strengths: string[] | null
+          topics_discussed: string[] | null
+          updated_at: string
+          user_name: string | null
+          weaknesses: string[] | null
+        }
+        Insert: {
+          communication_style?: string | null
+          created_at?: string
+          custom_ai_name?: string | null
+          custom_personality?: string | null
+          desires?: string[] | null
+          firebase_uid: string
+          goals?: string[] | null
+          habits?: string[] | null
+          id?: string
+          personality_traits?: string[] | null
+          preferences?: string[] | null
+          strengths?: string[] | null
+          topics_discussed?: string[] | null
+          updated_at?: string
+          user_name?: string | null
+          weaknesses?: string[] | null
+        }
+        Update: {
+          communication_style?: string | null
+          created_at?: string
+          custom_ai_name?: string | null
+          custom_personality?: string | null
+          desires?: string[] | null
+          firebase_uid?: string
+          goals?: string[] | null
+          habits?: string[] | null
+          id?: string
+          personality_traits?: string[] | null
+          preferences?: string[] | null
+          strengths?: string[] | null
+          topics_discussed?: string[] | null
+          updated_at?: string
+          user_name?: string | null
+          weaknesses?: string[] | null
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          firebase_uid: string
+          id: string
+          image_url: string | null
+          reaction: string | null
+          role: string
+          session_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          firebase_uid: string
+          id?: string
+          image_url?: string | null
+          reaction?: string | null
+          role: string
+          session_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          firebase_uid?: string
+          id?: string
+          image_url?: string | null
+          reaction?: string | null
+          role?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      chat_sessions: {
+        Row: {
+          created_at: string
+          firebase_uid: string
+          id: string
+          is_coding_partner: boolean | null
+          session_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          firebase_uid: string
+          id?: string
+          is_coding_partner?: boolean | null
+          session_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          firebase_uid?: string
+          id?: string
+          is_coding_partner?: boolean | null
+          session_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          firebase_uid: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          firebase_uid: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          firebase_uid?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
