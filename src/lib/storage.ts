@@ -1,11 +1,14 @@
 import { ChatMessage } from "./api";
 
+// ==================== INTERFACES ====================
+
 export interface ChatSession {
   id: string;
   title: string;
   messages: ChatMessage[];
   createdAt: Date;
   updatedAt: Date;
+  isCodingPartner?: boolean;
 }
 
 export interface UserPreferences {
@@ -15,20 +18,29 @@ export interface UserPreferences {
   rememberName: boolean;
   rememberPreferences: boolean;
   rememberWritingStyle: boolean;
-  userName?: string;
 }
 
 export interface AIMemory {
+  // User Identity
   userName: string;
-  habits: string[];
-  preferences: string[];
-  goals: string[];
-  traits: string[];
+  userHabits: string[];
+  userPreferences: string[];
+  userDesires: string[];
+  userGoals: string[];
+  personalityTraits: string[];
   strengths: string[];
   weaknesses: string[];
   communicationStyle: string;
-  pastTopics: string[];
+  
+  // Conversational Memory
+  recentTopics: string[];
+  repeatedInterests: string[];
+  conversationThemes: string[];
+  importantFacts: string[];
+  
+  // Metadata
   lastUpdated: Date;
+  totalInteractions: number;
 }
 
 export interface MessageReaction {
@@ -37,41 +49,68 @@ export interface MessageReaction {
   reaction: "like" | "dislike" | null;
 }
 
-const CHAT_HISTORY_KEY = "aqua-chat-history";
-const PREFERENCES_KEY = "aqua-preferences";
-const CURRENT_SESSION_KEY = "aqua-current-session";
-const WELCOME_SHOWN_KEY = "aqua-welcome-shown";
-const AI_MEMORY_KEY = "aqua-ai-memory";
-const MESSAGE_REACTIONS_KEY = "aqua-message-reactions";
+// ==================== STORAGE KEYS ====================
 
-// Welcome state
+const STORAGE_KEYS = {
+  CHAT_HISTORY: "aqua-chat-history",
+  PREFERENCES: "aqua-preferences",
+  AI_MEMORY: "aqua-ai-memory",
+  WELCOME_SHOWN: "aqua-welcome-shown",
+  MESSAGE_REACTIONS: "aqua-message-reactions",
+  CURRENT_SESSION: "aqua-current-session",
+} as const;
+
+// ==================== WELCOME STATE ====================
+
 export const hasSeenWelcome = (): boolean => {
-  return localStorage.getItem(WELCOME_SHOWN_KEY) === "true";
+  return localStorage.getItem(STORAGE_KEYS.WELCOME_SHOWN) === "true";
 };
 
 export const setWelcomeShown = (): void => {
-  localStorage.setItem(WELCOME_SHOWN_KEY, "true");
+  localStorage.setItem(STORAGE_KEYS.WELCOME_SHOWN, "true");
 };
 
-// Chat History Functions
+// ==================== SESSION ID GENERATION ====================
+
+export const generateSessionId = (): string => {
+  // Generate proper UUID v4
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+export const generateSessionTitle = (firstMessage: string): string => {
+  const cleaned = firstMessage.trim().replace(/\s+/g, ' ');
+  if (cleaned.length <= 50) return cleaned;
+  return cleaned.substring(0, 50) + "...";
+};
+
+// ==================== CHAT HISTORY ====================
+
 export const saveChatSession = (session: ChatSession): void => {
   const history = getChatHistory();
   const existingIndex = history.findIndex((s) => s.id === session.id);
   
   if (existingIndex >= 0) {
-    history[existingIndex] = session;
+    history[existingIndex] = { ...session, updatedAt: new Date() };
   } else {
     history.unshift(session);
   }
   
-  // Keep only last 50 sessions
-  const trimmed = history.slice(0, 50);
-  localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(trimmed));
+  // Keep only last 100 sessions
+  const trimmed = history.slice(0, 100);
+  localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(trimmed));
 };
 
 export const getChatHistory = (): ChatSession[] => {
   try {
-    const stored = localStorage.getItem(CHAT_HISTORY_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
     if (!stored) return [];
     
     const parsed = JSON.parse(stored);
@@ -92,11 +131,11 @@ export const getChatHistory = (): ChatSession[] => {
 export const deleteChatSession = (sessionId: string): void => {
   const history = getChatHistory();
   const filtered = history.filter((s) => s.id !== sessionId);
-  localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(filtered));
+  localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(filtered));
 };
 
 export const clearAllChatHistory = (): void => {
-  localStorage.removeItem(CHAT_HISTORY_KEY);
+  localStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
 };
 
 export const searchChatHistory = (query: string): ChatSession[] => {
@@ -111,32 +150,29 @@ export const searchChatHistory = (query: string): ChatSession[] => {
   });
 };
 
-// Current Session
-export const setCurrentSessionId = (id: string): void => {
-  localStorage.setItem(CURRENT_SESSION_KEY, id);
+export const getSessionById = (sessionId: string): ChatSession | null => {
+  const history = getChatHistory();
+  return history.find((s) => s.id === sessionId) || null;
 };
 
-export const getCurrentSessionId = (): string | null => {
-  return localStorage.getItem(CURRENT_SESSION_KEY);
-};
+// ==================== USER PREFERENCES ====================
 
-// User Preferences
 export const getDefaultPreferences = (): UserPreferences => ({
   aiName: "AquaLibriaAI",
   personality: "balanced",
   customPersonality: "",
   rememberName: true,
   rememberPreferences: true,
-  rememberWritingStyle: false,
+  rememberWritingStyle: true,
 });
 
 export const savePreferences = (prefs: UserPreferences): void => {
-  localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
+  localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(prefs));
 };
 
 export const getPreferences = (): UserPreferences => {
   try {
-    const stored = localStorage.getItem(PREFERENCES_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.PREFERENCES);
     if (!stored) return getDefaultPreferences();
     return { ...getDefaultPreferences(), ...JSON.parse(stored) };
   } catch {
@@ -144,30 +180,41 @@ export const getPreferences = (): UserPreferences => {
   }
 };
 
-// AI Memory
+// ==================== AI MEMORY SYSTEM ====================
+
 export const getDefaultMemory = (): AIMemory => ({
   userName: "",
-  habits: [],
-  preferences: [],
-  goals: [],
-  traits: [],
+  userHabits: [],
+  userPreferences: [],
+  userDesires: [],
+  userGoals: [],
+  personalityTraits: [],
   strengths: [],
   weaknesses: [],
   communicationStyle: "",
-  pastTopics: [],
+  recentTopics: [],
+  repeatedInterests: [],
+  conversationThemes: [],
+  importantFacts: [],
   lastUpdated: new Date(),
+  totalInteractions: 0,
 });
 
 export const saveAIMemory = (memory: AIMemory): void => {
-  localStorage.setItem(AI_MEMORY_KEY, JSON.stringify(memory));
+  const toSave = { ...memory, lastUpdated: new Date() };
+  localStorage.setItem(STORAGE_KEYS.AI_MEMORY, JSON.stringify(toSave));
 };
 
 export const getAIMemory = (): AIMemory => {
   try {
-    const stored = localStorage.getItem(AI_MEMORY_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.AI_MEMORY);
     if (!stored) return getDefaultMemory();
     const parsed = JSON.parse(stored);
-    return { ...getDefaultMemory(), ...parsed, lastUpdated: new Date(parsed.lastUpdated) };
+    return { 
+      ...getDefaultMemory(), 
+      ...parsed, 
+      lastUpdated: new Date(parsed.lastUpdated) 
+    };
   } catch {
     return getDefaultMemory();
   }
@@ -175,43 +222,152 @@ export const getAIMemory = (): AIMemory => {
 
 export const updateAIMemory = (updates: Partial<AIMemory>): void => {
   const current = getAIMemory();
-  const updated = { ...current, ...updates, lastUpdated: new Date() };
+  const updated = { 
+    ...current, 
+    ...updates, 
+    lastUpdated: new Date(),
+    totalInteractions: current.totalInteractions + 1,
+  };
   saveAIMemory(updated);
 };
 
-// Build memory context for AI
-export const buildMemoryContext = (): string => {
+// Memory extraction from user messages
+export const extractMemoryFromMessage = (message: string): void => {
   const memory = getAIMemory();
-  const prefs = getPreferences();
+  const lowerMessage = message.toLowerCase();
+  const updates: Partial<AIMemory> = {};
   
-  if (!prefs.rememberName && !prefs.rememberPreferences) return "";
+  // Extract user name
+  const namePatterns = [
+    /my name is (\w+)/i,
+    /i'm (\w+)/i,
+    /call me (\w+)/i,
+    /i am (\w+)/i,
+    /name's (\w+)/i,
+  ];
   
-  const parts: string[] = [];
-  
-  if (prefs.rememberName && memory.userName) {
-    parts.push(`User's name is ${memory.userName}.`);
-  }
-  
-  if (prefs.rememberPreferences) {
-    if (memory.preferences.length > 0) {
-      parts.push(`User preferences: ${memory.preferences.slice(0, 5).join(", ")}.`);
+  for (const pattern of namePatterns) {
+    const match = message.match(pattern);
+    if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
+      const name = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+      if (!['A', 'The', 'I', 'You', 'We', 'They', 'He', 'She', 'It'].includes(name)) {
+        updates.userName = name;
+        break;
+      }
     }
-    if (memory.communicationStyle) {
-      parts.push(`User prefers ${memory.communicationStyle} communication.`);
+  }
+  
+  // Extract goals
+  const goalPatterns = [
+    /i want to (.+?)(?:\.|$)/i,
+    /my goal is (.+?)(?:\.|$)/i,
+    /i'm trying to (.+?)(?:\.|$)/i,
+    /i need to (.+?)(?:\.|$)/i,
+    /i hope to (.+?)(?:\.|$)/i,
+  ];
+  
+  for (const pattern of goalPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1] && match[1].length > 3 && match[1].length < 100) {
+      const goal = match[1].trim();
+      if (!memory.userGoals.includes(goal)) {
+        updates.userGoals = [...memory.userGoals.slice(-9), goal];
+      }
+      break;
     }
   }
   
-  if (memory.pastTopics.length > 0) {
-    parts.push(`Recent topics: ${memory.pastTopics.slice(0, 5).join(", ")}.`);
+  // Extract preferences
+  const prefPatterns = [
+    /i (?:like|love|prefer|enjoy) (.+?)(?:\.|$)/i,
+    /i'm (?:a fan of|into) (.+?)(?:\.|$)/i,
+    /my favorite (?:is|are) (.+?)(?:\.|$)/i,
+  ];
+  
+  for (const pattern of prefPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1] && match[1].length > 2 && match[1].length < 50) {
+      const pref = match[1].trim();
+      if (!memory.userPreferences.includes(pref)) {
+        updates.userPreferences = [...memory.userPreferences.slice(-9), pref];
+      }
+      break;
+    }
   }
   
-  return parts.join(" ");
+  // Extract habits
+  const habitPatterns = [
+    /i usually (.+?)(?:\.|$)/i,
+    /i always (.+?)(?:\.|$)/i,
+    /i often (.+?)(?:\.|$)/i,
+    /every (?:day|morning|night|week) i (.+?)(?:\.|$)/i,
+  ];
+  
+  for (const pattern of habitPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1] && match[1].length > 3 && match[1].length < 80) {
+      const habit = match[1].trim();
+      if (!memory.userHabits.includes(habit)) {
+        updates.userHabits = [...memory.userHabits.slice(-9), habit];
+      }
+      break;
+    }
+  }
+  
+  // Extract topics discussed
+  const topicKeywords = ["about", "help with", "learn", "understand", "explain", "how to", "what is", "tell me"];
+  for (const keyword of topicKeywords) {
+    if (lowerMessage.includes(keyword)) {
+      const topic = message.substring(0, 60).replace(/[^\w\s]/g, "").trim();
+      if (topic && !memory.recentTopics.includes(topic)) {
+        updates.recentTopics = [...memory.recentTopics.slice(-19), topic];
+      }
+      break;
+    }
+  }
+  
+  // Detect communication style preferences
+  if (lowerMessage.includes("please") || lowerMessage.includes("thank you") || lowerMessage.includes("could you")) {
+    if (!memory.communicationStyle.includes("polite")) {
+      updates.communicationStyle = "polite and formal";
+    }
+  }
+  
+  // Update memory if we found anything
+  if (Object.keys(updates).length > 0) {
+    updateAIMemory(updates);
+  }
 };
 
-// Message Reactions
+// Build memory context for display (NOT for API - memory is implicit)
+export const buildMemoryContext = (): string => {
+  const memory = getAIMemory();
+  const parts: string[] = [];
+  
+  if (memory.userName) {
+    parts.push(`User's name: ${memory.userName}`);
+  }
+  
+  if (memory.userPreferences.length > 0) {
+    parts.push(`Preferences: ${memory.userPreferences.slice(-5).join(", ")}`);
+  }
+  
+  if (memory.userGoals.length > 0) {
+    parts.push(`Goals: ${memory.userGoals.slice(-3).join(", ")}`);
+  }
+  
+  if (memory.recentTopics.length > 0) {
+    parts.push(`Recent topics: ${memory.recentTopics.slice(-5).join(", ")}`);
+  }
+  
+  return parts.join(" | ");
+};
+
+// ==================== MESSAGE REACTIONS ====================
+
 export const getMessageReactions = (): MessageReaction[] => {
   try {
-    const stored = localStorage.getItem(MESSAGE_REACTIONS_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.MESSAGE_REACTIONS);
     if (!stored) return [];
     return JSON.parse(stored);
   } catch {
@@ -233,7 +389,7 @@ export const setMessageReaction = (messageId: string, sessionId: string, reactio
     reactions.push({ messageId, sessionId, reaction });
   }
   
-  localStorage.setItem(MESSAGE_REACTIONS_KEY, JSON.stringify(reactions));
+  localStorage.setItem(STORAGE_KEYS.MESSAGE_REACTIONS, JSON.stringify(reactions));
 };
 
 export const getMessageReaction = (messageId: string, sessionId: string): "like" | "dislike" | null => {
@@ -242,32 +398,49 @@ export const getMessageReaction = (messageId: string, sessionId: string): "like"
   return found?.reaction ?? null;
 };
 
-// Export/Import
+// ==================== EXPORT/IMPORT ====================
+
 export const exportChatHistory = (): string => {
-  const history = getChatHistory();
-  return JSON.stringify(history, null, 2);
+  const data = {
+    chatHistory: getChatHistory(),
+    preferences: getPreferences(),
+    memory: getAIMemory(),
+    reactions: getMessageReactions(),
+    exportedAt: new Date().toISOString(),
+  };
+  return JSON.stringify(data, null, 2);
 };
 
 export const importChatHistory = (jsonString: string): boolean => {
   try {
     const parsed = JSON.parse(jsonString);
-    if (!Array.isArray(parsed)) return false;
     
-    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(parsed));
+    if (parsed.chatHistory && Array.isArray(parsed.chatHistory)) {
+      localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(parsed.chatHistory));
+    }
+    
+    if (parsed.preferences) {
+      localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(parsed.preferences));
+    }
+    
+    if (parsed.memory) {
+      localStorage.setItem(STORAGE_KEYS.AI_MEMORY, JSON.stringify(parsed.memory));
+    }
+    
+    if (parsed.reactions) {
+      localStorage.setItem(STORAGE_KEYS.MESSAGE_REACTIONS, JSON.stringify(parsed.reactions));
+    }
+    
     return true;
   } catch {
     return false;
   }
 };
 
-// Generate UUID for session
-export const generateSessionId = (): string => {
-  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
+// ==================== CLEAR ALL DATA ====================
 
-// Generate title from first message
-export const generateSessionTitle = (firstMessage: string): string => {
-  const cleaned = firstMessage.trim();
-  if (cleaned.length <= 40) return cleaned;
-  return cleaned.substring(0, 40) + "...";
+export const clearAllData = (): void => {
+  Object.values(STORAGE_KEYS).forEach(key => {
+    localStorage.removeItem(key);
+  });
 };
