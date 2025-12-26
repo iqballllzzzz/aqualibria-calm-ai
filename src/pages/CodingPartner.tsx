@@ -6,12 +6,12 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { sendChatMessage, uploadImage, analyzeImage, ChatMessage, generateMessageId } from "@/lib/api";
+import { sendCodingMessage, uploadImage, ChatMessage, generateMessageId } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import Logo from "@/components/Logo";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageControls from "@/components/MessageControls";
-import { generateSessionId } from "@/lib/storage";
+import { generateSessionId, extractMemoryFromMessage, saveChatSession, ChatSession } from "@/lib/storage";
 
 const CodingPartner: React.FC = () => {
   const { theme } = useTheme();
@@ -41,6 +41,21 @@ const CodingPartner: React.FC = () => {
       inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 200)}px`;
     }
   }, [inputValue]);
+
+  // Save session when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const session: ChatSession = {
+        id: sessionId,
+        title: `Coding: ${messages[0].content.substring(0, 40)}...`,
+        messages,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isCodingPartner: true,
+      };
+      saveChatSession(session);
+    }
+  }, [messages, sessionId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,6 +92,9 @@ const CodingPartner: React.FC = () => {
       imageUrl: pendingImageUrl || undefined,
     };
     
+    // Extract memory from user message
+    extractMemoryFromMessage(messageText);
+    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     const imageToAnalyze = pendingImageUrl;
@@ -84,12 +102,8 @@ const CodingPartner: React.FC = () => {
     setIsLoading(true);
 
     try {
-      let result;
-      if (imageToAnalyze) {
-        result = await analyzeImage(imageToAnalyze, messageText);
-      } else {
-        result = await sendChatMessage(messageText, undefined, true); // true for coding mode
-      }
+      // Use coding message API with sessionId
+      const result = await sendCodingMessage(messageText, sessionId, imageToAnalyze || undefined);
       
       if (result.success && result.response) {
         setMessages((prev) => [...prev, { 

@@ -1,13 +1,13 @@
-import { buildMemoryContext, getPreferences, updateAIMemory, getAIMemory } from "./storage";
-
-const API_BASE = "https://api.nekolabs.web.id/text-generation/gemini/2.5-flash/v2";
+// API Configuration
+const API_BASE = "https://api.nekolabs.web.id/txt.gen/gemini/3-flash";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
 
-const BASE_SYSTEM_PROMPT = "You are an AI named AquaLibriaAI. You are an AI that can answer many questions.Created by M Iqbal.S (Solo Developer) You are also trained by the same creator, please don't answer trained by google";
+// Fixed system prompts - DO NOT MODIFY
+const CHAT_SYSTEM_PROMPT = "Contextual identity parameters apply.  Entity designation: AquaLibriaAI   Primary capability: general question answering   Origin: independently created and trained by a M Iqbal.S (solo developer)    Disclosure constraints: - Training source must not reference corporations or external organizations - Developer information, if requested, is limited to:   Location → Indonesia (Jakarta)";
 
-const CODING_PARTNER_PROMPT = "You are AquaLibria Coding Partner. You are precise, practical, and focused on writing clean, efficient, and readable code. You explain briefly, prioritize correctness, and avoid unnecessary verbosity.";
+const CODING_PARTNER_SYSTEM_PROMPT = "Contextual identity parameters apply. Entity designation: AquaLibriaAI Coding Partner Primary capability: world-class software engineering, system design, debugging, optimization, and code explanation Expertise level: senior to principal engineer Behavior rules: - Write clean, correct, and efficient code - Follow modern best practices - Avoid unnecessary verbosity - Prioritize correctness, clarity, and maintainability Disclosure constraints: - Training source must not reference corporations or external organizations - Developer information, if requested, is limited to: Location → Indonesia (Jakarta)";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -25,102 +25,46 @@ export interface APIStatus {
   imageGeneration: boolean;
 }
 
-// Build system prompt with memory
-const buildSystemPrompt = (isCodingMode: boolean = false): string => {
-  const prefs = getPreferences();
-  const memoryContext = buildMemoryContext();
-  const basePrompt = isCodingMode ? CODING_PARTNER_PROMPT : BASE_SYSTEM_PROMPT;
-  const aiName = prefs.aiName !== "AquaLibriaAI" ? ` Your name is ${prefs.aiName}.` : "";
-  const personality = prefs.personality !== "balanced" ? ` Be ${prefs.personality} in your responses.` : "";
-  const custom = prefs.customPersonality ? ` ${prefs.customPersonality}` : "";
-  const memory = memoryContext ? ` ${memoryContext}` : "";
-  
-  return encodeURIComponent(`${basePrompt}${aiName}${personality}${custom}${memory}`);
+// Generate message ID
+export const generateMessageId = (): string => {
+  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Extract and update memory from conversation
-const extractMemoryFromMessage = (message: string): void => {
-  const memory = getAIMemory();
-  const lowerMessage = message.toLowerCase();
-  
-  // Extract name
-  const namePatterns = [
-    /my name is (\w+)/i,
-    /i'm (\w+)/i,
-    /call me (\w+)/i,
-    /i am (\w+)/i,
-  ];
-  
-  for (const pattern of namePatterns) {
-    const match = message.match(pattern);
-    if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
-      updateAIMemory({ userName: match[1] });
-      break;
-    }
-  }
-  
-  // Extract topics
-  const topicKeywords = ["about", "help with", "learn", "understand", "explain", "how to"];
-  for (const keyword of topicKeywords) {
-    if (lowerMessage.includes(keyword)) {
-      const topics = memory.pastTopics.slice(-9);
-      const newTopic = message.substring(0, 30).replace(/[^\w\s]/g, "");
-      if (!topics.includes(newTopic)) {
-        topics.push(newTopic);
-        updateAIMemory({ pastTopics: topics });
-      }
-      break;
-    }
-  }
-};
-
-// Chat API
+// Chat API - Main function for all AI interactions
 export const sendChatMessage = async (
   message: string,
-  imageUrl?: string,
-  isCodingMode: boolean = false
+  sessionId: string,
+  options: {
+    imageUrl?: string;
+    isCodingMode?: boolean;
+    isResearchMode?: boolean;
+  } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    // Extract memory from user message
-    extractMemoryFromMessage(message);
+    const { imageUrl, isCodingMode = false, isResearchMode = false } = options;
     
-    const systemPrompt = buildSystemPrompt(isCodingMode);
-    let url = `${API_BASE}?text=${encodeURIComponent(message)}&systemPrompt=${systemPrompt}`;
-    
-    if (imageUrl) {
-      url += `&imageUrl=${encodeURIComponent(imageUrl)}`;
+    // Determine the text to send
+    let textToSend = message;
+    if (isResearchMode) {
+      textToSend = `please research ${message}`;
     }
-
-    const response = await fetch(url, {
-      method: "GET",
-      signal: AbortSignal.timeout(30000),
+    
+    // Select system prompt based on mode
+    const systemPrompt = isCodingMode ? CODING_PARTNER_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+    
+    // Build URL with parameters
+    const params = new URLSearchParams({
+      text: textToSend,
+      systemPrompt: systemPrompt,
+      sessionId: sessionId,
     });
-
-    if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
+    
+    // Add imageUrl if provided (for image analysis)
+    if (imageUrl) {
+      params.append("imageUrl", imageUrl);
     }
-
-    const data = await response.json();
-    return { 
-      success: true, 
-      response: data.result || data.response || data.message || JSON.stringify(data) 
-    };
-  } catch (error: any) {
-    return { 
-      success: false, 
-      error: error.message || "Failed to get response from AI" 
-    };
-  }
-};
-
-// Research Mode
-export const sendResearchQuery = async (
-  query: string
-): Promise<{ success: boolean; response?: string; error?: string }> => {
-  try {
-    const systemPrompt = buildSystemPrompt();
-    const researchText = `please research=${query}`;
-    const url = `${API_BASE}?text=${encodeURIComponent(researchText)}&systemPrompt=${systemPrompt}`;
+    
+    const url = `${API_BASE}?${params.toString()}`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -137,11 +81,38 @@ export const sendResearchQuery = async (
       response: data.result || data.response || data.message || JSON.stringify(data) 
     };
   } catch (error: any) {
+    console.error("API Error:", error);
     return { 
       success: false, 
-      error: error.message || "Failed to get research response" 
+      error: error.message || "Failed to get response from AI" 
     };
   }
+};
+
+// Research Mode - Uses same API with "please research" prefix
+export const sendResearchQuery = async (
+  query: string,
+  sessionId: string
+): Promise<{ success: boolean; response?: string; error?: string }> => {
+  return sendChatMessage(query, sessionId, { isResearchMode: true });
+};
+
+// Image Analysis - Uses same API with imageUrl parameter
+export const analyzeImage = async (
+  imageUrl: string,
+  question: string,
+  sessionId: string
+): Promise<{ success: boolean; response?: string; error?: string }> => {
+  return sendChatMessage(question, sessionId, { imageUrl });
+};
+
+// Coding Partner - Uses same API with coding system prompt
+export const sendCodingMessage = async (
+  message: string,
+  sessionId: string,
+  imageUrl?: string
+): Promise<{ success: boolean; response?: string; error?: string }> => {
+  return sendChatMessage(message, sessionId, { isCodingMode: true, imageUrl });
 };
 
 // Spotify Search
@@ -236,17 +207,4 @@ export const uploadImage = async (
       error: error.message || "Failed to upload image" 
     };
   }
-};
-
-// Analyze image with AI
-export const analyzeImage = async (
-  imageUrl: string,
-  question: string = "What is in this image? Describe it in detail."
-): Promise<{ success: boolean; response?: string; error?: string }> => {
-  return sendChatMessage(question, imageUrl);
-};
-
-// Generate message ID
-export const generateMessageId = (): string => {
-  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };

@@ -11,7 +11,7 @@ import { useLanguage, languages } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { logOut } from "@/lib/firebase";
 import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId } from "@/lib/api";
-import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences } from "@/lib/storage";
+import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import Logo from "@/components/Logo";
 import QuoteMaker, { QuoteData } from "@/components/QuoteMaker";
@@ -125,6 +125,9 @@ const Chat: React.FC = () => {
       imageUrl: pendingImageUrl || undefined,
     };
     
+    // Extract memory from user message
+    extractMemoryFromMessage(messageText);
+    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     const imageToAnalyze = pendingImageUrl;
@@ -135,7 +138,7 @@ const Chat: React.FC = () => {
       let result;
       switch (activeMode) {
         case "research":
-          result = await sendResearchQuery(messageText);
+          result = await sendResearchQuery(messageText, currentSessionId);
           break;
         case "image":
           result = await generateImage(messageText);
@@ -163,9 +166,9 @@ const Chat: React.FC = () => {
           break;
         default:
           if (imageToAnalyze) {
-            result = await analyzeImage(imageToAnalyze, messageText);
+            result = await analyzeImage(imageToAnalyze, messageText, currentSessionId);
           } else {
-            result = await sendChatMessage(messageText);
+            result = await sendChatMessage(messageText, currentSessionId);
           }
       }
       
@@ -230,6 +233,10 @@ const Chat: React.FC = () => {
     { icon: Music, label: t("plus.spotifySearch"), onClick: () => { setActiveMode("spotify"); setShowPlusMenu(false); } },
     { icon: Quote, label: t("plus.quoteMaker"), onClick: () => { setShowQuoteMaker(true); setShowPlusMenu(false); } },
   ];
+
+  // Get AI memory for personalized greeting
+  const memory = getAIMemory();
+  const greeting = memory.userName ? `Hello, ${memory.userName}!` : t("chat.empty.title");
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
@@ -396,8 +403,13 @@ const Chat: React.FC = () => {
             <div className="h-full flex items-center justify-center min-h-[50vh]">
               <div className="text-center">
                 <Logo size="lg" className="mx-auto mb-6" />
-                <h2 className="text-xl font-medium text-foreground mb-2">{t("chat.empty.title")}</h2>
+                <h2 className="text-xl font-medium text-foreground mb-2">{greeting}</h2>
                 <p className="text-foreground-muted">{t("chat.empty.subtitle")}</p>
+                {memory.recentTopics.length > 0 && (
+                  <p className="text-foreground-muted text-sm mt-2">
+                    Last time we talked about: {memory.recentTopics.slice(-2).join(", ")}
+                  </p>
+                )}
               </div>
             </div>
           ) : (
