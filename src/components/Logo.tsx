@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "@/contexts/ThemeContext";
-import logoImage from "@/assets/logo.jpg";
+import logoLight from "@/assets/logo.jpg";
+import logoDark from "@/assets/logo-dark.jpg";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -16,6 +17,7 @@ const sizeClasses = {
 
 const Logo: React.FC<LogoProps> = ({ size = "md", className = "" }) => {
   const { theme } = useTheme();
+  const logoImage = theme === "dark" ? logoDark : logoLight;
 
   return (
     <div 
