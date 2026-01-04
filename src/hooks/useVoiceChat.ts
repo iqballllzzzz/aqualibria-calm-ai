@@ -57,7 +57,7 @@ export const useVoiceChat = ({
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize speech recognition
+  // Initialize speech recognition with multilingual support
   useEffect(() => {
     const SpeechRecognitionAPI =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -69,23 +69,45 @@ export const useVoiceChat = ({
 
     const recognition = new SpeechRecognitionAPI();
     recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    // Empty string enables automatic language detection (multilingual support)
+    recognition.lang = "";
+
+    let finalResult = "";
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      onTranscript(transcript);
-      setIsListening(false);
+      let interimTranscript = "";
+      
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalResult = result[0].transcript;
+        } else {
+          interimTranscript += result[0].transcript;
+        }
+      }
+
+      // Show interim results while speaking
+      if (interimTranscript) {
+        onTranscript(interimTranscript);
+      }
     };
 
     recognition.onerror = (event) => {
       console.error("Speech recognition error:", event.error);
-      setError(`Speech recognition error: ${event.error}`);
+      if (event.error !== "aborted" && event.error !== "no-speech") {
+        setError(`Speech recognition error: ${event.error}`);
+      }
       setIsListening(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      // Send final result when recognition ends
+      if (finalResult) {
+        onTranscript(finalResult);
+        finalResult = "";
+      }
     };
 
     recognitionRef.current = recognition;
