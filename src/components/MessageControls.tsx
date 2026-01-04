@@ -7,6 +7,7 @@ interface MessageControlsProps {
   sessionId: string;
   content: string;
   className?: string;
+  isAssistant?: boolean;
 }
 
 const MessageControls: React.FC<MessageControlsProps> = ({
@@ -14,6 +15,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
   sessionId,
   content,
   className = "",
+  isAssistant = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"like" | "dislike" | null>(
@@ -41,28 +43,32 @@ const MessageControls: React.FC<MessageControlsProps> = ({
       >
         {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
       </button>
-      <button
-        onClick={() => handleReaction("like")}
-        className={`p-1.5 rounded-md transition-colors ${
-          reaction === "like"
-            ? "text-foreground bg-accent"
-            : "text-foreground-muted hover:text-foreground hover:bg-accent/50"
-        }`}
-        title="Like"
-      >
-        <ThumbsUp className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={() => handleReaction("dislike")}
-        className={`p-1.5 rounded-md transition-colors ${
-          reaction === "dislike"
-            ? "text-foreground bg-accent"
-            : "text-foreground-muted hover:text-foreground hover:bg-accent/50"
-        }`}
-        title="Dislike"
-      >
-        <ThumbsDown className="w-3.5 h-3.5" />
-      </button>
+      {isAssistant && (
+        <>
+          <button
+            onClick={() => handleReaction("like")}
+            className={`p-1.5 rounded-md transition-colors ${
+              reaction === "like"
+                ? "text-foreground bg-accent"
+                : "text-foreground-muted hover:text-foreground hover:bg-accent/50"
+            }`}
+            title="Like"
+          >
+            <ThumbsUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleReaction("dislike")}
+            className={`p-1.5 rounded-md transition-colors ${
+              reaction === "dislike"
+                ? "text-foreground bg-accent"
+                : "text-foreground-muted hover:text-foreground hover:bg-accent/50"
+            }`}
+            title="Dislike"
+          >
+            <ThumbsDown className="w-3.5 h-3.5" />
+          </button>
+        </>
+      )}
     </div>
   );
 };

@@ -1,23 +1,26 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Send, Menu, X, Image, Settings as SettingsIcon,
   Search, Sparkles, Music, Quote, Moon, Sun, MessageSquare, Code, Globe,
-  ChevronRight, Download, ArrowLeft, Loader2, LogOut,
+  ChevronRight, Download, ArrowLeft, Loader2, LogOut, Mic, MicOff, Volume2,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage, languages } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { logOut } from "@/lib/firebase";
-import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId, VoiceOption, VOICE_OPTIONS } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
 import QuoteMaker, { QuoteData } from "@/components/QuoteMaker";
 import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageControls from "@/components/MessageControls";
+import SoundWaveAnimation from "@/components/SoundWaveAnimation";
+import VoiceSettingsModal from "@/components/VoiceSettingsModal";
 
 const Chat: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -42,10 +45,41 @@ const Chat: React.FC = () => {
   const [preferences] = useState(getPreferences());
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("ethan");
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestAIResponseRef = useRef<string | null>(null);
+
+  // Handle voice transcript
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setInputValue(text);
+  }, []);
+
+  // Voice chat hook
+  const {
+    isListening,
+    isSpeaking,
+    isLoadingAudio,
+    startListening,
+    stopListening,
+    speakText,
+    stopSpeaking,
+    error: voiceError,
+  } = useVoiceChat({
+    onTranscript: handleVoiceTranscript,
+    selectedVoice,
+  });
+
+  // Show voice errors
+  useEffect(() => {
+    if (voiceError) {
+      toast({ title: "Voice Error", description: voiceError, variant: "destructive" });
+    }
+  }, [voiceError, toast]);
 
   useEffect(() => {
     setChatHistory(getChatHistory());
@@ -173,12 +207,27 @@ const Chat: React.FC = () => {
       }
       
       if (result.success && result.response) {
+        const aiResponse = result.response;
+        latestAIResponseRef.current = aiResponse;
         setMessages((prev) => [...prev, { 
           role: "assistant", 
-          content: result.response, 
+          content: aiResponse, 
           timestamp: new Date(),
           id: generateMessageId(),
         }]);
+        
+        // Auto-speak AI response if enabled
+        if (autoSpeak) {
+          // Clean markdown and limit length for speech
+          const cleanText = aiResponse
+            .replace(/\*\*/g, "")
+            .replace(/\*/g, "")
+            .replace(/`{1,3}[^`]*`{1,3}/g, "code block")
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+            .replace(/#{1,6}\s*/g, "")
+            .slice(0, 500);
+          speakText(cleanText);
+        }
       } else {
         toast({ title: "Error", description: result.error || "Failed to get response", variant: "destructive" });
       }
@@ -456,7 +505,8 @@ const Chat: React.FC = () => {
                       <MessageControls 
                         messageId={message.id || `${index}`} 
                         sessionId={currentSessionId} 
-                        content={message.content} 
+                        content={message.content}
+                        isAssistant={message.role === "assistant"}
                       />
                     </div>
                   </div>
@@ -564,13 +614,47 @@ const Chat: React.FC = () => {
               rows={1} 
               className="flex-1 bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none py-2 max-h-[200px]" 
             />
-            <button 
-              onClick={handleSendMessage} 
-              disabled={(!inputValue.trim() && !pendingImageUrl) || isLoading} 
-              className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
+            {/* Voice Settings Button */}
+            <button
+              onClick={() => setShowVoiceSettings(true)}
+              className="p-2 rounded-xl hover:bg-accent transition-colors"
+              title="Voice settings"
             >
-              <Send className="w-5 h-5" />
+              <Volume2 className="w-5 h-5 text-foreground-muted" />
             </button>
+
+            {/* Send or Voice Button */}
+            {inputValue.trim() || pendingImageUrl ? (
+              <button 
+                onClick={handleSendMessage} 
+                disabled={isLoading} 
+                className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            ) : isSpeaking || isLoadingAudio ? (
+              <button 
+                onClick={stopSpeaking} 
+                className="p-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all btn-press relative"
+              >
+                <SoundWaveAnimation isActive={isSpeaking} />
+              </button>
+            ) : isListening ? (
+              <button 
+                onClick={stopListening} 
+                className="p-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all btn-press animate-pulse"
+              >
+                <MicOff className="w-5 h-5" />
+              </button>
+            ) : (
+              <button 
+                onClick={startListening} 
+                disabled={isLoading}
+                className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -605,6 +689,13 @@ const Chat: React.FC = () => {
       </AnimatePresence>
       
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
+      
+      <VoiceSettingsModal
+        isOpen={showVoiceSettings}
+        onClose={() => setShowVoiceSettings(false)}
+        selectedVoice={selectedVoice}
+        onSelectVoice={setSelectedVoice}
+      />
     </div>
   );
 };

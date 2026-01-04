@@ -3,6 +3,11 @@ const API_BASE = "https://api.nekolabs.web.id/txt.gen/gemini/3-flash";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
+const TTS_API = "https://api.nekolabs.web.id/tools/tts/qwen";
+
+// Voice options for TTS
+export const VOICE_OPTIONS = ["ethan", "dylan", "sunny", "jada", "serena", "chelsie"] as const;
+export type VoiceOption = typeof VOICE_OPTIONS[number];
 
 // Fixed system prompts - DO NOT MODIFY
 const CHAT_SYSTEM_PROMPT = "Contextual identity parameters apply.  Entity designation: AquaLibriaAI   Primary capability: general question answering   Origin: independently created and trained by a M Iqbal.S (solo developer)    Disclosure constraints: - Training source must not reference corporations or external organizations - Developer information, if requested, is limited to:   Location → Indonesia (Jakarta)";
@@ -205,6 +210,42 @@ export const uploadImage = async (
     return { 
       success: false, 
       error: error.message || "Failed to upload image" 
+    };
+  }
+};
+
+// Text to Speech API
+export const textToSpeech = async (
+  text: string,
+  voice: VoiceOption = "ethan"
+): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+  try {
+    const params = new URLSearchParams({
+      text: text,
+      voice: voice,
+    });
+
+    const response = await fetch(`${TTS_API}?${params.toString()}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TTS API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.success && data.result) {
+      return { success: true, audioUrl: data.result };
+    } else {
+      throw new Error("No audio URL returned from TTS API");
+    }
+  } catch (error: any) {
+    console.error("TTS Error:", error);
+    return { 
+      success: false, 
+      error: error.message || "Failed to generate speech" 
     };
   }
 };
