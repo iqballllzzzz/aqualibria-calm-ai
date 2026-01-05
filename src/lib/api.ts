@@ -5,22 +5,27 @@ const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
 const TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
 
-// Voice options for TTS - API names mapped to friendly display names
-export const VOICE_OPTIONS_MAP = {
-  Fenrir: "Ethan",      // Male voice
-  Leda: "Sophia",       // Female voice
-  Zephyr: "Dylan",      // Male voice
-  Aoede: "Luna",        // Female voice
-  Charon: "James",      // Male deep voice
-  Kore: "Emma",         // Female soft voice
-  Puck: "Oliver",       // Male light voice
-  Orus: "Ava",          // Female warm voice
+// Voice options for TTS - API model names mapped to friendly display names
+// Models: Fenrir, Leda, Zephyr, Aoede, Charon, Kore, Puck, Orus
+export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = {
+  Fenrir: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
+  Leda: { displayName: "Sophia", gender: "female", description: "Warm & elegant" },
+  Zephyr: { displayName: "Alex", gender: "male", description: "Calm & smooth" },
+  Aoede: { displayName: "Luna", gender: "female", description: "Melodic & soft" },
+  Charon: { displayName: "Marcus", gender: "male", description: "Strong & deep" },
+  Kore: { displayName: "Emma", gender: "female", description: "Gentle & clear" },
+  Puck: { displayName: "Oliver", gender: "male", description: "Light & friendly" },
+  Orus: { displayName: "Ava", gender: "female", description: "Warm & expressive" },
 } as const;
 
-export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as (keyof typeof VOICE_OPTIONS_MAP)[];
+export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as VoiceOption[];
 export type VoiceOption = keyof typeof VOICE_OPTIONS_MAP;
 
 export const getVoiceDisplayName = (voice: VoiceOption): string => {
+  return VOICE_OPTIONS_MAP[voice]?.displayName || voice;
+};
+
+export const getVoiceInfo = (voice: VoiceOption) => {
   return VOICE_OPTIONS_MAP[voice];
 };
 

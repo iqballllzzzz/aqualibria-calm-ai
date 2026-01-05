@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Volume2, ChevronDown } from "lucide-react";
-import { VoiceOption, VOICE_OPTIONS, getVoiceDisplayName, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
+import { X, Mic, MicOff, Volume2, ChevronDown, User, Bot } from "lucide-react";
+import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, getVoiceInfo, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
-
 
 interface VoiceCallModalProps {
   isOpen: boolean;
@@ -21,6 +20,8 @@ interface ConversationMessage {
   content: string;
   id: string;
 }
+
+const SILENCE_TIMEOUT_MS = 2500; // Auto-send after 2.5s of silence
 
 const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   isOpen,
@@ -44,6 +45,8 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTranscriptRef = useRef<string>("");
 
   // Initialize speech recognition with multilingual support
   useEffect(() => {
@@ -77,31 +80,50 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         }
       }
 
-      if (finalTranscript) {
-        setTranscript(finalTranscript);
-      } else if (interimTranscript) {
-        setTranscript(interimTranscript);
+      const currentTranscript = finalTranscript || interimTranscript;
+      if (currentTranscript) {
+        setTranscript(currentTranscript);
+        lastTranscriptRef.current = currentTranscript;
+        
+        // Reset silence timer on new speech
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        
+        // Start silence detection timer - auto-send after silence
+        silenceTimerRef.current = setTimeout(() => {
+          if (lastTranscriptRef.current.trim() && callState === "listening") {
+            recognitionRef.current?.stop();
+            processUserInput(lastTranscriptRef.current);
+          }
+        }, SILENCE_TIMEOUT_MS);
       }
     };
 
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error);
-      if (event.error !== "aborted") {
+      if (event.error !== "aborted" && event.error !== "no-speech") {
         setError(`Recognition error: ${event.error}`);
       }
-      setCallState("idle");
+      // On no-speech, restart listening
+      if (event.error === "no-speech" && isOpen) {
+        setTimeout(() => startListening(), 500);
+      }
     };
 
     recognition.onend = () => {
-      // If we were listening and have a transcript, process it
-      if (callState === "listening" && transcript.trim()) {
-        processUserInput(transcript);
+      // Clear silence timer
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
       }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
       recognition.abort();
     };
   }, [isOpen]);
@@ -169,6 +191,12 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     setError(null);
     setTranscript("");
     setAiResponse("");
+    lastTranscriptRef.current = "";
+    
+    // Clear any existing silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
     
     try {
       recognitionRef.current.start();
@@ -180,6 +208,9 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   }, []);
 
   const stopListening = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
     if (recognitionRef.current && callState === "listening") {
       recognitionRef.current.stop();
     }
@@ -441,24 +472,37 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full right-0 mt-2 w-40 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-64 overflow-y-auto"
+                    className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-80 overflow-y-auto"
                   >
-                    {VOICE_OPTIONS.map((voice) => (
-                      <button
-                        key={voice}
-                        onClick={() => {
-                          onSelectVoice(voice);
-                          setShowVoiceSelector(false);
-                        }}
-                        className={`w-full px-4 py-3 text-left text-sm transition-colors ${
-                          selectedVoice === voice
-                            ? "bg-accent text-foreground"
-                            : "text-foreground-muted hover:bg-accent/50"
-                        }`}
-                      >
-                        {getVoiceDisplayName(voice)}
-                      </button>
-                    ))}
+                    {VOICE_OPTIONS.map((voice) => {
+                      const info = getVoiceInfo(voice);
+                      return (
+                        <button
+                          key={voice}
+                          onClick={() => {
+                            onSelectVoice(voice);
+                            setShowVoiceSelector(false);
+                          }}
+                          className={`w-full px-4 py-3 text-left transition-colors ${
+                            selectedVoice === voice
+                              ? "bg-accent text-foreground"
+                              : "text-foreground-muted hover:bg-accent/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm">{info.displayName}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              info.gender === "male" 
+                                ? "bg-blue-500/20 text-blue-400" 
+                                : "bg-pink-500/20 text-pink-400"
+                            }`}>
+                              {info.gender === "male" ? "♂" : "♀"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-foreground-muted mt-0.5">{info.description}</p>
+                        </button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
