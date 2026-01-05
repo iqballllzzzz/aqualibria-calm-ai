@@ -1,19 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mic, MicOff, Volume2, ChevronDown } from "lucide-react";
-import { VoiceOption, VOICE_OPTIONS, textToSpeech, sendChatMessage } from "@/lib/api";
+import { VoiceOption, VOICE_OPTIONS, getVoiceDisplayName, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+
 interface VoiceCallModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (messages: ChatMessage[]) => void;
   selectedVoice: VoiceOption;
   onSelectVoice: (voice: VoiceOption) => void;
   sessionId: string;
 }
 
 type CallState = "idle" | "listening" | "processing" | "speaking";
+
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+  id: string;
+}
 
 const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   isOpen,
@@ -28,9 +35,15 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const [aiResponse, setAiResponse] = useState("");
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [audioAnalyser, setAudioAnalyser] = useState<AnalyserNode | null>(null);
+  const [audioData, setAudioData] = useState<number[]>(new Array(5).fill(0));
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
 
   // Initialize speech recognition with multilingual support
   useEffect(() => {
@@ -50,7 +63,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     // Empty string enables automatic language detection for multilingual support
     recognition.lang = "";
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: any) => {
       let finalTranscript = "";
       let interimTranscript = "";
 
@@ -71,7 +84,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       }
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error);
       if (event.error !== "aborted") {
         setError(`Recognition error: ${event.error}`);
@@ -93,12 +106,62 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     };
   }, [isOpen]);
 
+  // Scroll conversation to bottom
+  useEffect(() => {
+    if (conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
+  }, [conversation]);
+
   // Start listening automatically when modal opens
   useEffect(() => {
     if (isOpen && callState === "idle") {
       startListening();
     }
   }, [isOpen]);
+
+  // Analyze audio for sound wave animation
+  const analyzeAudio = useCallback(() => {
+    if (!audioAnalyser) return;
+
+    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+    audioAnalyser.getByteFrequencyData(dataArray);
+
+    // Get 5 frequency bands for the sound wave bars
+    const bands = 5;
+    const bandSize = Math.floor(dataArray.length / bands);
+    const newData = [];
+
+    for (let i = 0; i < bands; i++) {
+      let sum = 0;
+      for (let j = 0; j < bandSize; j++) {
+        sum += dataArray[i * bandSize + j];
+      }
+      // Normalize to 0-1 range
+      newData.push(sum / (bandSize * 255));
+    }
+
+    setAudioData(newData);
+    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+  }, [audioAnalyser]);
+
+  // Start audio analysis when speaking
+  useEffect(() => {
+    if (callState === "speaking" && audioAnalyser) {
+      animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    } else {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      setAudioData(new Array(5).fill(0));
+    }
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [callState, audioAnalyser, analyzeAudio]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -128,6 +191,14 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       return;
     }
 
+    // Add user message to conversation
+    const userMsg: ConversationMessage = {
+      role: "user",
+      content: input,
+      id: generateMessageId(),
+    };
+    setConversation(prev => [...prev, userMsg]);
+
     setCallState("processing");
     extractMemoryFromMessage(input);
 
@@ -136,6 +207,15 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       
       if (result.success && result.response) {
         setAiResponse(result.response);
+        
+        // Add AI message to conversation
+        const aiMsg: ConversationMessage = {
+          role: "assistant",
+          content: result.response,
+          id: generateMessageId(),
+        };
+        setConversation(prev => [...prev, aiMsg]);
+        
         await speakResponse(result.response);
       } else {
         setError(result.error || "Failed to get AI response");
@@ -157,7 +237,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       .replace(/`{1,3}[^`]*`{1,3}/g, "code block")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/#{1,6}\s*/g, "")
-      .slice(0, 800);
+      .slice(0, 1000);
 
     try {
       const result = await textToSpeech(cleanText, selectedVoice);
@@ -170,8 +250,26 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         const audio = new Audio(result.audioUrl);
         audioRef.current = audio;
 
+        // Set up audio context for visualization
+        try {
+          const audioContext = new AudioContext();
+          audioContextRef.current = audioContext;
+          const source = audioContext.createMediaElementSource(audio);
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 64;
+          source.connect(analyser);
+          analyser.connect(audioContext.destination);
+          setAudioAnalyser(analyser);
+        } catch (e) {
+          console.warn("Audio analysis not supported:", e);
+        }
+
         audio.onended = () => {
           setCallState("idle");
+          setAudioAnalyser(null);
+          if (result.audioUrl) {
+            URL.revokeObjectURL(result.audioUrl);
+          }
           // Auto-start listening again for continuous conversation
           setTimeout(() => {
             if (isOpen) startListening();
@@ -202,11 +300,26 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       audioRef.current.pause();
       audioRef.current = null;
     }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
+    
+    // Convert conversation to ChatMessage format for saving
+    const chatMessages: ChatMessage[] = conversation.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: new Date(),
+      id: msg.id,
+      isVoiceChat: true,
+    }));
+    
     setCallState("idle");
     setTranscript("");
     setAiResponse("");
     setError(null);
-    onClose();
+    setConversation([]);
+    setAudioAnalyser(null);
+    onClose(chatMessages);
   };
 
   const handleMicToggle = () => {
@@ -229,36 +342,40 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
-  // Sound wave bars animation
+  // Sound wave bars animation - reactive to audio
   const renderSoundWave = () => {
     const barCount = 5;
     const isActive = callState === "speaking" || callState === "processing";
     
     return (
-      <div className="flex items-center justify-center gap-1 h-32">
-        {Array.from({ length: barCount }).map((_, index) => (
-          <motion.div
-            key={index}
-            className="w-2 bg-foreground rounded-full"
-            animate={
-              isActive
-                ? {
-                    height: ["24px", "80px", "40px", "72px", "24px"],
-                  }
-                : { height: "24px" }
-            }
-            transition={
-              isActive
-                ? {
-                    duration: 0.8,
-                    repeat: Infinity,
-                    delay: index * 0.1,
-                    ease: "easeInOut",
-                  }
-                : { duration: 0.3 }
-            }
-          />
-        ))}
+      <div className="flex items-center justify-center gap-1.5 h-32">
+        {Array.from({ length: barCount }).map((_, index) => {
+          const height = isActive 
+            ? 24 + (audioData[index] || 0) * 80
+            : 24;
+          
+          return (
+            <motion.div
+              key={index}
+              className="w-2 bg-foreground rounded-full"
+              animate={{
+                height: callState === "processing" 
+                  ? [24, 60, 40, 72, 24]
+                  : height,
+              }}
+              transition={
+                callState === "processing"
+                  ? {
+                      duration: 0.8,
+                      repeat: Infinity,
+                      delay: index * 0.1,
+                      ease: "easeInOut",
+                    }
+                  : { duration: 0.1, ease: "linear" }
+              }
+            />
+          );
+        })}
       </div>
     );
   };
@@ -270,7 +387,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       case "processing":
         return "AquaLibriaAI is thinking...";
       case "speaking":
-        return aiResponse.slice(0, 100) + (aiResponse.length > 100 ? "..." : "");
+        return "Speaking...";
       default:
         return "Tap to speak";
     }
@@ -292,6 +409,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
               className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[150%] h-[40%] rounded-t-[100%] bg-gradient-to-t from-accent/30 to-transparent blur-3xl"
               animate={{
                 scale: callState === "speaking" || callState === "processing" ? [1, 1.1, 1] : 1,
+                opacity: callState === "speaking" ? [0.3, 0.5, 0.3] : 0.3,
               }}
               transition={{ duration: 2, repeat: Infinity }}
             />
@@ -313,7 +431,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-accent/50 hover:bg-accent transition-colors"
               >
                 <Volume2 className="w-4 h-4 text-foreground-muted" />
-                <span className="text-sm capitalize text-foreground">{selectedVoice}</span>
+                <span className="text-sm text-foreground">{getVoiceDisplayName(selectedVoice)}</span>
                 <ChevronDown className={`w-4 h-4 text-foreground-muted transition-transform ${showVoiceSelector ? "rotate-180" : ""}`} />
               </button>
               
@@ -323,7 +441,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full right-0 mt-2 w-40 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden"
+                    className="absolute top-full right-0 mt-2 w-40 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-64 overflow-y-auto"
                   >
                     {VOICE_OPTIONS.map((voice) => (
                       <button
@@ -332,13 +450,13 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                           onSelectVoice(voice);
                           setShowVoiceSelector(false);
                         }}
-                        className={`w-full px-4 py-3 text-left text-sm capitalize transition-colors ${
+                        className={`w-full px-4 py-3 text-left text-sm transition-colors ${
                           selectedVoice === voice
                             ? "bg-accent text-foreground"
                             : "text-foreground-muted hover:bg-accent/50"
                         }`}
                       >
-                        {voice}
+                        {getVoiceDisplayName(voice)}
                       </button>
                     ))}
                   </motion.div>
@@ -384,6 +502,29 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
               >
                 {error}
               </motion.p>
+            )}
+
+            {/* Conversation History */}
+            {conversation.length > 0 && (
+              <div 
+                ref={conversationRef}
+                className="w-full max-w-md mt-6 max-h-40 overflow-y-auto space-y-2 px-4"
+              >
+                {conversation.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`text-sm p-2 rounded-lg ${
+                      msg.role === "user"
+                        ? "bg-foreground/5 text-foreground-muted ml-8"
+                        : "bg-accent/30 text-foreground mr-8"
+                    }`}
+                  >
+                    {msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}
+                  </motion.div>
+                ))}
+              </div>
             )}
           </div>
 

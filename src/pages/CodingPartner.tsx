@@ -2,15 +2,17 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Send, ArrowLeft, Image, Loader2, X,
+  Plus, Send, ArrowLeft, Image, Loader2, X, Mic, MicOff, AudioLines,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { sendCodingMessage, uploadImage, ChatMessage, generateMessageId } from "@/lib/api";
+import { sendCodingMessage, uploadImage, ChatMessage, generateMessageId, VoiceOption } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageControls from "@/components/MessageControls";
+import VoiceCallModal from "@/components/VoiceCallModal";
 import { generateSessionId, extractMemoryFromMessage, saveChatSession, ChatSession } from "@/lib/storage";
 
 const CodingPartner: React.FC = () => {
@@ -26,6 +28,22 @@ const CodingPartner: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [sessionId] = useState(generateSessionId());
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
+  const [showVoiceCall, setShowVoiceCall] = useState(false);
+
+  // Handle voice transcript
+  const handleVoiceTranscript = (text: string) => {
+    setInputValue(text);
+  };
+
+  const {
+    isListening,
+    startListening,
+    stopListening,
+  } = useVoiceChat({
+    onTranscript: handleVoiceTranscript,
+    selectedVoice,
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -173,8 +191,12 @@ const CodingPartner: React.FC = () => {
                 >
                   <div className={`max-w-[90%] rounded-2xl px-4 py-3 ${
                     message.role === "user" 
-                      ? "bg-chat-user text-foreground" 
-                      : "bg-chat-ai text-foreground border border-border"
+                      ? message.isVoiceChat 
+                        ? "bg-foreground/10 text-foreground-muted" 
+                        : "bg-chat-user text-foreground"
+                      : message.isVoiceChat
+                        ? "bg-foreground/5 text-foreground border border-border/50"
+                        : "bg-chat-ai text-foreground border border-border"
                   }`}>
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-3">
@@ -190,12 +212,19 @@ const CodingPartner: React.FC = () => {
                     ) : (
                       <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                     )}
-                    <div className="mt-2 flex justify-end">
-                      <MessageControls 
-                        messageId={message.id || `${index}`} 
-                        sessionId={sessionId} 
-                        content={message.content} 
-                      />
+                    <div className="mt-2 flex items-center justify-between">
+                      {message.isVoiceChat && (
+                        <span className="text-xs text-foreground-muted italic">voice chat</span>
+                      )}
+                      <div className="flex-1 flex justify-end">
+                        <MessageControls 
+                          messageId={message.id || `${index}`} 
+                          sessionId={sessionId} 
+                          content={message.content}
+                          isAssistant={message.role === "assistant"}
+                          selectedVoice={selectedVoice}
+                        />
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -278,16 +307,60 @@ const CodingPartner: React.FC = () => {
               rows={1} 
               className="flex-1 bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none py-2 max-h-[200px]" 
             />
-            <button 
-              onClick={handleSendMessage} 
-              disabled={(!inputValue.trim() && !pendingImageUrl) || isLoading} 
-              className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+            {/* Mic Button for Speech-to-Text */}
+            {isListening ? (
+              <button 
+                onClick={stopListening} 
+                className="p-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all btn-press animate-pulse"
+                title="Stop recording"
+              >
+                <MicOff className="w-5 h-5" />
+              </button>
+            ) : (
+              <button 
+                onClick={startListening} 
+                disabled={isLoading}
+                className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Voice to text"
+              >
+                <Mic className="w-5 h-5 text-foreground-muted" />
+              </button>
+            )}
+
+            {/* Send or Voice Call Button */}
+            {inputValue.trim() || pendingImageUrl ? (
+              <button 
+                onClick={handleSendMessage} 
+                disabled={isLoading} 
+                className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            ) : (
+              <button 
+                onClick={() => setShowVoiceCall(true)} 
+                className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all btn-press"
+                title="Voice call with AI"
+              >
+                <AudioLines className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
+      
+      <VoiceCallModal
+        isOpen={showVoiceCall}
+        onClose={(voiceMessages) => {
+          setShowVoiceCall(false);
+          if (voiceMessages && voiceMessages.length > 0) {
+            setMessages((prev) => [...prev, ...voiceMessages]);
+          }
+        }}
+        selectedVoice={selectedVoice}
+        onSelectVoice={setSelectedVoice}
+        sessionId={sessionId}
+      />
     </div>
   );
 };
