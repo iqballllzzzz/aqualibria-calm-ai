@@ -3,11 +3,26 @@ const API_BASE = "https://api.nekolabs.web.id/txt.gen/gemini/3-flash";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
-const TTS_API = "https://api.nekolabs.web.id/tools/tts/qwen";
+const TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
 
-// Voice options for TTS
-export const VOICE_OPTIONS = ["ethan", "dylan", "sunny", "jada", "serena", "chelsie"] as const;
-export type VoiceOption = typeof VOICE_OPTIONS[number];
+// Voice options for TTS - API names mapped to friendly display names
+export const VOICE_OPTIONS_MAP = {
+  Fenrir: "Ethan",      // Male voice
+  Leda: "Sophia",       // Female voice
+  Zephyr: "Dylan",      // Male voice
+  Aoede: "Luna",        // Female voice
+  Charon: "James",      // Male deep voice
+  Kore: "Emma",         // Female soft voice
+  Puck: "Oliver",       // Male light voice
+  Orus: "Ava",          // Female warm voice
+} as const;
+
+export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as (keyof typeof VOICE_OPTIONS_MAP)[];
+export type VoiceOption = keyof typeof VOICE_OPTIONS_MAP;
+
+export const getVoiceDisplayName = (voice: VoiceOption): string => {
+  return VOICE_OPTIONS_MAP[voice];
+};
 
 // Fixed system prompts - DO NOT MODIFY
 const CHAT_SYSTEM_PROMPT = "Contextual identity parameters apply.  Entity designation: AquaLibriaAI   Primary capability: general question answering   Origin: independently created and trained by a M Iqbal.S (solo developer)    Disclosure constraints: - Training source must not reference corporations or external organizations - Developer information, if requested, is limited to:   Location → Indonesia (Jakarta)";
@@ -20,6 +35,7 @@ export interface ChatMessage {
   timestamp: Date;
   imageUrl?: string;
   id?: string;
+  isVoiceChat?: boolean;
 }
 
 export interface APIStatus {
@@ -214,33 +230,33 @@ export const uploadImage = async (
   }
 };
 
-// Text to Speech API
+// Text to Speech API - returns audio blob URL
 export const textToSpeech = async (
   text: string,
-  voice: VoiceOption = "ethan"
+  voice: VoiceOption = "Fenrir"
 ): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
     const params = new URLSearchParams({
       text: text,
+      style: "default",
       voice: voice,
     });
 
     const response = await fetch(`${TTS_API}?${params.toString()}`, {
       method: "GET",
-      signal: AbortSignal.timeout(60000),
+      headers: { accept: "audio/wav" },
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
       throw new Error(`TTS API returned ${response.status}`);
     }
 
-    const data = await response.json();
+    // Create blob URL from audio response
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
     
-    if (data.success && data.result) {
-      return { success: true, audioUrl: data.result };
-    } else {
-      throw new Error("No audio URL returned from TTS API");
-    }
+    return { success: true, audioUrl };
   } catch (error: any) {
     console.error("TTS Error:", error);
     return { 

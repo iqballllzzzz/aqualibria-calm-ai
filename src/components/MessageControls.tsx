@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { setMessageReaction, getMessageReaction } from "@/lib/storage";
+import { VoiceOption } from "@/lib/api";
+import TTSButton from "./TTSButton";
 
 interface MessageControlsProps {
   messageId: string;
@@ -8,6 +10,7 @@ interface MessageControlsProps {
   content: string;
   className?: string;
   isAssistant?: boolean;
+  selectedVoice?: VoiceOption;
 }
 
 const MessageControls: React.FC<MessageControlsProps> = ({
@@ -16,6 +19,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
   content,
   className = "",
   isAssistant = false,
+  selectedVoice = "Fenrir",
 }) => {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"like" | "dislike" | null>(
@@ -45,6 +49,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
       </button>
       {isAssistant && (
         <>
+          <TTSButton text={content} voice={selectedVoice} />
           <button
             onClick={() => handleReaction("like")}
             className={`p-1.5 rounded-md transition-colors ${

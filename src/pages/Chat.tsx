@@ -44,7 +44,7 @@ const Chat: React.FC = () => {
   const [preferences] = useState(getPreferences());
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("ethan");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -454,8 +454,12 @@ const Chat: React.FC = () => {
                 >
                   <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                     message.role === "user" 
-                      ? "bg-chat-user text-foreground" 
-                      : "bg-chat-ai text-foreground border border-border"
+                      ? message.isVoiceChat 
+                        ? "bg-foreground/10 text-foreground-muted" 
+                        : "bg-chat-user text-foreground"
+                      : message.isVoiceChat
+                        ? "bg-foreground/5 text-foreground border border-border/50"
+                        : "bg-chat-ai text-foreground border border-border"
                   }`}>
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-3">
@@ -482,13 +486,19 @@ const Chat: React.FC = () => {
                         />
                       </div>
                     )}
-                    <div className="mt-2 flex justify-end">
-                      <MessageControls 
-                        messageId={message.id || `${index}`} 
-                        sessionId={currentSessionId} 
-                        content={message.content}
-                        isAssistant={message.role === "assistant"}
-                      />
+                    <div className="mt-2 flex items-center justify-between">
+                      {message.isVoiceChat && (
+                        <span className="text-xs text-foreground-muted italic">voice chat</span>
+                      )}
+                      <div className="flex-1 flex justify-end">
+                        <MessageControls 
+                          messageId={message.id || `${index}`} 
+                          sessionId={currentSessionId} 
+                          content={message.content}
+                          isAssistant={message.role === "assistant"}
+                          selectedVoice={selectedVoice}
+                        />
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -670,7 +680,12 @@ const Chat: React.FC = () => {
       
       <VoiceCallModal
         isOpen={showVoiceCall}
-        onClose={() => setShowVoiceCall(false)}
+        onClose={(voiceMessages) => {
+          setShowVoiceCall(false);
+          if (voiceMessages && voiceMessages.length > 0) {
+            setMessages((prev) => [...prev, ...voiceMessages]);
+          }
+        }}
         selectedVoice={selectedVoice}
         onSelectVoice={setSelectedVoice}
         sessionId={currentSessionId}
