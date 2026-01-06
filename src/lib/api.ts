@@ -102,9 +102,11 @@ export const sendChatMessage = async (
     }
 
     const data = await response.json();
+    // Handle nested result.text format from the new API
+    const responseText = data.result?.text || data.result || data.response || data.message || JSON.stringify(data);
     return { 
       success: true, 
-      response: data.result || data.response || data.message || JSON.stringify(data) 
+      response: responseText 
     };
   } catch (error: any) {
     console.error("API Error:", error);
