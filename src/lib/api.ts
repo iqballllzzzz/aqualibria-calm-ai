@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE = "https://api.nekolabs.web.id/txt.gen/gemini/3-flash";
+const API_BASE = "https://api.nekolabs.web.id/text.gen/gemini/realtime";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
