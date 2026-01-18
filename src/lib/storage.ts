@@ -1,4 +1,4 @@
-import { ChatMessage } from "./api";
+import { ChatMessage, PlanType } from "./api";
 
 // ==================== INTERFACES ====================
 
@@ -38,6 +38,11 @@ export interface AIMemory {
   conversationThemes: string[];
   importantFacts: string[];
   
+  // Long-term context for AI
+  conversationHistory: string[];
+  keyMoments: string[];
+  emotionalState: string;
+  
   // Metadata
   lastUpdated: Date;
   totalInteractions: number;
@@ -49,6 +54,25 @@ export interface MessageReaction {
   reaction: "like" | "dislike" | null;
 }
 
+// Subscription & Usage
+export interface UserSubscription {
+  plan: PlanType;
+  purchasedAt?: Date;
+  expiresAt?: Date;
+  orderId?: string;
+}
+
+export interface UsageData {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+// LatentLeaf Image Edit Memory
+export interface ImageEditSession {
+  lastImageUrl: string;
+  editHistory: { prompt: string; resultUrl: string; timestamp: Date }[];
+}
+
 // ==================== STORAGE KEYS ====================
 
 const STORAGE_KEYS = {
@@ -58,6 +82,9 @@ const STORAGE_KEYS = {
   WELCOME_SHOWN: "aqua-welcome-shown",
   MESSAGE_REACTIONS: "aqua-message-reactions",
   CURRENT_SESSION: "aqua-current-session",
+  SUBSCRIPTION: "aqua-subscription",
+  DAILY_USAGE: "aqua-daily-usage",
+  IMAGE_EDIT_SESSION: "aqua-image-edit-session",
 } as const;
 
 // ==================== WELCOME STATE ====================
@@ -73,11 +100,9 @@ export const setWelcomeShown = (): void => {
 // ==================== SESSION ID GENERATION ====================
 
 export const generateSessionId = (): string => {
-  // Generate proper UUID v4
   if (crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback for older browsers
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -103,7 +128,6 @@ export const saveChatSession = (session: ChatSession): void => {
     history.unshift(session);
   }
   
-  // Keep only last 100 sessions
   const trimmed = history.slice(0, 100);
   localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(trimmed));
 };
@@ -180,7 +204,7 @@ export const getPreferences = (): UserPreferences => {
   }
 };
 
-// ==================== AI MEMORY SYSTEM ====================
+// ==================== AI MEMORY SYSTEM (ENHANCED) ====================
 
 export const getDefaultMemory = (): AIMemory => ({
   userName: "",
@@ -196,6 +220,9 @@ export const getDefaultMemory = (): AIMemory => ({
   repeatedInterests: [],
   conversationThemes: [],
   importantFacts: [],
+  conversationHistory: [],
+  keyMoments: [],
+  emotionalState: "neutral",
   lastUpdated: new Date(),
   totalInteractions: 0,
 });
@@ -231,39 +258,54 @@ export const updateAIMemory = (updates: Partial<AIMemory>): void => {
   saveAIMemory(updated);
 };
 
-// Memory extraction from user messages
-export const extractMemoryFromMessage = (message: string): void => {
+// Enhanced memory extraction from user messages
+export const extractMemoryFromMessage = (message: string, isAIResponse: boolean = false): void => {
   const memory = getAIMemory();
   const lowerMessage = message.toLowerCase();
   const updates: Partial<AIMemory> = {};
   
-  // Extract user name
+  // Store conversation snippets for context
+  const snippet = message.slice(0, 200);
+  updates.conversationHistory = [...memory.conversationHistory.slice(-49), snippet];
+  
+  if (isAIResponse) {
+    // Don't extract identity from AI responses
+    return;
+  }
+  
+  // Extract user name with more patterns
   const namePatterns = [
     /my name is (\w+)/i,
     /i'm (\w+)/i,
     /call me (\w+)/i,
     /i am (\w+)/i,
     /name's (\w+)/i,
+    /nama saya (\w+)/i,
+    /panggil saya (\w+)/i,
+    /nama aku (\w+)/i,
   ];
   
   for (const pattern of namePatterns) {
     const match = message.match(pattern);
     if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
       const name = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
-      if (!['A', 'The', 'I', 'You', 'We', 'They', 'He', 'She', 'It'].includes(name)) {
+      if (!['A', 'The', 'I', 'You', 'We', 'They', 'He', 'She', 'It', 'Is', 'Am'].includes(name)) {
         updates.userName = name;
         break;
       }
     }
   }
   
-  // Extract goals
+  // Extract goals (expanded patterns)
   const goalPatterns = [
     /i want to (.+?)(?:\.|$)/i,
     /my goal is (.+?)(?:\.|$)/i,
     /i'm trying to (.+?)(?:\.|$)/i,
     /i need to (.+?)(?:\.|$)/i,
     /i hope to (.+?)(?:\.|$)/i,
+    /saya ingin (.+?)(?:\.|$)/i,
+    /tujuan saya (.+?)(?:\.|$)/i,
+    /aku mau (.+?)(?:\.|$)/i,
   ];
   
   for (const pattern of goalPatterns) {
@@ -271,7 +313,7 @@ export const extractMemoryFromMessage = (message: string): void => {
     if (match && match[1] && match[1].length > 3 && match[1].length < 100) {
       const goal = match[1].trim();
       if (!memory.userGoals.includes(goal)) {
-        updates.userGoals = [...memory.userGoals.slice(-9), goal];
+        updates.userGoals = [...memory.userGoals.slice(-14), goal];
       }
       break;
     }
@@ -282,6 +324,9 @@ export const extractMemoryFromMessage = (message: string): void => {
     /i (?:like|love|prefer|enjoy) (.+?)(?:\.|$)/i,
     /i'm (?:a fan of|into) (.+?)(?:\.|$)/i,
     /my favorite (?:is|are) (.+?)(?:\.|$)/i,
+    /saya suka (.+?)(?:\.|$)/i,
+    /aku suka (.+?)(?:\.|$)/i,
+    /favorit saya (.+?)(?:\.|$)/i,
   ];
   
   for (const pattern of prefPatterns) {
@@ -289,7 +334,7 @@ export const extractMemoryFromMessage = (message: string): void => {
     if (match && match[1] && match[1].length > 2 && match[1].length < 50) {
       const pref = match[1].trim();
       if (!memory.userPreferences.includes(pref)) {
-        updates.userPreferences = [...memory.userPreferences.slice(-9), pref];
+        updates.userPreferences = [...memory.userPreferences.slice(-14), pref];
       }
       break;
     }
@@ -301,6 +346,8 @@ export const extractMemoryFromMessage = (message: string): void => {
     /i always (.+?)(?:\.|$)/i,
     /i often (.+?)(?:\.|$)/i,
     /every (?:day|morning|night|week) i (.+?)(?:\.|$)/i,
+    /biasanya saya (.+?)(?:\.|$)/i,
+    /saya selalu (.+?)(?:\.|$)/i,
   ];
   
   for (const pattern of habitPatterns) {
@@ -308,28 +355,65 @@ export const extractMemoryFromMessage = (message: string): void => {
     if (match && match[1] && match[1].length > 3 && match[1].length < 80) {
       const habit = match[1].trim();
       if (!memory.userHabits.includes(habit)) {
-        updates.userHabits = [...memory.userHabits.slice(-9), habit];
+        updates.userHabits = [...memory.userHabits.slice(-14), habit];
       }
+      break;
+    }
+  }
+  
+  // Extract emotional state
+  const emotionPatterns: { pattern: RegExp; emotion: string }[] = [
+    { pattern: /i('m| am) (happy|excited|thrilled)/i, emotion: "positive" },
+    { pattern: /i('m| am) (sad|depressed|down)/i, emotion: "sad" },
+    { pattern: /i('m| am) (angry|frustrated|annoyed)/i, emotion: "frustrated" },
+    { pattern: /i('m| am) (worried|anxious|stressed)/i, emotion: "anxious" },
+    { pattern: /i('m| am) (bored|tired)/i, emotion: "tired" },
+    { pattern: /i feel (great|good|amazing)/i, emotion: "positive" },
+    { pattern: /saya (senang|gembira|bahagia)/i, emotion: "positive" },
+    { pattern: /saya (sedih|kecewa)/i, emotion: "sad" },
+    { pattern: /saya (marah|kesal)/i, emotion: "frustrated" },
+  ];
+  
+  for (const { pattern, emotion } of emotionPatterns) {
+    if (pattern.test(lowerMessage)) {
+      updates.emotionalState = emotion;
       break;
     }
   }
   
   // Extract topics discussed
-  const topicKeywords = ["about", "help with", "learn", "understand", "explain", "how to", "what is", "tell me"];
+  const topicKeywords = ["about", "help with", "learn", "understand", "explain", "how to", "what is", "tell me", "tentang", "bantu", "jelaskan"];
   for (const keyword of topicKeywords) {
     if (lowerMessage.includes(keyword)) {
-      const topic = message.substring(0, 60).replace(/[^\w\s]/g, "").trim();
+      const topic = message.substring(0, 80).replace(/[^\w\s]/g, "").trim();
       if (topic && !memory.recentTopics.includes(topic)) {
-        updates.recentTopics = [...memory.recentTopics.slice(-19), topic];
+        updates.recentTopics = [...memory.recentTopics.slice(-29), topic];
       }
       break;
     }
   }
   
-  // Detect communication style preferences
-  if (lowerMessage.includes("please") || lowerMessage.includes("thank you") || lowerMessage.includes("could you")) {
+  // Detect communication style
+  if (lowerMessage.includes("please") || lowerMessage.includes("thank you") || lowerMessage.includes("could you") || lowerMessage.includes("tolong") || lowerMessage.includes("terima kasih")) {
     if (!memory.communicationStyle.includes("polite")) {
       updates.communicationStyle = "polite and formal";
+    }
+  }
+  
+  // Extract key moments (important information)
+  const importantPatterns = [
+    /remember that (.+?)(?:\.|$)/i,
+    /important: (.+?)(?:\.|$)/i,
+    /don't forget (.+?)(?:\.|$)/i,
+    /ingat bahwa (.+?)(?:\.|$)/i,
+    /penting: (.+?)(?:\.|$)/i,
+  ];
+  
+  for (const pattern of importantPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      updates.keyMoments = [...memory.keyMoments.slice(-9), match[1].trim()];
+      break;
     }
   }
   
@@ -339,25 +423,37 @@ export const extractMemoryFromMessage = (message: string): void => {
   }
 };
 
-// Build memory context for display (NOT for API - memory is implicit)
+// Build memory context for API (for enhanced responses)
 export const buildMemoryContext = (): string => {
   const memory = getAIMemory();
   const parts: string[] = [];
   
   if (memory.userName) {
-    parts.push(`User's name: ${memory.userName}`);
+    parts.push(`User: ${memory.userName}`);
+  }
+  
+  if (memory.emotionalState && memory.emotionalState !== "neutral") {
+    parts.push(`Mood: ${memory.emotionalState}`);
   }
   
   if (memory.userPreferences.length > 0) {
-    parts.push(`Preferences: ${memory.userPreferences.slice(-5).join(", ")}`);
+    parts.push(`Likes: ${memory.userPreferences.slice(-3).join(", ")}`);
   }
   
   if (memory.userGoals.length > 0) {
-    parts.push(`Goals: ${memory.userGoals.slice(-3).join(", ")}`);
+    parts.push(`Goals: ${memory.userGoals.slice(-2).join(", ")}`);
   }
   
   if (memory.recentTopics.length > 0) {
-    parts.push(`Recent topics: ${memory.recentTopics.slice(-5).join(", ")}`);
+    parts.push(`Recent topics: ${memory.recentTopics.slice(-3).join(", ")}`);
+  }
+  
+  if (memory.keyMoments.length > 0) {
+    parts.push(`Remember: ${memory.keyMoments.slice(-2).join("; ")}`);
+  }
+  
+  if (memory.communicationStyle) {
+    parts.push(`Style: ${memory.communicationStyle}`);
   }
   
   return parts.join(" | ");
@@ -398,6 +494,139 @@ export const getMessageReaction = (messageId: string, sessionId: string): "like"
   return found?.reaction ?? null;
 };
 
+// ==================== SUBSCRIPTION MANAGEMENT ====================
+
+export const getSubscription = (): UserSubscription => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
+    if (!stored) return { plan: "junior" };
+    const parsed = JSON.parse(stored);
+    return {
+      ...parsed,
+      purchasedAt: parsed.purchasedAt ? new Date(parsed.purchasedAt) : undefined,
+      expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt) : undefined,
+    };
+  } catch {
+    return { plan: "junior" };
+  }
+};
+
+export const saveSubscription = (subscription: UserSubscription): void => {
+  localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(subscription));
+};
+
+export const upgradePlan = (plan: PlanType, orderId: string): void => {
+  const now = new Date();
+  // Plans are lifetime for simplicity, but can add expiry logic
+  saveSubscription({
+    plan,
+    purchasedAt: now,
+    orderId,
+  });
+};
+
+// ==================== USAGE TRACKING ====================
+
+export const getTodayUsage = (): number => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const stored = localStorage.getItem(STORAGE_KEYS.DAILY_USAGE);
+    if (!stored) return 0;
+    const usage: UsageData = JSON.parse(stored);
+    if (usage.date !== today) return 0;
+    return usage.count;
+  } catch {
+    return 0;
+  }
+};
+
+export const incrementUsage = (): number => {
+  const today = new Date().toISOString().split('T')[0];
+  let currentCount = getTodayUsage();
+  
+  // Reset if different day
+  const stored = localStorage.getItem(STORAGE_KEYS.DAILY_USAGE);
+  if (stored) {
+    const usage: UsageData = JSON.parse(stored);
+    if (usage.date !== today) {
+      currentCount = 0;
+    }
+  }
+  
+  const newCount = currentCount + 1;
+  localStorage.setItem(STORAGE_KEYS.DAILY_USAGE, JSON.stringify({
+    date: today,
+    count: newCount,
+  }));
+  
+  return newCount;
+};
+
+export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited" } => {
+  const subscription = getSubscription();
+  const usage = getTodayUsage();
+  
+  const limits: Record<PlanType, number | "unlimited"> = {
+    junior: 500,
+    senior: 1000,
+    superior: "unlimited",
+  };
+  
+  const limit = limits[subscription.plan];
+  
+  if (limit === "unlimited") {
+    return { allowed: true, remaining: "unlimited" };
+  }
+  
+  const remaining = limit - usage;
+  return { 
+    allowed: remaining > 0, 
+    remaining: Math.max(0, remaining) 
+  };
+};
+
+// ==================== IMAGE EDIT SESSION ====================
+
+export const getImageEditSession = (): ImageEditSession | null => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.IMAGE_EDIT_SESSION);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return {
+      ...parsed,
+      editHistory: parsed.editHistory.map((h: any) => ({
+        ...h,
+        timestamp: new Date(h.timestamp),
+      })),
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const saveImageEditSession = (session: ImageEditSession): void => {
+  localStorage.setItem(STORAGE_KEYS.IMAGE_EDIT_SESSION, JSON.stringify(session));
+};
+
+export const updateImageEditSession = (imageUrl: string, prompt: string, resultUrl: string): void => {
+  const current = getImageEditSession();
+  const newEntry = { prompt, resultUrl, timestamp: new Date() };
+  
+  if (current && current.lastImageUrl === imageUrl) {
+    // Same image, add to history
+    saveImageEditSession({
+      lastImageUrl: imageUrl,
+      editHistory: [...current.editHistory.slice(-9), newEntry],
+    });
+  } else {
+    // New image, reset history
+    saveImageEditSession({
+      lastImageUrl: imageUrl,
+      editHistory: [newEntry],
+    });
+  }
+};
+
 // ==================== EXPORT/IMPORT ====================
 
 export const exportChatHistory = (): string => {
@@ -406,6 +635,7 @@ export const exportChatHistory = (): string => {
     preferences: getPreferences(),
     memory: getAIMemory(),
     reactions: getMessageReactions(),
+    subscription: getSubscription(),
     exportedAt: new Date().toISOString(),
   };
   return JSON.stringify(data, null, 2);

@@ -2,16 +2,14 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Send, Menu, X, Image, Settings as SettingsIcon,
-  Search, Sparkles, Music, Quote, Moon, Sun, MessageSquare, Code, Globe,
-  ChevronRight, Download, ArrowLeft, Loader2, LogOut, Mic, MicOff, AudioLines,
+  Plus, Send, Menu, X, Image, Search, Sparkles, Music, Quote, Moon, Sun, 
+  MessageSquare, Code, Globe, ChevronRight, ChevronDown, Loader2, Mic, MicOff, AudioLines, Wand2, Crown,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage, languages } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { logOut } from "@/lib/firebase";
-import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId, VoiceOption, VOICE_OPTIONS } from "@/lib/api";
-import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory } from "@/lib/storage";
+import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId, VoiceOption, VOICE_OPTIONS, SUBSCRIPTION_PLANS } from "@/lib/api";
+import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
@@ -20,6 +18,10 @@ import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import MessageControls from "@/components/MessageControls";
 import VoiceCallModal from "@/components/VoiceCallModal";
+import UpgradePlanModal from "@/components/UpgradePlanModal";
+import LatentLeafModal from "@/components/LatentLeafModal";
+import MuseaModal from "@/components/MuseaModal";
+import UserPanel from "@/components/UserPanel";
 
 const Chat: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -46,29 +48,30 @@ const Chat: React.FC = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  
+  // New modal states
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showLatentLeaf, setShowLatentLeaf] = useState(false);
+  const [showMusea, setShowMusea] = useState(false);
+  const [showUserPanel, setShowUserPanel] = useState(false);
+
+  const subscription = getSubscription();
+  const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === subscription.plan);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const latestAIResponseRef = useRef<string | null>(null);
 
-  // Handle voice transcript
   const handleVoiceTranscript = useCallback((text: string) => {
     setInputValue(text);
   }, []);
 
-  // Voice chat hook (for speech-to-text only, voice call modal handles TTS)
-  const {
-    isListening,
-    startListening,
-    stopListening,
-    error: voiceError,
-  } = useVoiceChat({
+  const { isListening, startListening, stopListening, error: voiceError } = useVoiceChat({
     onTranscript: handleVoiceTranscript,
     selectedVoice,
   });
 
-  // Show voice errors
   useEffect(() => {
     if (voiceError) {
       toast({ title: "Voice Error", description: voiceError, variant: "destructive" });
@@ -108,7 +111,6 @@ const Chat: React.FC = () => {
       };
       saveChatSession(session);
       setChatHistory(getChatHistory());
-      // Update URL
       window.history.replaceState(null, "", `/chat/${currentSessionId}`);
     }
   }, [messages, currentSessionId]);
@@ -122,20 +124,15 @@ const Chat: React.FC = () => {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Error", description: "Image must be less than 10MB", variant: "destructive" });
-      return;
-    }
-
     setIsUploadingImage(true);
     const result = await uploadImage(file);
     setIsUploadingImage(false);
 
     if (result.success && result.imageUrl) {
       setPendingImageUrl(result.imageUrl);
-      toast({ title: "Image ready", description: "Type a question about the image or just send to analyze" });
+      toast({ title: "Image ready", description: "Type a question about the image" });
     } else {
-      toast({ title: "Upload failed", description: result.error || "Failed to upload image", variant: "destructive" });
+      toast({ title: "Upload failed", description: result.error, variant: "destructive" });
     }
 
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -144,7 +141,19 @@ const Chat: React.FC = () => {
   const handleSendMessage = async () => {
     if ((!inputValue.trim() && !pendingImageUrl) || isLoading) return;
 
-    const messageText = inputValue.trim() || "What is in this image? Describe it in detail.";
+    // Check usage limit
+    const usage = canUseFeature();
+    if (!usage.allowed) {
+      toast({ 
+        title: "Limit Tercapai", 
+        description: "Anda telah mencapai batas harian. Upgrade plan untuk lebih banyak!", 
+        variant: "destructive" 
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    const messageText = inputValue.trim() || "What is in this image?";
     const userMessage: ChatMessage = { 
       role: "user", 
       content: messageText, 
@@ -153,17 +162,18 @@ const Chat: React.FC = () => {
       imageUrl: pendingImageUrl || undefined,
     };
     
-    // Extract memory from user message
     extractMemoryFromMessage(messageText);
-    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     const imageToAnalyze = pendingImageUrl;
     setPendingImageUrl(null);
     setIsLoading(true);
+    incrementUsage();
 
     try {
       let result;
+      const memoryContext = buildMemoryContext();
+      
       switch (activeMode) {
         case "research":
           result = await sendResearchQuery(messageText, currentSessionId);
@@ -196,16 +206,18 @@ const Chat: React.FC = () => {
           if (imageToAnalyze) {
             result = await analyzeImage(imageToAnalyze, messageText, currentSessionId);
           } else {
-            result = await sendChatMessage(messageText, currentSessionId);
+            result = await sendChatMessage(messageText, currentSessionId, {
+              model: currentPlan?.model,
+              memoryContext,
+            });
           }
       }
       
       if (result.success && result.response) {
-        const aiResponse = result.response;
-        latestAIResponseRef.current = aiResponse;
+        extractMemoryFromMessage(result.response, true);
         setMessages((prev) => [...prev, { 
           role: "assistant", 
-          content: aiResponse, 
+          content: result.response, 
           timestamp: new Date(),
           id: generateMessageId(),
         }]);
@@ -232,6 +244,7 @@ const Chat: React.FC = () => {
     setMessages([]); 
     setCurrentSessionId(newId); 
     setShowHistory(false);
+    setShowSidebar(false);
     navigate(`/chat/${newId}`);
   };
 
@@ -256,126 +269,61 @@ const Chat: React.FC = () => {
     ]); 
   };
 
-  const plusMenuItems = [
-    { icon: Image, label: t("plus.uploadImage"), onClick: () => { fileInputRef.current?.click(); setShowPlusMenu(false); } },
-    { icon: Sparkles, label: t("plus.generateImage"), onClick: () => { setActiveMode("image"); setShowPlusMenu(false); } },
-    { icon: Search, label: t("plus.deepResearch"), onClick: () => { setActiveMode("research"); setShowPlusMenu(false); } },
-    { icon: Music, label: t("plus.spotifySearch"), onClick: () => { setActiveMode("spotify"); setShowPlusMenu(false); } },
-    { icon: Quote, label: t("plus.quoteMaker"), onClick: () => { setShowQuoteMaker(true); setShowPlusMenu(false); } },
-  ];
-
-  // Get AI memory for personalized greeting
   const memory = getAIMemory();
-  const greeting = memory.userName ? `Hello, ${memory.userName}!` : t("chat.empty.title");
+  const greeting = memory.userName ? `Hai ${memory.userName}!` : "Hai User!";
+  const canUseLatentLeaf = subscription.plan === "senior" || subscription.plan === "superior";
+
+  const plusMenuItems = [
+    { icon: Image, label: t("plus.uploadImage"), onClick: () => { fileInputRef.current?.click(); setShowPlusMenu(false); }, locked: false },
+    { icon: Sparkles, label: t("plus.generateImage"), onClick: () => { setActiveMode("image"); setShowPlusMenu(false); }, locked: false },
+    { icon: Search, label: t("plus.deepResearch"), onClick: () => { setActiveMode("research"); setShowPlusMenu(false); }, locked: false },
+    { icon: Music, label: t("plus.spotifySearch"), onClick: () => { setActiveMode("spotify"); setShowPlusMenu(false); }, locked: false },
+    { icon: Quote, label: t("plus.quoteMaker"), onClick: () => { setShowQuoteMaker(true); setShowPlusMenu(false); }, locked: false },
+    { icon: Wand2, label: "LatentLeaf Edit", onClick: () => { setShowLatentLeaf(true); setShowPlusMenu(false); }, locked: !canUseLatentLeaf, exclusive: true },
+    { icon: Music, label: "Musea (Coming Soon)", onClick: () => { setShowMusea(true); setShowPlusMenu(false); }, locked: false, comingSoon: true },
+  ];
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
-      <ChatHistoryPanel 
-        isOpen={showHistory} 
-        onClose={() => setShowHistory(false)} 
-        sessions={chatHistory} 
-        currentSessionId={currentSessionId} 
-        onSelectSession={handleSelectSession} 
-        onDeleteSession={handleDeleteSession} 
-        onNewChat={handleNewChat} 
-      />
+      <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} />
       
+      {/* Sidebar */}
       <AnimatePresence>
         {showSidebar && (
           <>
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              className="fixed inset-0 bg-foreground/10 z-40" 
-              onClick={() => setShowSidebar(false)} 
-            />
-            <motion.aside 
-              initial={{ x: -300 }} 
-              animate={{ x: 0 }} 
-              exit={{ x: -300 }} 
-              transition={{ type: "spring", damping: 25, stiffness: 200 }} 
-              className="fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border z-50 flex flex-col"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-foreground/10 z-40" onClick={() => setShowSidebar(false)} />
+            <motion.aside initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border z-50 flex flex-col">
               <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Logo size="sm" />
-                  <span className="font-medium text-sidebar-foreground">{preferences.aiName}</span>
+                  <span className="font-bold text-sidebar-foreground">AquaLibriaAI</span>
                 </div>
-                <button onClick={() => setShowSidebar(false)} className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
-                  <X className="w-5 h-5 text-sidebar-foreground" />
-                </button>
+                <button onClick={() => setShowSidebar(false)} className="p-2 rounded-lg hover:bg-sidebar-accent"><X className="w-5 h-5" /></button>
               </div>
               
               <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-                {/* Chat History at top */}
-                <button 
-                  onClick={() => { setShowHistory(true); setShowSidebar(false); }} 
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  <span>{t("menu.history")}</span>
+                <button onClick={() => { handleNewChat(); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
+                  <MessageSquare className="w-5 h-5" /><span>New Chat</span>
                 </button>
-
-                {/* Search */}
-                <button 
-                  onClick={() => { setShowHistory(true); setShowSidebar(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                >
-                  <Search className="w-5 h-5" />
-                  <span>{t("menu.search")}</span>
+                <button onClick={() => { setShowHistory(true); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
+                  <Search className="w-5 h-5" /><span>{t("menu.history")}</span>
                 </button>
-
-                {/* Coding Partner */}
-                <button 
-                  onClick={() => { navigate("/coding"); setShowSidebar(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                >
-                  <Code className="w-5 h-5" />
-                  <span>{t("menu.coding")}</span>
+                <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
+                  <Code className="w-5 h-5" /><span>{t("menu.coding")}</span>
                 </button>
-
-                {/* Language */}
                 <div className="relative">
-                  <button 
-                    onClick={() => setShowLanguageSelector(!showLanguageSelector)} 
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Globe className="w-5 h-5" />
-                      <span>{t("menu.language")}</span>
-                    </div>
+                  <button onClick={() => setShowLanguageSelector(!showLanguageSelector)} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
+                    <div className="flex items-center gap-3"><Globe className="w-5 h-5" /><span>{t("menu.language")}</span></div>
                     <ChevronRight className={`w-4 h-4 transition-transform ${showLanguageSelector ? "rotate-90" : ""}`} />
                   </button>
                   <AnimatePresence>
                     {showLanguageSelector && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }} 
-                        animate={{ opacity: 1, height: "auto" }} 
-                        exit={{ opacity: 0, height: 0 }} 
-                        className="overflow-hidden"
-                      >
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                         <div className="ml-8 mt-1 space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                           {languages.map((lang) => (
-                            <button 
-                              key={lang.code} 
-                              onClick={() => { setLanguage(lang.code); setShowLanguageSelector(false); }} 
-                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                                language === lang.code 
-                                  ? "bg-sidebar-accent text-sidebar-foreground" 
-                                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"
-                              }`}
-                            >
-                              {lang.nativeName}
-                            </button>
+                            <button key={lang.code} onClick={() => { setLanguage(lang.code); setShowLanguageSelector(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${language === lang.code ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"}`}>{lang.nativeName}</button>
                           ))}
                         </div>
                       </motion.div>
@@ -384,27 +332,10 @@ const Chat: React.FC = () => {
                 </div>
               </nav>
 
-              <div className="p-3 border-t border-sidebar-border space-y-1">
-                <button 
-                  onClick={toggleTheme} 
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                >
+              <div className="p-3 border-t border-sidebar-border">
+                <button onClick={toggleTheme} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
                   {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                   <span>{t("menu.theme")}</span>
-                </button>
-                <button 
-                  onClick={() => navigate("/settings")} 
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
-                >
-                  <SettingsIcon className="w-5 h-5" />
-                  <span>{t("menu.settings")}</span>
-                </button>
-                <button 
-                  onClick={async () => { await logOut(); navigate("/login"); }} 
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-destructive"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>{t("menu.logout")}</span>
                 </button>
               </div>
             </motion.aside>
@@ -417,12 +348,10 @@ const Chat: React.FC = () => {
         <button onClick={() => setShowSidebar(true)} className="p-2 rounded-lg hover:bg-accent transition-colors">
           <Menu className="w-5 h-5 text-foreground" />
         </button>
-        <div className="flex items-center gap-2">
-          <Logo size="sm" />
-          <span className="font-medium text-foreground text-sm">{preferences.aiName}</span>
-        </div>
-        <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-accent transition-colors">
-          {theme === "dark" ? <Sun className="w-5 h-5 text-foreground" /> : <Moon className="w-5 h-5 text-foreground" />}
+        
+        <button onClick={() => setShowUpgradeModal(true)} className="px-4 py-2 rounded-full btn-gradient-purple flex items-center gap-2 text-sm font-medium">
+          <Sparkles className="w-4 h-4" />
+          Upgrade Plan
         </button>
       </header>
 
@@ -432,73 +361,29 @@ const Chat: React.FC = () => {
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center min-h-[50vh]">
               <div className="text-center">
-                <Logo size="lg" className="mx-auto mb-6" />
-                <h2 className="text-xl font-medium text-foreground mb-2">{greeting}</h2>
-                <p className="text-foreground-muted">{t("chat.empty.subtitle")}</p>
+                <h1 className="text-3xl font-bold text-foreground mb-2">AquaLibriaAI</h1>
+                <p className="text-foreground-muted mb-1">{greeting} apa yang bisa saya bantu?</p>
                 {memory.recentTopics.length > 0 && (
-                  <p className="text-foreground-muted text-sm mt-2">
-                    Last time we talked about: {memory.recentTopics.slice(-2).join(", ")}
-                  </p>
+                  <p className="text-foreground-muted/60 text-sm">Terakhir kita bicara tentang: {memory.recentTopics.slice(-1)[0]}</p>
                 )}
               </div>
             </div>
           ) : (
             <div className="space-y-6">
               {messages.map((message, index) => (
-                <motion.div 
-                  key={message.id || index} 
-                  initial={{ opacity: 0, y: 10 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  transition={{ duration: 0.3 }} 
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                    message.role === "user" 
-                      ? message.isVoiceChat 
-                        ? "bg-foreground/10 text-foreground-muted" 
-                        : "bg-chat-user text-foreground"
-                      : message.isVoiceChat
-                        ? "bg-foreground/5 text-foreground border border-border/50"
-                        : "bg-chat-ai text-foreground border border-border"
-                  }`}>
+                <motion.div key={message.id || index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-chat-user text-foreground" : "bg-chat-ai text-foreground border border-border"}`}>
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-3">
-                        <img 
-                          src={message.imageUrl} 
-                          alt="Uploaded" 
-                          className="rounded-lg max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" 
-                          onClick={() => setShowImageViewer(message.imageUrl!)} 
-                        />
+                        <img src={message.imageUrl} alt="Uploaded" className="rounded-lg max-w-full max-h-48 cursor-pointer" onClick={() => setShowImageViewer(message.imageUrl!)} />
                       </div>
                     )}
-                    {message.role === "assistant" ? (
-                      <MarkdownRenderer content={message.content} />
-                    ) : (
-                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                    )}
+                    {message.role === "assistant" ? <MarkdownRenderer content={message.content} /> : <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>}
                     {message.imageUrl && message.role === "assistant" && (
-                      <div className="mt-3">
-                        <img 
-                          src={message.imageUrl} 
-                          alt="Generated" 
-                          className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity" 
-                          onClick={() => setShowImageViewer(message.imageUrl!)} 
-                        />
-                      </div>
+                      <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-lg max-w-full cursor-pointer" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
                     )}
-                    <div className="mt-2 flex items-center justify-between">
-                      {message.isVoiceChat && (
-                        <span className="text-xs text-foreground-muted italic">voice chat</span>
-                      )}
-                      <div className="flex-1 flex justify-end">
-                        <MessageControls 
-                          messageId={message.id || `${index}`} 
-                          sessionId={currentSessionId} 
-                          content={message.content}
-                          isAssistant={message.role === "assistant"}
-                          selectedVoice={selectedVoice}
-                        />
-                      </div>
+                    <div className="mt-2 flex justify-end">
+                      <MessageControls messageId={message.id || `${index}`} sessionId={currentSessionId} content={message.content} isAssistant={message.role === "assistant"} selectedVoice={selectedVoice} />
                     </div>
                   </div>
                 </motion.div>
@@ -507,11 +392,7 @@ const Chat: React.FC = () => {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                   <div className="bg-chat-ai border border-border rounded-2xl px-4 py-3 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-foreground-muted" />
-                    <span className="text-foreground-muted text-sm">
-                      {activeMode === "research" ? t("loading.research") : 
-                       activeMode === "image" ? t("loading.image") : 
-                       t("loading.thinking")}
-                    </span>
+                    <span className="text-foreground-muted text-sm">Thinking...</span>
                   </div>
                 </motion.div>
               )}
@@ -521,175 +402,124 @@ const Chat: React.FC = () => {
         </div>
       </main>
 
-      {/* Input */}
+      {/* Input Area */}
       <div className="shrink-0 border-t border-border p-4">
         <div className="max-w-3xl mx-auto">
           {activeMode !== "chat" && (
-            <motion.div 
-              initial={{ opacity: 0, y: 5 }} 
-              animate={{ opacity: 1, y: 0 }} 
-              className="mb-2 flex items-center gap-2"
-            >
-              <span className="text-xs text-foreground-muted px-2 py-1 rounded-md bg-accent">
-                {activeMode === "research" && t("mode.research")}
-                {activeMode === "image" && t("mode.image")}
-                {activeMode === "spotify" && t("mode.spotify")}
-              </span>
-              <button onClick={() => setActiveMode("chat")} className="text-xs text-foreground-muted hover:text-foreground">
-                {t("mode.cancel")}
-              </button>
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
+              <span className="text-xs text-foreground-muted px-2 py-1 rounded-md bg-accent">{activeMode === "research" ? "Research Mode" : activeMode === "image" ? "Image Mode" : "Spotify Mode"}</span>
+              <button onClick={() => setActiveMode("chat")} className="text-xs text-foreground-muted hover:text-foreground">Cancel</button>
             </motion.div>
           )}
 
           {pendingImageUrl && (
-            <motion.div 
-              initial={{ opacity: 0, y: 5 }} 
-              animate={{ opacity: 1, y: 0 }} 
-              className="mb-2 flex items-center gap-2"
-            >
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
               <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border">
                 <img src={pendingImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setPendingImageUrl(null)}
-                  className="absolute top-1 right-1 p-0.5 rounded-full bg-background/80 hover:bg-background transition-colors"
-                >
-                  <X className="w-3 h-3 text-foreground" />
-                </button>
+                <button onClick={() => setPendingImageUrl(null)} className="absolute top-1 right-1 p-0.5 rounded-full bg-background/80"><X className="w-3 h-3" /></button>
               </div>
               <span className="text-xs text-foreground-muted">Image ready to analyze</span>
             </motion.div>
           )}
 
           <div className="relative flex items-end gap-2 bg-chat-input border border-border rounded-2xl p-2">
+            {/* Plus Menu */}
             <div className="relative">
-              <button 
-                onClick={() => setShowPlusMenu(!showPlusMenu)} 
-                disabled={isUploadingImage}
-                className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {isUploadingImage ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-foreground-muted" />
-                ) : (
-                  <Plus className={`w-5 h-5 text-foreground-muted transition-transform ${showPlusMenu ? "rotate-45" : ""}`} />
-                )}
+              <button onClick={() => setShowPlusMenu(!showPlusMenu)} disabled={isUploadingImage} className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-50">
+                {isUploadingImage ? <Loader2 className="w-5 h-5 animate-spin text-foreground-muted" /> : <Plus className={`w-5 h-5 text-foreground-muted transition-transform ${showPlusMenu ? "rotate-45" : ""}`} />}
               </button>
               <AnimatePresence>
                 {showPlusMenu && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }} 
-                    animate={{ opacity: 1, y: 0, scale: 1 }} 
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }} 
-                    transition={{ duration: 0.15 }} 
-                    className="absolute bottom-full left-0 mb-2 w-56 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden"
-                  >
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 mb-2 w-60 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden">
                     {plusMenuItems.map((item, index) => (
-                      <button 
-                        key={index} 
-                        onClick={item.onClick} 
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors text-foreground hover:bg-accent"
-                      >
+                      <button key={index} onClick={item.locked ? undefined : item.onClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${item.locked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} text-foreground`}>
                         <item.icon className="w-4 h-4" />
-                        <span className="text-sm">{item.label}</span>
+                        <span className="text-sm flex-1">{item.label}</span>
+                        {item.exclusive && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">PRO</span>}
+                        {item.comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-foreground-muted">SOON</span>}
                       </button>
                     ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            <textarea 
-              ref={inputRef} 
-              value={inputValue} 
-              onChange={(e) => setInputValue(e.target.value)} 
-              onKeyDown={handleKeyDown} 
-              placeholder={t("chat.placeholder")} 
-              rows={1} 
-              className="flex-1 bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none py-2 max-h-[200px]" 
-            />
-            {/* Mic Button for Speech-to-Text */}
+
+            <textarea ref={inputRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder="Apa yang anda ingin tahu?" rows={1} className="flex-1 bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none py-2 max-h-[200px]" />
+
+            {/* Model Selector */}
+            <div className="relative">
+              <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent hover:bg-accent/80 transition-colors">
+                <span className="text-xs text-foreground-muted">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
+                <ChevronDown className={`w-3 h-3 text-foreground-muted transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {showModelSelector && (
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full right-0 mb-2 w-48 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden">
+                    {SUBSCRIPTION_PLANS.map((plan) => {
+                      const isLocked = SUBSCRIPTION_PLANS.findIndex(p => p.id === subscription.plan) < SUBSCRIPTION_PLANS.findIndex(p => p.id === plan.id);
+                      return (
+                        <button key={plan.id} onClick={() => { if (!isLocked) setShowModelSelector(false); }} className={`w-full px-4 py-2.5 text-left transition-colors ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${subscription.plan === plan.id ? "bg-accent" : ""}`}>
+                          <span className="text-sm text-foreground">{plan.modelDisplay}</span>
+                          {isLocked && <Crown className="w-3 h-3 inline ml-2 text-purple-500" />}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Mic Button */}
             {isListening ? (
-              <button 
-                onClick={stopListening} 
-                className="p-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all btn-press animate-pulse"
-                title="Stop recording"
-              >
-                <MicOff className="w-5 h-5" />
-              </button>
+              <button onClick={stopListening} className="p-2 rounded-xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-5 h-5" /></button>
             ) : (
-              <button 
-                onClick={startListening} 
-                disabled={isLoading}
-                className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Voice to text"
-              >
-                <Mic className="w-5 h-5 text-foreground-muted" />
-              </button>
+              <button onClick={startListening} disabled={isLoading} className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-40"><Mic className="w-5 h-5 text-foreground-muted" /></button>
             )}
 
-            {/* Send or Voice Call Button */}
+            {/* Send / Voice Call Button */}
             {inputValue.trim() || pendingImageUrl ? (
-              <button 
-                onClick={handleSendMessage} 
-                disabled={isLoading} 
-                className="p-2 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-press"
-              >
+              <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 transition-all">
                 <Send className="w-5 h-5" />
               </button>
             ) : (
-              <button 
-                onClick={() => setShowVoiceCall(true)} 
-                className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all btn-press"
-                title="Voice call with AI"
-              >
+              <button onClick={() => setShowVoiceCall(true)} className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all">
                 <AudioLines className="w-5 h-5" />
               </button>
             )}
           </div>
         </div>
-      </div>
+      </main>
 
+      {/* User Button - Bottom Left of Input */}
+      <button 
+        onClick={() => setShowUserPanel(true)}
+        className="fixed bottom-24 left-4 flex items-center gap-2 px-3 py-2 rounded-full bg-sidebar border border-sidebar-border hover:bg-sidebar-accent transition-colors"
+      >
+        <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center">
+          <span className="text-xs font-medium text-foreground">{(memory.userName || user?.email || "U")[0].toUpperCase()}</span>
+        </div>
+        <span className="text-sm text-foreground">{memory.userName || "User"}</span>
+        <span className={`text-xs px-1.5 py-0.5 rounded ${subscription.plan === "junior" ? "bg-muted text-foreground-muted" : "bg-purple-500/20 text-purple-400"}`}>
+          {currentPlan?.name || "Free"}
+        </span>
+      </button>
+
+      {/* Modals */}
+      <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
+      <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={setSelectedVoice} sessionId={currentSessionId} />
+      <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
+      <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
+      <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+      
       {/* Image Viewer */}
       <AnimatePresence>
         {showImageViewer && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="fixed inset-0 bg-background/95 z-50 flex items-center justify-center p-4"
-          >
-            <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-              <button 
-                onClick={() => setShowImageViewer(null)} 
-                className="p-3 rounded-xl bg-foreground/10 hover:bg-foreground/20 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-              <a 
-                href={showImageViewer} 
-                download="image.png" 
-                className="p-3 rounded-xl bg-foreground/10 hover:bg-foreground/20 transition-colors"
-              >
-                <Download className="w-5 h-5 text-foreground" />
-              </a>
-            </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background/95 z-50 flex items-center justify-center p-4" onClick={() => setShowImageViewer(null)}>
             <img src={showImageViewer} alt="View" className="max-w-full max-h-[80vh] rounded-2xl shadow-elevated" />
           </motion.div>
         )}
       </AnimatePresence>
-      
-      <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
-      
-      <VoiceCallModal
-        isOpen={showVoiceCall}
-        onClose={(voiceMessages) => {
-          setShowVoiceCall(false);
-          if (voiceMessages && voiceMessages.length > 0) {
-            setMessages((prev) => [...prev, ...voiceMessages]);
-          }
-        }}
-        selectedVoice={selectedVoice}
-        onSelectVoice={setSelectedVoice}
-        sessionId={currentSessionId}
-      />
     </div>
   );
 };
