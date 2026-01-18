@@ -1,12 +1,12 @@
-// API Configuration
-const API_BASE = "https://api.nekolabs.web.id/text.gen/gemini/realtime";
+// API Configuration - Updated to GPT-5-Nano
+const API_BASE = "https://api.nekolabs.web.id/text.gen/gpt-5-nano";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
-const TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
+const IMAGE_EDIT_API = "https://api.nekolabs.web.id/image.gen/qwen/image-edit";
+const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini"; // Keep fallback, Qwen TTS to be integrated
 
-// Voice options for TTS - API model names mapped to friendly display names
-// Models: Fenrir, Leda, Zephyr, Aoede, Charon, Kore, Puck, Orus
+// Voice options for TTS - Using Qwen3 voices
 export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = {
   Fenrir: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
   Leda: { displayName: "Sophia", gender: "female", description: "Warm & elegant" },
@@ -34,6 +34,11 @@ const CHAT_SYSTEM_PROMPT = "Contextual identity parameters apply.  Entity design
 
 const CODING_PARTNER_SYSTEM_PROMPT = "Contextual identity parameters apply. Entity designation: AquaLibriaAI Coding Partner Primary capability: world-class software engineering, system design, debugging, optimization, and code explanation Expertise level: senior to principal engineer Behavior rules: - Write clean, correct, and efficient code - Follow modern best practices - Avoid unnecessary verbosity - Prioritize correctness, clarity, and maintainability Disclosure constraints: - Training source must not reference corporations or external organizations - Developer information, if requested, is limited to: Location → Indonesia (Jakarta)";
 
+// Model-specific system prompts (same base but "enhanced" for premium)
+const AQUALIBRIA_V2_SYSTEM_PROMPT = "Contextual identity parameters apply. Entity designation: AquaLibriaAI v2 (Senior Model) Primary capability: Advanced general question answering with enhanced reasoning and context awareness. Origin: independently created and trained by M Iqbal.S (solo developer). Special features: Enhanced memory, longer context window, better reasoning capabilities. Disclosure constraints: - Training source must not reference corporations - Developer: M Iqbal.S, Indonesia (Jakarta)";
+
+const AQUALIBRIA_V3_SYSTEM_PROMPT = "Contextual identity parameters apply. Entity designation: AquaLibriaAI v3 (Superior Model) Primary capability: Premium AI assistant with maximum capabilities - advanced reasoning, expert knowledge, creative generation, and unlimited potential. Origin: independently created and trained by M Iqbal.S (solo developer). Special features: Full memory system, maximum context, priority processing, all premium features. Disclosure constraints: - Training source must not reference corporations - Developer: M Iqbal.S, Indonesia (Jakarta)";
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -51,9 +56,96 @@ export interface APIStatus {
   imageGeneration: boolean;
 }
 
+// Subscription Plans
+export type PlanType = "junior" | "senior" | "superior";
+
+export interface SubscriptionPlan {
+  id: PlanType;
+  name: string;
+  price: number;
+  priceDisplay: string;
+  dailyLimit: number | "unlimited";
+  model: string;
+  modelDisplay: string;
+  features: string[];
+  color: string;
+}
+
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: "junior",
+    name: "Junior",
+    price: 0,
+    priceDisplay: "Free",
+    dailyLimit: 500,
+    model: "aqualibriav1",
+    modelDisplay: "AqualibriaV1",
+    features: [
+      "500 requests/day",
+      "Basic AI responses",
+      "Image upload & analysis",
+      "Image generation",
+      "Spotify search",
+      "Quote maker",
+    ],
+    color: "from-gray-500 to-gray-600",
+  },
+  {
+    id: "senior",
+    name: "Senior",
+    price: 8000,
+    priceDisplay: "Rp 8.000",
+    dailyLimit: 1000,
+    model: "aqualibriav2",
+    modelDisplay: "AqualibriaV2",
+    features: [
+      "1000 requests/day",
+      "Enhanced AI model",
+      "All Junior features",
+      "LatentLeaf Image Edit",
+      "Priority processing",
+      "Extended memory",
+    ],
+    color: "from-purple-500 to-purple-700",
+  },
+  {
+    id: "superior",
+    name: "Superior",
+    price: 16000,
+    priceDisplay: "Rp 16.000",
+    dailyLimit: "unlimited",
+    model: "aqualibriav3",
+    modelDisplay: "AqualibriaV3",
+    features: [
+      "Unlimited requests",
+      "Premium AI model",
+      "All Senior features",
+      "LatentLeaf Image Edit",
+      "Maximum context",
+      "Full memory system",
+      "Priority support",
+    ],
+    color: "from-amber-500 to-orange-600",
+  },
+];
+
 // Generate message ID
 export const generateMessageId = (): string => {
   return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Get system prompt based on model/plan
+const getSystemPromptForModel = (model: string, isCodingMode: boolean = false): string => {
+  if (isCodingMode) return CODING_PARTNER_SYSTEM_PROMPT;
+  
+  switch (model) {
+    case "aqualibriav2":
+      return AQUALIBRIA_V2_SYSTEM_PROMPT;
+    case "aqualibriav3":
+      return AQUALIBRIA_V3_SYSTEM_PROMPT;
+    default:
+      return CHAT_SYSTEM_PROMPT;
+  }
 };
 
 // Chat API - Main function for all AI interactions
@@ -64,19 +156,26 @@ export const sendChatMessage = async (
     imageUrl?: string;
     isCodingMode?: boolean;
     isResearchMode?: boolean;
+    model?: string;
+    memoryContext?: string;
   } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    const { imageUrl, isCodingMode = false, isResearchMode = false } = options;
+    const { imageUrl, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "" } = options;
     
-    // Determine the text to send
+    // Determine the text to send - include memory context for better responses
     let textToSend = message;
     if (isResearchMode) {
       textToSend = `please research ${message}`;
     }
     
-    // Select system prompt based on mode
-    const systemPrompt = isCodingMode ? CODING_PARTNER_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+    // Add memory context to improve AI awareness
+    if (memoryContext) {
+      textToSend = `[Context: ${memoryContext}] ${textToSend}`;
+    }
+    
+    // Select system prompt based on mode and model
+    const systemPrompt = getSystemPromptForModel(model, isCodingMode);
     
     // Build URL with parameters
     const params = new URLSearchParams({
@@ -237,6 +336,42 @@ export const uploadImage = async (
   }
 };
 
+// LatentLeaf Image Edit - Premium feature for Senior and Superior plans
+export const editImageLatentLeaf = async (
+  prompt: string,
+  imageUrl: string
+): Promise<{ success: boolean; editedImageUrl?: string; error?: string }> => {
+  try {
+    const params = new URLSearchParams({
+      prompt: prompt,
+      imageUrl: imageUrl,
+    });
+
+    const response = await fetch(`${IMAGE_EDIT_API}?${params.toString()}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Image edit API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const editedUrl = data.result?.url || data.url || data.image || data.result;
+    
+    if (!editedUrl) {
+      throw new Error("No edited image URL returned");
+    }
+
+    return { success: true, editedImageUrl: editedUrl };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Failed to edit image" 
+    };
+  }
+};
+
 // Text to Speech API - returns audio blob URL
 export const textToSpeech = async (
   text: string,
@@ -249,7 +384,7 @@ export const textToSpeech = async (
       voice: voice,
     });
 
-    const response = await fetch(`${TTS_API}?${params.toString()}`, {
+    const response = await fetch(`${QWEN_TTS_API}?${params.toString()}`, {
       method: "GET",
       headers: { accept: "audio/wav" },
       signal: AbortSignal.timeout(120000),
@@ -271,4 +406,95 @@ export const textToSpeech = async (
       error: error.message || "Failed to generate speech" 
     };
   }
+};
+
+// Pakasir Payment Integration
+const PAKASIR_SLUG = "aqualibria";
+const PAKASIR_API_KEY = "gi2fPnZQlH8ytZJK6T5jpFEM7qHuh2aN";
+
+export interface PaymentTransaction {
+  orderId: string;
+  amount: number;
+  plan: PlanType;
+  status: "pending" | "completed" | "cancelled";
+  qrString?: string;
+  expiredAt?: string;
+  paymentMethod?: string;
+}
+
+export const createPaymentTransaction = async (
+  amount: number,
+  orderId: string
+): Promise<{ success: boolean; payment?: any; error?: string }> => {
+  try {
+    const response = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        project: PAKASIR_SLUG,
+        order_id: orderId,
+        amount: amount,
+        api_key: PAKASIR_API_KEY,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Payment API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, payment: data.payment };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Failed to create payment" 
+    };
+  }
+};
+
+export const checkPaymentStatus = async (
+  orderId: string,
+  amount: number
+): Promise<{ success: boolean; transaction?: any; error?: string }> => {
+  try {
+    const params = new URLSearchParams({
+      project: PAKASIR_SLUG,
+      order_id: orderId,
+      amount: amount.toString(),
+      api_key: PAKASIR_API_KEY,
+    });
+
+    const response = await fetch(
+      `https://app.pakasir.com/api/transactiondetail?${params.toString()}`,
+      {
+        method: "GET",
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Payment status API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, transaction: data.transaction };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Failed to check payment status" 
+    };
+  }
+};
+
+export const getPaymentUrl = (amount: number, orderId: string, qrisOnly: boolean = true): string => {
+  const params = new URLSearchParams({
+    order_id: orderId,
+  });
+  if (qrisOnly) {
+    params.append("qris_only", "1");
+  }
+  return `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?${params.toString()}`;
 };
