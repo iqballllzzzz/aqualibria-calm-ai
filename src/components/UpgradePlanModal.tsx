@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, Sparkles, Crown, Star, Loader2, QrCode, ExternalLink } from "lucide-react";
+import { X, Check, Sparkles, Crown, Star, Loader2, ExternalLink, Copy } from "lucide-react";
 import { SUBSCRIPTION_PLANS, PlanType, createPaymentTransaction, checkPaymentStatus, getPaymentUrl } from "@/lib/api";
 import { getSubscription, upgradePlan } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentData, setPaymentData] = useState<any>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [countdown, setCountdown] = useState(300); // 5 minutes countdown
   const currentPlan = getSubscription().plan;
 
   const planIcons: Record<PlanType, React.ReactNode> = {
@@ -24,6 +25,30 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
     senior: <Sparkles className="w-8 h-8" />,
     superior: <Crown className="w-8 h-8" />,
   };
+
+  // Countdown timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (paymentData && countdown > 0) {
+      interval = setInterval(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    
+    if (countdown === 0 && paymentData) {
+      toast({
+        title: "Pembayaran Kadaluarsa",
+        description: "Silakan buat transaksi baru",
+        variant: "destructive",
+      });
+      handleCancel();
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [paymentData, countdown]);
 
   // Check payment status periodically
   useEffect(() => {
@@ -47,6 +72,7 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
           });
           setPaymentData(null);
           setSelectedPlan(null);
+          setCountdown(300);
           onClose();
         }
       }, 5000); // Check every 5 seconds
@@ -62,6 +88,7 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
     
     setSelectedPlan(planId);
     setIsProcessing(true);
+    setCountdown(300);
     
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
     if (!plan) return;
@@ -92,12 +119,26 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
   const handleCancel = () => {
     setPaymentData(null);
     setSelectedPlan(null);
+    setCountdown(300);
   };
 
   const openPaymentPage = () => {
     if (paymentData) {
       window.open(getPaymentUrl(paymentData.amount, paymentData.order_id), "_blank");
     }
+  };
+
+  const copyOrderId = () => {
+    if (paymentData?.order_id) {
+      navigator.clipboard.writeText(paymentData.order_id);
+      toast({ title: "Order ID disalin!" });
+    }
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -124,29 +165,36 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
                 <h3 className="text-lg font-semibold text-foreground mb-2">
                   Scan QRIS untuk Membayar
                 </h3>
-                <p className="text-foreground-muted text-sm">
-                  Total: <span className="font-bold text-foreground">Rp {paymentData.total_payment?.toLocaleString('id-ID') || paymentData.amount?.toLocaleString('id-ID')}</span>
+                <p className="text-foreground-muted text-sm mb-2">
+                  Total: <span className="font-bold text-foreground text-xl">
+                    Rp {(paymentData.total_payment || paymentData.amount)?.toLocaleString('id-ID')}
+                  </span>
+                </p>
+                <p className="text-destructive text-sm font-medium">
+                  Kadaluarsa dalam: {formatCountdown(countdown)}
                 </p>
               </div>
 
               {/* QR Code Display */}
               <div className="flex justify-center mb-6">
-                <div className="bg-white p-6 rounded-2xl shadow-lg">
+                <div className="bg-white p-6 rounded-2xl shadow-lg relative">
                   {paymentData.payment_number ? (
-                    <div className="relative">
+                    <>
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(paymentData.payment_number)}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentData.payment_number)}`}
                         alt="QRIS Payment"
-                        className="w-64 h-64"
+                        className="w-72 h-72"
                       />
                       {checkingStatus && (
-                        <div className="absolute inset-0 bg-black/20 rounded flex items-center justify-center">
-                          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                        <div className="absolute inset-0 bg-black/20 rounded-2xl flex items-center justify-center">
+                          <div className="bg-white rounded-full p-3">
+                            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                          </div>
                         </div>
                       )}
-                    </div>
+                    </>
                   ) : (
-                    <div className="w-64 h-64 flex items-center justify-center">
+                    <div className="w-72 h-72 flex items-center justify-center">
                       <Loader2 className="w-12 h-12 animate-spin text-purple-600" />
                     </div>
                   )}
@@ -154,9 +202,14 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
               </div>
 
               <div className="text-center space-y-4">
-                <p className="text-sm text-foreground-muted">
-                  Order ID: <span className="font-mono text-foreground">{paymentData.order_id}</span>
-                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-sm text-foreground-muted">
+                    Order ID: <span className="font-mono text-foreground">{paymentData.order_id}</span>
+                  </p>
+                  <button onClick={copyOrderId} className="p-1 hover:bg-accent rounded">
+                    <Copy className="w-4 h-4 text-foreground-muted" />
+                  </button>
+                </div>
                 
                 <div className="flex items-center justify-center gap-2 text-sm text-foreground-muted">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -166,18 +219,22 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
                 <div className="flex gap-3 justify-center">
                   <button
                     onClick={openPaymentPage}
-                    className="px-4 py-2 rounded-xl btn-gradient-purple flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-xl btn-gradient-purple flex items-center gap-2 font-medium"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Buka Halaman Pembayaran
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2 rounded-xl bg-muted text-foreground hover:bg-muted/80 transition-colors"
+                    className="px-5 py-2.5 rounded-xl bg-muted text-foreground hover:bg-muted/80 transition-colors font-medium"
                   >
                     Batal
                   </button>
                 </div>
+
+                <p className="text-xs text-foreground-muted mt-4">
+                  Pembayaran akan otomatis terdeteksi. Jangan tutup halaman ini.
+                </p>
               </div>
             </motion.div>
           ) : (
