@@ -488,7 +488,7 @@ const Chat: React.FC = () => {
             )}
           </div>
         </div>
-      </main>
+      </div>
 
       {/* User Button - Bottom Left of Input */}
       <button 
