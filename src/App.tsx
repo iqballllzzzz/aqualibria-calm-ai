@@ -14,6 +14,7 @@ import Chat from "./pages/Chat";
 import CodingPartner from "./pages/CodingPartner";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
 
@@ -47,7 +48,6 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
   
   if (isAuthenticated) {
-    // Check if user has seen welcome - if yes, go to chat, else go to welcome
     return <Navigate to={hasSeenWelcome() ? "/chat" : "/welcome"} replace />;
   }
   
@@ -69,7 +69,6 @@ const WelcomeRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     return <Navigate to="/login" replace />;
   }
   
-  // If user already seen welcome, redirect to chat
   if (hasSeenWelcome()) {
     return <Navigate to="/chat" replace />;
   }
@@ -78,6 +77,21 @@ const WelcomeRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 };
 
 const AppRoutes = () => {
+  const [mounted, setMounted] = useState(false);
+  
+  // Ensure component is mounted before rendering routes
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
+      </div>
+    );
+  }
+  
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
@@ -93,22 +107,24 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <LanguageProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </LanguageProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </LanguageProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
