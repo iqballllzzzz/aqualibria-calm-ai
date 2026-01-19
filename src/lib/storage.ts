@@ -9,6 +9,8 @@ export interface ChatSession {
   createdAt: Date;
   updatedAt: Date;
   isCodingPartner?: boolean;
+  isArchived?: boolean;
+  isPinned?: boolean;
 }
 
 export interface UserPreferences {

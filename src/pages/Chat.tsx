@@ -20,8 +20,8 @@ import MessageControls from "@/components/MessageControls";
 import VoiceCallModal from "@/components/VoiceCallModal";
 import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
-import MuseaModal from "@/components/MuseaModal";
 import UserPanel from "@/components/UserPanel";
+import GalleryPanel from "@/components/GalleryPanel";
 import TypingAnimation from "@/components/TypingAnimation";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -59,6 +59,7 @@ const Chat: React.FC = () => {
   const [showLatentLeaf, setShowLatentLeaf] = useState(false);
   const [showMusea, setShowMusea] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
 
   const subscription = getSubscription();
   const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === subscription.plan);
@@ -295,7 +296,11 @@ const Chat: React.FC = () => {
   );
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-screen w-screen overflow-hidden flex flex-col bg-background relative"
+    >
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
       <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} />
@@ -316,6 +321,19 @@ const Chat: React.FC = () => {
               <div className="p-4 flex items-center gap-3">
                 <Logo size="sm" />
                 <span className="font-bold text-lg text-sidebar-foreground">AquaLibriaAI</span>
+              </div>
+
+              {/* Gallery Button */}
+              <div className="px-3 mb-2">
+                <button
+                  onClick={() => { setShowGallery(true); setShowSidebar(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground group"
+                >
+                  <div className="p-1 rounded bg-purple-500/10 group-hover:bg-purple-500/20 text-purple-500 transition-colors">
+                    <Image className="w-4 h-4" />
+                  </div>
+                  <span className="font-medium">Gallery</span>
+                </button>
               </div>
               
               {/* New Chat Button */}
@@ -510,7 +528,7 @@ const Chat: React.FC = () => {
             </motion.div>
           )}
 
-          <div className="relative bg-chat-input border border-border rounded-2xl overflow-hidden">
+          <div className="relative bg-chat-input border border-border rounded-2xl">
             {/* Text Input */}
             <textarea 
               ref={inputRef} 
@@ -644,6 +662,7 @@ const Chat: React.FC = () => {
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
       <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+      <GalleryPanel isOpen={showGallery} onClose={() => setShowGallery(false)} />
       
       {/* Image Viewer */}
       <AnimatePresence>
@@ -653,7 +672,7 @@ const Chat: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 
