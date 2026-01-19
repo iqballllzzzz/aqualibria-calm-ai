@@ -16,10 +16,88 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="AquaLibriaAI" />
     <meta name="twitter:description" content="Your calm, intelligent AI companion for thinking, coding, learning, and creating." />
+    
+    <style>
+      /* Prevent blank page flash */
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #fafafa;
+      }
+      
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #121212;
+        }
+      }
+      
+      /* Loading screen */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #fafafa;
+        z-index: 9999;
+      }
+      
+      @media (prefers-color-scheme: dark) {
+        #loading-screen {
+          background-color: #121212;
+        }
+      }
+      
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-top-color: #000;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @media (prefers-color-scheme: dark) {
+        .spinner {
+          border-color: rgba(255, 255, 255, 0.1);
+          border-top-color: #fff;
+        }
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
 
   <body>
+    <!-- Loading screen -->
+    <div id="loading-screen">
+      <div class="spinner"></div>
+    </div>
+    
+    <!-- React root -->
     <div id="root"></div>
+    
     <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      // Remove loading screen after React mounts
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          const loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.3s';
+            setTimeout(function() {
+              loadingScreen.remove();
+            }, 300);
+          }
+        }, 100);
+      });
+    </script>
   </body>
 </html>
