@@ -107,12 +107,13 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
         amount: plan.price,
       });
     } else {
-      toast({
-        title: "Gagal membuat pembayaran",
-        description: result.error || "Silakan coba lagi",
-        variant: "destructive",
+      // Fallback to direct URL if API fails (common for client-side CORS)
+      console.warn("Payment API failed, falling back to direct URL", result.error);
+      setPaymentData({
+        order_id: orderId,
+        amount: plan.price,
+        // No payment_number (QR) implies we show the button
       });
-      setSelectedPlan(null);
     }
   };
 

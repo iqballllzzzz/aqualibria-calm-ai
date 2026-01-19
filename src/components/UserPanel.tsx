@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   X, User, Settings as SettingsIcon, Download, Upload, 
-  Shield, ChevronRight, Brain, LogOut, Moon, Sun, Crown
+  Shield, ChevronRight, Brain, LogOut, Moon, Sun, Crown, Archive, RotateCcw, Trash2
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,11 +14,14 @@ import {
   getAIMemory, saveAIMemory, AIMemory,
   exportChatHistory, importChatHistory,
   getSubscription, canUseFeature,
+  ChatSession, getChatHistory, saveChatSession, deleteChatSession
 } from "@/lib/storage";
 import { SUBSCRIPTION_PLANS } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import Logo from "@/components/Logo";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface UserPanelProps {
   isOpen: boolean;
@@ -36,7 +39,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade })
   const [preferences, setPreferences] = useState<UserPreferences>(getPreferences());
   const [memory, setMemory] = useState<AIMemory>(getAIMemory());
   const [hasChanges, setHasChanges] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [archivedSessions, setArchivedSessions] = useState<ChatSession[]>([]);
   
   const subscription = getSubscription();
   const usage = canUseFeature();
@@ -46,8 +49,26 @@ const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade })
     if (isOpen) {
       setPreferences(getPreferences());
       setMemory(getAIMemory());
+      loadArchivedSessions();
     }
   }, [isOpen]);
+
+  const loadArchivedSessions = () => {
+    const allSessions = getChatHistory();
+    setArchivedSessions(allSessions.filter(s => s.isArchived));
+  };
+
+  const handleUnarchive = (session: ChatSession) => {
+    saveChatSession({ ...session, isArchived: false });
+    loadArchivedSessions();
+    toast({ title: "Chat Unarchived" });
+  };
+
+  const handleDeleteArchived = (sessionId: string) => {
+    deleteChatSession(sessionId);
+    loadArchivedSessions();
+    toast({ title: "Chat Deleted" });
+  };
 
   const handlePreferenceChange = (key: keyof UserPreferences, value: any) => {
     setPreferences(prev => ({ ...prev, [key]: value }));
@@ -191,6 +212,54 @@ const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade })
               </div>
               <span className="text-foreground-muted capitalize">{theme}</span>
             </button>
+
+            {/* Archived Chats Section */}
+            <div className="space-y-2">
+               <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="archived" className="border-sidebar-border">
+                  <AccordionTrigger className="hover:no-underline p-4 bg-sidebar-accent rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <Archive className="w-5 h-5 text-foreground-muted" />
+                      <span className="text-foreground">Archived Chats</span>
+                      <span className="ml-2 text-xs bg-background px-2 py-0.5 rounded-full text-foreground-muted">
+                        {archivedSessions.length}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-2">
+                    <ScrollArea className="h-[200px] w-full rounded-md border border-sidebar-border p-2">
+                      {archivedSessions.length === 0 ? (
+                        <p className="text-center text-sm text-foreground-muted py-4">No archived chats.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {archivedSessions.map(session => (
+                            <div key={session.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent/50 group">
+                              <span className="text-sm text-foreground truncate max-w-[180px]">{session.title}</span>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleUnarchive(session)}
+                                  className="p-1.5 rounded hover:bg-background text-foreground-muted hover:text-foreground"
+                                  title="Unarchive"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteArchived(session.id)}
+                                  className="p-1.5 rounded hover:bg-destructive/10 text-destructive"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
 
             {/* AI Name */}
             <div className="space-y-2">
