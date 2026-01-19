@@ -46,12 +46,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md"
-      >
+      <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Logo */}
         <div className="text-center mb-10">
           <Logo size="lg" className="mx-auto mb-6" />
@@ -65,14 +60,10 @@ const Login: React.FC = () => {
 
         {/* Error message */}
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
-          >
+          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
             <p className="text-sm text-destructive">{error}</p>
-          </motion.div>
+          </div>
         )}
 
         {/* Login form */}
@@ -174,7 +165,7 @@ const Login: React.FC = () => {
             {t("login.register")}
           </Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 };

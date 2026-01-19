@@ -61,21 +61,10 @@ const Welcome: React.FC = () => {
       <div className="w-full max-w-2xl">
         <AnimatePresence mode="wait">
           {!showIntentSelection ? (
-            <motion.div
-              key="greeting"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-              className="text-center"
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                <Logo size="xl" className="mx-auto mb-10" />
-              </motion.div>
+            <div className="text-center">
+              <div className="mx-auto mb-10">
+                <Logo size="xl" className="mx-auto" />
+              </div>
 
               <div className="min-h-[120px] flex items-center justify-center">
                 <p className="text-xl md:text-2xl text-foreground leading-relaxed max-w-lg">
@@ -86,49 +75,36 @@ const Welcome: React.FC = () => {
                 </p>
               </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: typingComplete ? 1 : 0, y: typingComplete ? 0 : 10 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-              >
+              <div className={`transition-opacity duration-500 ${typingComplete ? 'opacity-100' : 'opacity-0'}`}>
                 <button
                   onClick={handleContinue}
                   disabled={!typingComplete}
-                  className="mt-8 px-8 py-3.5 rounded-xl bg-foreground text-background font-medium hover:bg-foreground/90 disabled:opacity-0 transition-all btn-press inline-flex items-center gap-2"
+                  className="mt-8 px-8 py-3.5 rounded-xl bg-foreground text-background font-medium hover:bg-foreground/90 transition-all btn-press inline-flex items-center gap-2"
                 >
                   {t("welcome.continue")}
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           ) : (
-            <motion.div
-              key="intent"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-center"
-            >
+            <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Logo size="lg" className="mx-auto mb-8" />
               <h2 className="text-xl md:text-2xl text-foreground mb-10">
                 {t("intent.question")}
               </h2>
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                {intents.map((intent, index) => (
-                  <motion.button
+                {intents.map((intent) => (
+                  <button
                     key={intent.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
                     onClick={() => handleIntentSelect(intent.id)}
                     className="group p-6 rounded-2xl bg-background-elevated border border-border hover:border-foreground/20 transition-all btn-press"
                   >
                     <intent.icon className="w-7 h-7 mx-auto mb-3 text-foreground-muted group-hover:text-foreground transition-colors" />
                     <span className="text-foreground font-medium">{intent.label}</span>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>
