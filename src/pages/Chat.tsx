@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Send, Menu, X, Image, Search, Sparkles, Music, Quote, Moon, Sun, 
-  MessageSquare, Code, Globe, ChevronRight, ChevronDown, Loader2, Mic, MicOff, AudioLines, Wand2, Crown,
+  MessageSquare, Code, Globe, ChevronRight, ChevronDown, Loader2, Mic, MicOff, AudioLines, Wand2, Crown, User,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage, languages } from "@/contexts/LanguageContext";
@@ -22,6 +22,9 @@ import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
 import UserPanel from "@/components/UserPanel";
+import TypingAnimation from "@/components/TypingAnimation";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Chat: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -49,6 +52,7 @@ const Chat: React.FC = () => {
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
   
   // New modal states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -252,6 +256,7 @@ const Chat: React.FC = () => {
     setMessages(session.messages); 
     setCurrentSessionId(session.id); 
     setShowHistory(false);
+    setShowSidebar(false);
     navigate(`/chat/${session.id}`);
   };
 
@@ -270,7 +275,8 @@ const Chat: React.FC = () => {
   };
 
   const memory = getAIMemory();
-  const greeting = memory.userName ? `Hai ${memory.userName}!` : "Hai User!";
+  const userName = memory.userName || "User";
+  const greeting = `Hai ${userName}! apa yang bisa saya bantu?`;
   const canUseLatentLeaf = subscription.plan === "senior" || subscription.plan === "superior";
 
   const plusMenuItems = [
@@ -283,59 +289,116 @@ const Chat: React.FC = () => {
     { icon: Music, label: "Musea (Coming Soon)", onClick: () => { setShowMusea(true); setShowPlusMenu(false); }, locked: false, comingSoon: true },
   ];
 
+  // Filter chat history
+  const filteredHistory = chatHistory.filter(session => 
+    session.title.toLowerCase().includes(historySearchQuery.toLowerCase())
+  );
+
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
       <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} />
       
-      {/* Sidebar */}
+      {/* Sidebar - Matches Reference Design */}
       <AnimatePresence>
         {showSidebar && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-foreground/10 z-40" onClick={() => setShowSidebar(false)} />
-            <motion.aside initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border z-50 flex flex-col">
-              <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Logo size="sm" />
-                  <span className="font-bold text-sidebar-foreground">AquaLibriaAI</span>
-                </div>
-                <button onClick={() => setShowSidebar(false)} className="p-2 rounded-lg hover:bg-sidebar-accent"><X className="w-5 h-5" /></button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowSidebar(false)} />
+            <motion.aside 
+              initial={{ x: -320 }} 
+              animate={{ x: 0 }} 
+              exit={{ x: -320 }} 
+              transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+              className="fixed left-0 top-0 bottom-0 w-80 bg-sidebar z-50 flex flex-col"
+            >
+              {/* Sidebar Header */}
+              <div className="p-4 flex items-center gap-3">
+                <Logo size="sm" />
+                <span className="font-bold text-lg text-sidebar-foreground">AquaLibriaAI</span>
               </div>
               
-              <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-                <button onClick={() => { handleNewChat(); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                  <MessageSquare className="w-5 h-5" /><span>New Chat</span>
+              {/* New Chat Button */}
+              <div className="px-3">
+                <button 
+                  onClick={handleNewChat} 
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  <span className="font-medium">New Chat</span>
                 </button>
-                <button onClick={() => { setShowHistory(true); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                  <Search className="w-5 h-5" /><span>{t("menu.history")}</span>
-                </button>
-                <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                  <Code className="w-5 h-5" /><span>{t("menu.coding")}</span>
-                </button>
-                <div className="relative">
-                  <button onClick={() => setShowLanguageSelector(!showLanguageSelector)} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                    <div className="flex items-center gap-3"><Globe className="w-5 h-5" /><span>{t("menu.language")}</span></div>
-                    <ChevronRight className={`w-4 h-4 transition-transform ${showLanguageSelector ? "rotate-90" : ""}`} />
-                  </button>
-                  <AnimatePresence>
-                    {showLanguageSelector && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                        <div className="ml-8 mt-1 space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
-                          {languages.map((lang) => (
-                            <button key={lang.code} onClick={() => { setLanguage(lang.code); setShowLanguageSelector(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${language === lang.code ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"}`}>{lang.nativeName}</button>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </nav>
+              </div>
 
+              {/* Chat History Section */}
+              <div className="px-3 mt-2">
+                <button 
+                  onClick={() => setShowHistory(!showHistory)} 
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
+                >
+                  <div className="flex items-center gap-3">
+                    <Search className="w-5 h-5" />
+                    <span className="font-medium">Chat History</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showHistory ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="px-4 mt-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sidebar-foreground/50" />
+                  <Input
+                    type="text"
+                    placeholder="Search chats"
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-sidebar-accent border-0 rounded-xl text-sidebar-foreground placeholder:text-sidebar-foreground/50 focus-visible:ring-1 focus-visible:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Chat History List */}
+              <ScrollArea className="flex-1 px-3 mt-3">
+                {filteredHistory.length === 0 ? (
+                  <p className="text-center text-sidebar-foreground/50 py-8">Belum ada riwayat chat</p>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredHistory.slice(0, 20).map((session) => (
+                      <button
+                        key={session.id}
+                        onClick={() => handleSelectSession(session)}
+                        className={`w-full text-left px-4 py-2.5 rounded-lg transition-colors text-sm truncate ${
+                          currentSessionId === session.id 
+                            ? "bg-sidebar-accent text-sidebar-foreground" 
+                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"
+                        }`}
+                      >
+                        {session.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Sidebar Footer - User Button */}
               <div className="p-3 border-t border-sidebar-border">
-                <button onClick={toggleTheme} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                  {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                  <span>{t("menu.theme")}</span>
+                <button 
+                  onClick={() => { setShowUserPanel(true); setShowSidebar(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center">
+                    <User className="w-4 h-4 text-sidebar-foreground" />
+                  </div>
+                  <span className="flex-1 text-left font-medium text-sidebar-foreground">{userName}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    subscription.plan === "junior" 
+                      ? "bg-muted text-muted-foreground" 
+                      : subscription.plan === "senior"
+                      ? "bg-purple-500/20 text-purple-400"
+                      : "bg-amber-500/20 text-amber-400"
+                  }`}>
+                    {currentPlan?.name || "Free"}
+                  </span>
                 </button>
               </div>
             </motion.aside>
@@ -344,12 +407,15 @@ const Chat: React.FC = () => {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="h-14 shrink-0 border-b border-border flex items-center justify-between px-4">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4">
         <button onClick={() => setShowSidebar(true)} className="p-2 rounded-lg hover:bg-accent transition-colors">
-          <Menu className="w-5 h-5 text-foreground" />
+          <Menu className="w-6 h-6 text-foreground" />
         </button>
         
-        <button onClick={() => setShowUpgradeModal(true)} className="px-4 py-2 rounded-full btn-gradient-purple flex items-center gap-2 text-sm font-medium">
+        <button 
+          onClick={() => setShowUpgradeModal(true)} 
+          className="px-5 py-2.5 rounded-full btn-gradient-purple flex items-center gap-2 text-sm font-semibold shadow-lg"
+        >
           <Sparkles className="w-4 h-4" />
           Upgrade Plan
         </button>
@@ -359,20 +425,38 @@ const Chat: React.FC = () => {
       <main className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="max-w-3xl mx-auto px-4 py-6">
           {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center min-h-[50vh]">
-              <div className="text-center">
-                <h1 className="text-3xl font-bold text-foreground mb-2">AquaLibriaAI</h1>
-                <p className="text-foreground-muted mb-1">{greeting} apa yang bisa saya bantu?</p>
+            <div className="h-full flex flex-col items-center justify-center min-h-[50vh]">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-center"
+              >
+                <h1 className="text-4xl font-bold text-foreground mb-4">AquaLibriaAI</h1>
+                <p className="text-foreground-muted text-lg">
+                  <TypingAnimation 
+                    text={greeting}
+                    highlightWord={`${userName}!`}
+                    speed={40}
+                  />
+                </p>
                 {memory.recentTopics.length > 0 && (
-                  <p className="text-foreground-muted/60 text-sm">Terakhir kita bicara tentang: {memory.recentTopics.slice(-1)[0]}</p>
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 2 }}
+                    className="text-foreground-muted/60 text-sm mt-2"
+                  >
+                    Terakhir kita bicara tentang: {memory.recentTopics.slice(-1)[0]}
+                  </motion.p>
                 )}
-              </div>
+              </motion.div>
             </div>
           ) : (
             <div className="space-y-6">
               {messages.map((message, index) => (
                 <motion.div key={message.id || index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-chat-user text-foreground" : "bg-chat-ai text-foreground border border-border"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-chat-user text-foreground" : "bg-chat-ai text-foreground"}`}>
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-3">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-lg max-w-full max-h-48 cursor-pointer" onClick={() => setShowImageViewer(message.imageUrl!)} />
@@ -390,8 +474,12 @@ const Chat: React.FC = () => {
               ))}
               {isLoading && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-                  <div className="bg-chat-ai border border-border rounded-2xl px-4 py-3 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-foreground-muted" />
+                  <div className="bg-chat-ai rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
                     <span className="text-foreground-muted text-sm">Thinking...</span>
                   </div>
                 </motion.div>
@@ -402,8 +490,8 @@ const Chat: React.FC = () => {
         </div>
       </main>
 
-      {/* Input Area */}
-      <div className="shrink-0 border-t border-border p-4">
+      {/* Input Area - Matches Reference Design */}
+      <div className="shrink-0 p-4 pb-6">
         <div className="max-w-3xl mx-auto">
           {activeMode !== "chat" && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
@@ -422,87 +510,132 @@ const Chat: React.FC = () => {
             </motion.div>
           )}
 
-          <div className="relative flex items-end gap-2 bg-chat-input border border-border rounded-2xl p-2">
-            {/* Plus Menu */}
-            <div className="relative">
-              <button onClick={() => setShowPlusMenu(!showPlusMenu)} disabled={isUploadingImage} className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-50">
-                {isUploadingImage ? <Loader2 className="w-5 h-5 animate-spin text-foreground-muted" /> : <Plus className={`w-5 h-5 text-foreground-muted transition-transform ${showPlusMenu ? "rotate-45" : ""}`} />}
-              </button>
-              <AnimatePresence>
-                {showPlusMenu && (
-                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 mb-2 w-60 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden">
-                    {plusMenuItems.map((item, index) => (
-                      <button key={index} onClick={item.locked ? undefined : item.onClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${item.locked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} text-foreground`}>
-                        <item.icon className="w-4 h-4" />
-                        <span className="text-sm flex-1">{item.label}</span>
-                        {item.exclusive && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">PRO</span>}
-                        {item.comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-foreground-muted">SOON</span>}
-                      </button>
-                    ))}
-                  </motion.div>
+          <div className="relative bg-chat-input border border-border rounded-2xl overflow-hidden">
+            {/* Text Input */}
+            <textarea 
+              ref={inputRef} 
+              value={inputValue} 
+              onChange={(e) => setInputValue(e.target.value)} 
+              onKeyDown={handleKeyDown} 
+              placeholder="Apa yang anda ingin tahu?" 
+              rows={1} 
+              className="w-full bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none p-4 pb-14 max-h-[200px]" 
+            />
+
+            {/* Bottom Controls */}
+            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between p-3 pt-0">
+              {/* Left Controls */}
+              <div className="flex items-center gap-2">
+                {/* Plus Menu */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowPlusMenu(!showPlusMenu)} 
+                    disabled={isUploadingImage} 
+                    className="p-2.5 rounded-full border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingImage ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-foreground-muted" />
+                    ) : (
+                      <Plus className={`w-5 h-5 text-foreground-muted transition-transform ${showPlusMenu ? "rotate-45" : ""}`} />
+                    )}
+                  </button>
+                  <AnimatePresence>
+                    {showPlusMenu && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        animate={{ opacity: 1, y: 0, scale: 1 }} 
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        transition={{ duration: 0.15 }} 
+                        className="absolute bottom-full left-0 mb-2 w-60 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden"
+                      >
+                        {plusMenuItems.map((item, index) => (
+                          <button 
+                            key={index} 
+                            onClick={item.locked ? undefined : item.onClick} 
+                            className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${item.locked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} text-foreground`}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            <span className="text-sm flex-1">{item.label}</span>
+                            {item.exclusive && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">PRO</span>}
+                            {item.comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-foreground-muted">SOON</span>}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Center - Model Selector */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowModelSelector(!showModelSelector)} 
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-accent transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 text-foreground-muted" />
+                  <span className="text-sm text-foreground-muted">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
+                  <ChevronDown className={`w-3 h-3 text-foreground-muted transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
+                </button>
+                <AnimatePresence>
+                  {showModelSelector && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      exit={{ opacity: 0, y: 5 }} 
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden"
+                    >
+                      {SUBSCRIPTION_PLANS.map((plan) => {
+                        const isLocked = SUBSCRIPTION_PLANS.findIndex(p => p.id === subscription.plan) < SUBSCRIPTION_PLANS.findIndex(p => p.id === plan.id);
+                        return (
+                          <button 
+                            key={plan.id} 
+                            onClick={() => { if (!isLocked) setShowModelSelector(false); }} 
+                            className={`w-full px-4 py-2.5 text-left transition-colors ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${subscription.plan === plan.id ? "bg-accent" : ""}`}
+                          >
+                            <span className="text-sm text-foreground">{plan.modelDisplay}</span>
+                            {isLocked && <Crown className="w-3 h-3 inline ml-2 text-purple-500" />}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Right Controls */}
+              <div className="flex items-center gap-2">
+                {/* Mic Button */}
+                {isListening ? (
+                  <button onClick={stopListening} className="p-2.5 rounded-full bg-destructive text-destructive-foreground animate-pulse">
+                    <MicOff className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <button onClick={startListening} disabled={isLoading} className="p-2.5 rounded-full hover:bg-accent transition-colors disabled:opacity-40">
+                    <Mic className="w-5 h-5 text-foreground-muted" />
+                  </button>
                 )}
-              </AnimatePresence>
+
+                {/* Send Button */}
+                <button 
+                  onClick={inputValue.trim() || pendingImageUrl ? handleSendMessage : () => setShowVoiceCall(true)} 
+                  disabled={isLoading} 
+                  className={`p-2.5 rounded-full transition-all disabled:opacity-40 ${
+                    inputValue.trim() || pendingImageUrl 
+                      ? "bg-foreground text-background hover:bg-foreground/90" 
+                      : "bg-foreground text-background hover:bg-foreground/90"
+                  }`}
+                >
+                  {inputValue.trim() || pendingImageUrl ? (
+                    <Send className="w-5 h-5" />
+                  ) : (
+                    <AudioLines className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
-
-            <textarea ref={inputRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder="Apa yang anda ingin tahu?" rows={1} className="flex-1 bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none py-2 max-h-[200px]" />
-
-            {/* Model Selector */}
-            <div className="relative">
-              <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent hover:bg-accent/80 transition-colors">
-                <span className="text-xs text-foreground-muted">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
-                <ChevronDown className={`w-3 h-3 text-foreground-muted transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
-              </button>
-              <AnimatePresence>
-                {showModelSelector && (
-                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full right-0 mb-2 w-48 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden">
-                    {SUBSCRIPTION_PLANS.map((plan) => {
-                      const isLocked = SUBSCRIPTION_PLANS.findIndex(p => p.id === subscription.plan) < SUBSCRIPTION_PLANS.findIndex(p => p.id === plan.id);
-                      return (
-                        <button key={plan.id} onClick={() => { if (!isLocked) setShowModelSelector(false); }} className={`w-full px-4 py-2.5 text-left transition-colors ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${subscription.plan === plan.id ? "bg-accent" : ""}`}>
-                          <span className="text-sm text-foreground">{plan.modelDisplay}</span>
-                          {isLocked && <Crown className="w-3 h-3 inline ml-2 text-purple-500" />}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Mic Button */}
-            {isListening ? (
-              <button onClick={stopListening} className="p-2 rounded-xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-5 h-5" /></button>
-            ) : (
-              <button onClick={startListening} disabled={isLoading} className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-40"><Mic className="w-5 h-5 text-foreground-muted" /></button>
-            )}
-
-            {/* Send / Voice Call Button */}
-            {inputValue.trim() || pendingImageUrl ? (
-              <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 transition-all">
-                <Send className="w-5 h-5" />
-              </button>
-            ) : (
-              <button onClick={() => setShowVoiceCall(true)} className="p-2.5 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all">
-                <AudioLines className="w-5 h-5" />
-              </button>
-            )}
           </div>
         </div>
       </div>
-
-      {/* User Button - Bottom Left of Input */}
-      <button 
-        onClick={() => setShowUserPanel(true)}
-        className="fixed bottom-24 left-4 flex items-center gap-2 px-3 py-2 rounded-full bg-sidebar border border-sidebar-border hover:bg-sidebar-accent transition-colors"
-      >
-        <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center">
-          <span className="text-xs font-medium text-foreground">{(memory.userName || user?.email || "U")[0].toUpperCase()}</span>
-        </div>
-        <span className="text-sm text-foreground">{memory.userName || "User"}</span>
-        <span className={`text-xs px-1.5 py-0.5 rounded ${subscription.plan === "junior" ? "bg-muted text-foreground-muted" : "bg-purple-500/20 text-purple-400"}`}>
-          {currentPlan?.name || "Free"}
-        </span>
-      </button>
 
       {/* Modals */}
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />

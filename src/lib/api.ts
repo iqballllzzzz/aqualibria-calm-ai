@@ -1,11 +1,10 @@
 // API Configuration - Updated to GPT-5-Nano
-const API_BASE = "https://api.nekolabs.web.id/text.gen/gpt-5-nano";
+const API_BASE = "https://api.nekolabs.web.id/text.gen/gpt/5-nano";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
 const IMAGE_EDIT_API = "https://api.nekolabs.web.id/image.gen/qwen/image-edit";
-const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini"; // Keep fallback, Qwen TTS to be integrated
-
+const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
 // Voice options for TTS - Using Qwen3 voices
 export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = {
   Fenrir: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
@@ -411,6 +410,7 @@ export const textToSpeech = async (
 // Pakasir Payment Integration
 const PAKASIR_SLUG = "aqualibria";
 const PAKASIR_API_KEY = "gi2fPnZQlH8ytZJK6T5jpFEM7qHuh2aN";
+const PAKASIR_BASE_URL = "https://app.pakasir.com";
 
 export interface PaymentTransaction {
   orderId: string;
