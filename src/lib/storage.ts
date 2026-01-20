@@ -73,6 +73,12 @@ export interface ImageEditSession {
   editHistory: { prompt: string; resultUrl: string; timestamp: Date }[];
 }
 
+// Chat Management
+export interface ChatManagement {
+  pinnedSessions: string[];
+  archivedSessions: string[];
+}
+
 // ==================== STORAGE KEYS ====================
 
 const STORAGE_KEYS = {
@@ -85,6 +91,7 @@ const STORAGE_KEYS = {
   SUBSCRIPTION: "aqua-subscription",
   DAILY_USAGE: "aqua-daily-usage",
   IMAGE_EDIT_SESSION: "aqua-image-edit-session",
+  CHAT_MANAGEMENT: "aqua-chat-management",
 } as const;
 
 // ==================== WELCOME STATE ====================
@@ -156,6 +163,12 @@ export const deleteChatSession = (sessionId: string): void => {
   const history = getChatHistory();
   const filtered = history.filter((s) => s.id !== sessionId);
   localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(filtered));
+  
+  // Also remove from management lists
+  const management = getChatManagement();
+  management.pinnedSessions = management.pinnedSessions.filter(id => id !== sessionId);
+  management.archivedSessions = management.archivedSessions.filter(id => id !== sessionId);
+  saveChatManagement(management);
 };
 
 export const clearAllChatHistory = (): void => {
@@ -177,6 +190,62 @@ export const searchChatHistory = (query: string): ChatSession[] => {
 export const getSessionById = (sessionId: string): ChatSession | null => {
   const history = getChatHistory();
   return history.find((s) => s.id === sessionId) || null;
+};
+
+export const renameSession = (sessionId: string, newTitle: string): void => {
+  const history = getChatHistory();
+  const index = history.findIndex(s => s.id === sessionId);
+  if (index >= 0) {
+    history[index].title = newTitle;
+    history[index].updatedAt = new Date();
+    localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+  }
+};
+
+// ==================== CHAT MANAGEMENT (PIN/ARCHIVE) ====================
+
+export const getChatManagement = (): ChatManagement => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.CHAT_MANAGEMENT);
+    if (!stored) return { pinnedSessions: [], archivedSessions: [] };
+    return JSON.parse(stored);
+  } catch {
+    return { pinnedSessions: [], archivedSessions: [] };
+  }
+};
+
+export const saveChatManagement = (management: ChatManagement): void => {
+  localStorage.setItem(STORAGE_KEYS.CHAT_MANAGEMENT, JSON.stringify(management));
+};
+
+export const togglePinSession = (sessionId: string): void => {
+  const management = getChatManagement();
+  const index = management.pinnedSessions.indexOf(sessionId);
+  if (index >= 0) {
+    management.pinnedSessions.splice(index, 1);
+  } else {
+    management.pinnedSessions.push(sessionId);
+  }
+  saveChatManagement(management);
+};
+
+export const toggleArchiveSession = (sessionId: string): void => {
+  const management = getChatManagement();
+  const index = management.archivedSessions.indexOf(sessionId);
+  if (index >= 0) {
+    management.archivedSessions.splice(index, 1);
+  } else {
+    management.archivedSessions.push(sessionId);
+    // Remove from pinned if archived
+    management.pinnedSessions = management.pinnedSessions.filter(id => id !== sessionId);
+  }
+  saveChatManagement(management);
+};
+
+export const restoreArchivedSession = (sessionId: string): void => {
+  const management = getChatManagement();
+  management.archivedSessions = management.archivedSessions.filter(id => id !== sessionId);
+  saveChatManagement(management);
 };
 
 // ==================== USER PREFERENCES ====================
@@ -636,6 +705,7 @@ export const exportChatHistory = (): string => {
     memory: getAIMemory(),
     reactions: getMessageReactions(),
     subscription: getSubscription(),
+    chatManagement: getChatManagement(),
     exportedAt: new Date().toISOString(),
   };
   return JSON.stringify(data, null, 2);
@@ -659,6 +729,10 @@ export const importChatHistory = (jsonString: string): boolean => {
     
     if (parsed.reactions) {
       localStorage.setItem(STORAGE_KEYS.MESSAGE_REACTIONS, JSON.stringify(parsed.reactions));
+    }
+
+    if (parsed.chatManagement) {
+      localStorage.setItem(STORAGE_KEYS.CHAT_MANAGEMENT, JSON.stringify(parsed.chatManagement));
     }
     
     return true;
