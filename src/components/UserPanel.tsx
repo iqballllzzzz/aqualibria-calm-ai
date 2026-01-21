@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   X, User, Settings as SettingsIcon, Download, Upload, 
-  Shield, ChevronRight, Brain, LogOut, Moon, Sun, Crown
+  Shield, ChevronRight, Brain, LogOut, Moon, Sun, Crown, Archive
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,9 +24,10 @@ interface UserPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenUpgrade: () => void;
+  onOpenArchivedChats?: () => void;
 }
 
-const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade }) => {
+const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade, onOpenArchivedChats }) => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
@@ -287,6 +288,18 @@ const UserPanel: React.FC<UserPanelProps> = ({ isOpen, onClose, onOpenUpgrade })
                   </div>
                   <ChevronRight className="w-5 h-5 text-foreground-muted" />
                 </button>
+                {onOpenArchivedChats && (
+                  <button 
+                    onClick={() => { onOpenArchivedChats(); onClose(); }}
+                    className="w-full p-3 flex items-center justify-between rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Archive className="w-5 h-5 text-foreground-muted" />
+                      <span className="text-foreground">Archived Chats</span>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-foreground-muted" />
+                  </button>
+                )}
               </div>
             </div>
 
