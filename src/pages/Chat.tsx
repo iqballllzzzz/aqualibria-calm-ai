@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,8 +24,16 @@ import MuseaModal from "@/components/MuseaModal";
 import UserPanel from "@/components/UserPanel";
 import TypingAnimation from "@/components/TypingAnimation";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
+import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Mobile viewport height fix
+const setVH = () => {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+};
 
 const Chat: React.FC = () => {
   const { theme } = useTheme();
@@ -59,6 +67,8 @@ const Chat: React.FC = () => {
   const [showMusea, setShowMusea] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   // Chat management
   const [chatManagement, setChatManagement] = useState(getChatManagement());
@@ -85,16 +95,31 @@ const Chat: React.FC = () => {
     }
   }, [voiceError, toast]);
 
+  // Mobile viewport height fix
+  useLayoutEffect(() => {
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+    return () => {
+      window.removeEventListener('resize', setVH);
+      window.removeEventListener('orientationchange', setVH);
+    };
+  }, []);
+
   useEffect(() => {
-    setChatHistory(getChatHistory());
+    setIsLoadingHistory(true);
+    const history = getChatHistory();
+    setChatHistory(history);
     setChatManagement(getChatManagement());
     if (urlSessionId) {
-      const session = getChatHistory().find(s => s.id === urlSessionId);
+      const session = history.find(s => s.id === urlSessionId);
       if (session) {
         setMessages(session.messages);
         setCurrentSessionId(session.id);
       }
     }
+    // Simulate loading for skeleton effect
+    setTimeout(() => setIsLoadingHistory(false), 300);
   }, [urlSessionId]);
 
   useEffect(() => {
@@ -289,7 +314,7 @@ const Chat: React.FC = () => {
   const filteredHistory = chatHistory.filter(session => session.title.toLowerCase().includes(historySearchQuery.toLowerCase()));
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <div className="h-screen-safe w-screen overflow-hidden flex flex-col bg-background" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
       <ChatHistoryPanel 
@@ -439,8 +464,8 @@ const Chat: React.FC = () => {
         </div>
       </main>
 
-      {/* Input Area */}
-      <div className="shrink-0 p-4 pb-6">
+      {/* Input Area - Fixed at bottom with safe area */}
+      <div className="shrink-0 p-4 pb-safe" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
         <div className="max-w-3xl mx-auto">
           {activeMode !== "chat" && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
@@ -459,7 +484,7 @@ const Chat: React.FC = () => {
             </motion.div>
           )}
 
-          <div className="relative bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="relative bg-card border border-border rounded-2xl overflow-visible shadow-md">
             <textarea ref={inputRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder="Apa yang anda ingin tahu?" rows={1} className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none p-4 pb-14 max-h-[200px]" />
 
             <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between p-3 pt-0">
@@ -470,15 +495,26 @@ const Chat: React.FC = () => {
                   </button>
                   <AnimatePresence>
                     {showPlusMenu && (
-                      <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 mb-2 w-56 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50 max-h-80 overflow-y-auto">
-                        {plusMenuItems.map((item, index) => (
-                          <button key={index} onClick={item.locked ? undefined : item.onClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${item.locked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} text-foreground`}>
-                            <item.icon className="w-4 h-4 shrink-0" />
-                            <span className="text-sm flex-1 truncate">{item.label}</span>
-                            {item.exclusive && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 shrink-0">PRO</span>}
-                            {item.comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">SOON</span>}
-                          </button>
-                        ))}
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        animate={{ opacity: 1, y: 0, scale: 1 }} 
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        transition={{ duration: 0.15 }} 
+                        className="absolute bottom-full left-0 mb-2 w-60 bg-popover border border-border rounded-xl shadow-elevated z-[60]"
+                        style={{ maxHeight: 'calc(var(--vh, 1vh) * 50)' }}
+                      >
+                        <ScrollArea className="max-h-[50vh]">
+                          <div className="py-1">
+                            {plusMenuItems.map((item, index) => (
+                              <button key={index} onClick={item.locked ? undefined : item.onClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${item.locked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} text-foreground`}>
+                                <item.icon className="w-4 h-4 shrink-0" />
+                                <span className="text-sm flex-1">{item.label}</span>
+                                {item.exclusive && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 shrink-0">PRO</span>}
+                                {item.comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">SOON</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -488,18 +524,29 @@ const Chat: React.FC = () => {
               <div className="relative">
                 <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full hover:bg-accent transition-colors">
                   <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground hidden sm:inline">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
+                  <span className="text-xs text-muted-foreground">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
                   <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
                 </button>
                 <AnimatePresence>
                   {showModelSelector && (
-                    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50">
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      exit={{ opacity: 0, y: 5 }} 
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
+                    >
                       {SUBSCRIPTION_PLANS.map((plan) => {
                         const isLocked = SUBSCRIPTION_PLANS.findIndex(p => p.id === subscription.plan) < SUBSCRIPTION_PLANS.findIndex(p => p.id === plan.id);
+                        const isActive = subscription.plan === plan.id;
                         return (
-                          <button key={plan.id} onClick={() => { if (!isLocked) setShowModelSelector(false); }} className={`w-full px-4 py-2.5 text-left transition-colors ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${subscription.plan === plan.id ? "bg-accent" : ""}`}>
-                            <span className="text-sm text-foreground">{plan.modelDisplay}</span>
-                            {isLocked && <Crown className="w-3 h-3 inline ml-2 text-purple-500" />}
+                          <button 
+                            key={plan.id} 
+                            onClick={() => { if (!isLocked) setShowModelSelector(false); }} 
+                            className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${isActive ? "bg-accent" : ""}`}
+                          >
+                            <span className="text-sm text-foreground font-medium">{plan.modelDisplay}</span>
+                            {isLocked && <Crown className="w-4 h-4 text-purple-500" />}
+                            {isActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
                           </button>
                         );
                       })}
@@ -533,8 +580,17 @@ const Chat: React.FC = () => {
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
-      <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+      <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} onOpenArchivedChats={() => setShowArchivedChats(true)} />
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
+      <ArchivedChatsModal 
+        isOpen={showArchivedChats} 
+        onClose={() => setShowArchivedChats(false)} 
+        sessions={chatHistory} 
+        archivedIds={chatManagement.archivedSessions} 
+        onRestoreSession={handleArchiveSession}
+        onDeleteSession={handleDeleteSession}
+        onSelectSession={handleSelectSession}
+      />
       
       {/* Image Viewer */}
       <AnimatePresence>
