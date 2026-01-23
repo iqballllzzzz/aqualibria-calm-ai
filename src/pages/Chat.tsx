@@ -9,7 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS } from "@/lib/api";
-import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession } from "@/lib/storage";
+import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
@@ -176,7 +176,8 @@ const Chat: React.FC = () => {
 
     const usage = canUseFeature();
     if (!usage.allowed) {
-      toast({ title: "Limit Tercapai", description: "Anda telah mencapai batas harian. Upgrade plan untuk lebih banyak!", variant: "destructive" });
+      const waitMsg = usage.waitTime ? ` Tunggu ${Math.floor(usage.waitTime / 60)}:${(usage.waitTime % 60).toString().padStart(2, '0')} lagi.` : "";
+      toast({ title: "Limit Tercapai", description: `Anda telah mencapai batas penggunaan.${waitMsg} Upgrade plan untuk lebih banyak!`, variant: "destructive" });
       setShowUpgradeModal(true);
       return;
     }
@@ -299,7 +300,7 @@ const Chat: React.FC = () => {
   const memory = getAIMemory();
   const userName = memory.userName || "User";
   const greeting = `Hai ${userName}! apa yang bisa saya bantu?`;
-  const canUseLatentLeaf = subscription.plan === "senior" || subscription.plan === "superior";
+  const latentLeafAccess = canUseLatentLeaf();
 
   const plusMenuItems = [
     { icon: Image, label: t("plus.uploadImage"), onClick: () => { fileInputRef.current?.click(); setShowPlusMenu(false); }, locked: false },
@@ -307,7 +308,7 @@ const Chat: React.FC = () => {
     { icon: Search, label: t("plus.deepResearch"), onClick: () => { setActiveMode("research"); setShowPlusMenu(false); }, locked: false },
     { icon: Music, label: t("plus.spotifySearch"), onClick: () => { setActiveMode("spotify"); setShowPlusMenu(false); }, locked: false },
     { icon: Quote, label: t("plus.quoteMaker"), onClick: () => { setShowQuoteMaker(true); setShowPlusMenu(false); }, locked: false },
-    { icon: Wand2, label: "LatentLeaf Edit", onClick: () => { setShowLatentLeaf(true); setShowPlusMenu(false); }, locked: !canUseLatentLeaf, exclusive: true },
+    { icon: Wand2, label: `LatentLeaf Edit ${latentLeafAccess.unlimited ? '' : `(${latentLeafAccess.remaining}/10)`}`, onClick: () => { setShowLatentLeaf(true); setShowPlusMenu(false); }, locked: !latentLeafAccess.allowed, exclusive: latentLeafAccess.unlimited },
     { icon: Music, label: "Musea (Coming Soon)", onClick: () => { setShowMusea(true); setShowPlusMenu(false); }, locked: false, comingSoon: true },
   ];
 
@@ -369,7 +370,15 @@ const Chat: React.FC = () => {
               </div>
 
               <ScrollArea className="flex-1 px-3 mt-3">
-                {filteredHistory.length === 0 ? (
+                {isLoadingHistory ? (
+                  <div className="space-y-2 pb-4">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="px-4 py-3">
+                        <Skeleton className="h-4 w-full rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredHistory.length === 0 ? (
                   <p className="text-center text-sidebar-foreground/50 py-8">Belum ada riwayat chat</p>
                 ) : (
                   <div className="space-y-1 pb-4">
@@ -430,13 +439,17 @@ const Chat: React.FC = () => {
             <div className="space-y-6">
               {messages.map((message, index) => (
                 <motion.div key={message.id || index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-muted text-foreground" : "bg-card border border-border text-foreground"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 overflow-hidden ${message.role === "user" ? "bg-muted text-foreground" : "bg-card border border-border text-foreground"}`}>
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-3">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-lg max-w-full max-h-48 cursor-pointer" onClick={() => setShowImageViewer(message.imageUrl!)} />
                       </div>
                     )}
-                    {message.role === "assistant" ? <MarkdownRenderer content={message.content} /> : <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>}
+                    {message.role === "assistant" ? (
+                      <MarkdownRenderer content={message.content} />
+                    ) : (
+                      <p className="whitespace-pre-wrap leading-relaxed break-words overflow-wrap-anywhere" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{message.content}</p>
+                    )}
                     {message.imageUrl && message.role === "assistant" && (
                       <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-lg max-w-full cursor-pointer" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
                     )}
