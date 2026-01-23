@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, Wand2, Loader2, Download, RotateCcw, Image as ImageIcon } from "lucide-react";
+import { X, Upload, Wand2, Loader2, Download, RotateCcw, Image as ImageIcon, Clock } from "lucide-react";
 import { editImageLatentLeaf, uploadImage } from "@/lib/api";
-import { getSubscription, getImageEditSession, updateImageEditSession } from "@/lib/storage";
+import { getSubscription, getImageEditSession, updateImageEditSession, canUseLatentLeaf, incrementLatentLeafUsage } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -21,13 +21,14 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
   const [isEditing, setIsEditing] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [editHistory, setEditHistory] = useState<{ prompt: string; resultUrl: string }[]>([]);
+  const [usageInfo, setUsageInfo] = useState(canUseLatentLeaf());
   
   const subscription = getSubscription();
-  const canUse = subscription.plan === "senior" || subscription.plan === "superior";
 
-  // Load previous session
+  // Update usage info when modal opens
   useEffect(() => {
     if (isOpen) {
+      setUsageInfo(canUseLatentLeaf());
       const session = getImageEditSession();
       if (session) {
         setImageUrl(session.lastImageUrl);
@@ -35,6 +36,16 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
       }
     }
   }, [isOpen]);
+
+  // Update usage info periodically if waiting
+  useEffect(() => {
+    if (isOpen && usageInfo.waitTime && usageInfo.waitTime > 0) {
+      const interval = setInterval(() => {
+        setUsageInfo(canUseLatentLeaf());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, usageInfo.waitTime]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,6 +78,19 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
       return;
     }
 
+    // Check usage limit
+    const currentUsage = canUseLatentLeaf();
+    if (!currentUsage.allowed) {
+      const waitMins = Math.floor((currentUsage.waitTime || 0) / 60);
+      const waitSecs = (currentUsage.waitTime || 0) % 60;
+      toast({ 
+        title: "Limit Tercapai", 
+        description: `Tunggu ${waitMins}:${waitSecs.toString().padStart(2, '0')} lagi atau upgrade plan.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setIsEditing(true);
     
     // Use the last result URL if available (for continuous editing), otherwise use original
@@ -76,6 +100,12 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
     setIsEditing(false);
 
     if (result.success && result.editedImageUrl) {
+      // Increment usage for free users
+      if (subscription.plan === "junior") {
+        incrementLatentLeafUsage();
+        setUsageInfo(canUseLatentLeaf());
+      }
+      
       setResultUrl(result.editedImageUrl);
       
       // Save to session
@@ -101,7 +131,14 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
     }
   };
 
-  if (!canUse) {
+  const formatWaitTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Show limit reached message for free users
+  if (!usageInfo.allowed && !usageInfo.unlimited) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-md bg-background border-border">
@@ -113,15 +150,27 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
           </DialogHeader>
           
           <div className="py-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-              <ImageIcon className="w-8 h-8 text-foreground-muted" />
-            </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">Fitur Eksklusif</h3>
-            <p className="text-foreground-muted text-sm mb-4">
-              LatentLeaf Image Edit tersedia untuk plan Senior dan Superior.
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center"
+            >
+              <Clock className="w-8 h-8 text-amber-500" />
+            </motion.div>
+            <h3 className="text-lg font-medium text-foreground mb-2">Limit Tercapai</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Anda telah menggunakan 10 edit dalam 7 menit terakhir.
             </p>
+            <motion.p 
+              key={usageInfo.waitTime}
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+              className="text-2xl font-bold text-amber-500 mb-4"
+            >
+              {formatWaitTime(usageInfo.waitTime || 0)}
+            </motion.p>
             <p className="text-purple-500 text-sm font-medium">
-              Upgrade plan Anda untuk mengakses fitur ini!
+              Upgrade plan untuk akses unlimited!
             </p>
           </div>
         </DialogContent>
@@ -136,9 +185,15 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="w-5 h-5 text-purple-500" />
             LatentLeaf Image Edit
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
-              EXCLUSIVE
-            </span>
+            {usageInfo.unlimited ? (
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                UNLIMITED
+              </span>
+            ) : (
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                {usageInfo.remaining}/10 tersisa
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 

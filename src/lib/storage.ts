@@ -65,6 +65,14 @@ export interface UserSubscription {
 export interface UsageData {
   date: string; // YYYY-MM-DD
   count: number;
+  windowStart?: number; // timestamp for rate limiting window
+  windowCount?: number; // count within window
+}
+
+// LatentLeaf Usage for Free Users
+export interface LatentLeafUsage {
+  windowStart: number; // timestamp
+  count: number;
 }
 
 // LatentLeaf Image Edit Memory
@@ -90,6 +98,8 @@ const STORAGE_KEYS = {
   CURRENT_SESSION: "aqua-current-session",
   SUBSCRIPTION: "aqua-subscription",
   DAILY_USAGE: "aqua-daily-usage",
+  RATE_LIMIT_USAGE: "aqua-rate-limit-usage",
+  LATENTLEAF_USAGE: "aqua-latentleaf-usage",
   IMAGE_EDIT_SESSION: "aqua-image-edit-session",
   CHAT_MANAGEMENT: "aqua-chat-management",
 } as const;
@@ -594,7 +604,21 @@ export const upgradePlan = (plan: PlanType, orderId: string): void => {
   });
 };
 
-// ==================== USAGE TRACKING ====================
+// ==================== USAGE TRACKING (Updated with Rate Limits) ====================
+
+// Rate limit windows: Free = 40 per 2 min, Senior = 1000/day, Superior = unlimited
+const RATE_LIMIT_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+const FREE_RATE_LIMIT = 40;
+
+export const getRateLimitUsage = (): { windowStart: number; count: number } => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.RATE_LIMIT_USAGE);
+    if (!stored) return { windowStart: Date.now(), count: 0 };
+    return JSON.parse(stored);
+  } catch {
+    return { windowStart: Date.now(), count: 0 };
+  }
+};
 
 export const getTodayUsage = (): number => {
   try {
@@ -611,9 +635,10 @@ export const getTodayUsage = (): number => {
 
 export const incrementUsage = (): number => {
   const today = new Date().toISOString().split('T')[0];
-  let currentCount = getTodayUsage();
+  const now = Date.now();
   
-  // Reset if different day
+  // Update daily usage
+  let currentCount = getTodayUsage();
   const stored = localStorage.getItem(STORAGE_KEYS.DAILY_USAGE);
   if (stored) {
     const usage: UsageData = JSON.parse(stored);
@@ -621,37 +646,120 @@ export const incrementUsage = (): number => {
       currentCount = 0;
     }
   }
-  
-  const newCount = currentCount + 1;
+  const newDailyCount = currentCount + 1;
   localStorage.setItem(STORAGE_KEYS.DAILY_USAGE, JSON.stringify({
     date: today,
-    count: newCount,
+    count: newDailyCount,
   }));
   
-  return newCount;
+  // Update rate limit window
+  const rateLimitData = getRateLimitUsage();
+  if (now - rateLimitData.windowStart > RATE_LIMIT_WINDOW_MS) {
+    // Reset window
+    localStorage.setItem(STORAGE_KEYS.RATE_LIMIT_USAGE, JSON.stringify({
+      windowStart: now,
+      count: 1,
+    }));
+  } else {
+    localStorage.setItem(STORAGE_KEYS.RATE_LIMIT_USAGE, JSON.stringify({
+      windowStart: rateLimitData.windowStart,
+      count: rateLimitData.count + 1,
+    }));
+  }
+  
+  return newDailyCount;
 };
 
-export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited" } => {
+export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited"; waitTime?: number } => {
   const subscription = getSubscription();
-  const usage = getTodayUsage();
+  const now = Date.now();
   
-  const limits: Record<PlanType, number | "unlimited"> = {
-    junior: 500,
-    senior: 1000,
-    superior: "unlimited",
-  };
-  
-  const limit = limits[subscription.plan];
-  
-  if (limit === "unlimited") {
+  if (subscription.plan === "superior") {
     return { allowed: true, remaining: "unlimited" };
   }
   
-  const remaining = limit - usage;
-  return { 
-    allowed: remaining > 0, 
-    remaining: Math.max(0, remaining) 
-  };
+  if (subscription.plan === "senior") {
+    const usage = getTodayUsage();
+    const remaining = 1000 - usage;
+    return { 
+      allowed: remaining > 0, 
+      remaining: Math.max(0, remaining) 
+    };
+  }
+  
+  // Free/Junior plan - 40 per 2 minutes
+  const rateLimitData = getRateLimitUsage();
+  
+  // Check if window expired
+  if (now - rateLimitData.windowStart > RATE_LIMIT_WINDOW_MS) {
+    return { allowed: true, remaining: FREE_RATE_LIMIT };
+  }
+  
+  const remaining = FREE_RATE_LIMIT - rateLimitData.count;
+  if (remaining <= 0) {
+    const waitTime = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - rateLimitData.windowStart)) / 1000);
+    return { allowed: false, remaining: 0, waitTime };
+  }
+  
+  return { allowed: true, remaining };
+};
+
+// ==================== LATENTLEAF USAGE (Free: 10x per 7 min) ====================
+
+const LATENTLEAF_WINDOW_MS = 7 * 60 * 1000; // 7 minutes
+const LATENTLEAF_FREE_LIMIT = 10;
+
+export const getLatentLeafUsage = (): LatentLeafUsage => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.LATENTLEAF_USAGE);
+    if (!stored) return { windowStart: Date.now(), count: 0 };
+    return JSON.parse(stored);
+  } catch {
+    return { windowStart: Date.now(), count: 0 };
+  }
+};
+
+export const incrementLatentLeafUsage = (): void => {
+  const now = Date.now();
+  const current = getLatentLeafUsage();
+  
+  if (now - current.windowStart > LATENTLEAF_WINDOW_MS) {
+    localStorage.setItem(STORAGE_KEYS.LATENTLEAF_USAGE, JSON.stringify({
+      windowStart: now,
+      count: 1,
+    }));
+  } else {
+    localStorage.setItem(STORAGE_KEYS.LATENTLEAF_USAGE, JSON.stringify({
+      windowStart: current.windowStart,
+      count: current.count + 1,
+    }));
+  }
+};
+
+export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; waitTime?: number; unlimited?: boolean } => {
+  const subscription = getSubscription();
+  
+  // Senior and Superior have unlimited LatentLeaf
+  if (subscription.plan === "senior" || subscription.plan === "superior") {
+    return { allowed: true, remaining: 999, unlimited: true };
+  }
+  
+  // Free plan - 10 per 7 minutes
+  const now = Date.now();
+  const usage = getLatentLeafUsage();
+  
+  // Check if window expired
+  if (now - usage.windowStart > LATENTLEAF_WINDOW_MS) {
+    return { allowed: true, remaining: LATENTLEAF_FREE_LIMIT };
+  }
+  
+  const remaining = LATENTLEAF_FREE_LIMIT - usage.count;
+  if (remaining <= 0) {
+    const waitTime = Math.ceil((LATENTLEAF_WINDOW_MS - (now - usage.windowStart)) / 1000);
+    return { allowed: false, remaining: 0, waitTime };
+  }
+  
+  return { allowed: true, remaining };
 };
 
 // ==================== IMAGE EDIT SESSION ====================

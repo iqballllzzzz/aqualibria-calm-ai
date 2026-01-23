@@ -1,10 +1,11 @@
 // API Configuration - Updated to GPT-5-Nano
 const API_BASE = "https://api.nekolabs.web.id/text.gen/gpt/5-nano";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
-const IMAGE_GEN_API = "https://api.ryzumi.vip/api/ai/flux-schnell";
+const IMAGE_GEN_API = "https://api.nexray.web.id/ai/v1/text2image";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
 const IMAGE_EDIT_API = "https://api.nekolabs.web.id/image.gen/qwen/image-edit";
 const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
+const HUGGINGFACE_TTS_API = "https://api-inference.huggingface.co/models/espnet/kan-bayashi_ljspeech_vits";
 // Voice options for TTS - Using Qwen3 voices
 export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = {
   Fenrir: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
@@ -76,14 +77,15 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     name: "Junior",
     price: 0,
     priceDisplay: "Free",
-    dailyLimit: 500,
+    dailyLimit: 40, // 40 per 2 minutes
     model: "aqualibriav1",
     modelDisplay: "AqualibriaV1",
     features: [
-      "500 requests/day",
+      "40 requests / 2 menit",
       "Basic AI responses",
       "Image upload & analysis",
       "Image generation",
+      "LatentLeaf (10x / 7 menit)",
       "Spotify search",
       "Quote maker",
     ],
@@ -101,7 +103,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "1000 requests/day",
       "Enhanced AI model",
       "All Junior features",
-      "LatentLeaf Image Edit",
+      "LatentLeaf Unlimited",
       "Priority processing",
       "Extended memory",
     ],
@@ -119,7 +121,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "Unlimited requests",
       "Premium AI model",
       "All Senior features",
-      "LatentLeaf Image Edit",
+      "LatentLeaf Unlimited",
       "Maximum context",
       "Full memory system",
       "Priority support",
@@ -269,17 +271,18 @@ export const searchSpotify = async (
   }
 };
 
-// Image Generation
+// Image Generation - Updated to nexray API
 export const generateImage = async (
   prompt: string
 ): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
   try {
+    // Format prompt for URL (replace spaces with +)
+    const formattedPrompt = prompt.replace(/\s+/g, '+');
     const response = await fetch(
-      `${IMAGE_GEN_API}?prompt=${encodeURIComponent(prompt)}`,
+      `${IMAGE_GEN_API}?prompt=${formattedPrompt}`,
       {
         method: "GET",
-        headers: { accept: "image/png" },
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(120000),
       }
     );
 
@@ -287,9 +290,21 @@ export const generateImage = async (
       throw new Error(`Image generation API returned ${response.status}`);
     }
 
-    const blob = await response.blob();
-    const imageUrl = URL.createObjectURL(blob);
-    return { success: true, imageUrl };
+    // Check if response is JSON with URL or direct image
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      const data = await response.json();
+      const imageUrl = data.url || data.result?.url || data.image || data.data?.url;
+      if (imageUrl) {
+        return { success: true, imageUrl };
+      }
+      throw new Error("No image URL in response");
+    } else {
+      // Direct image response
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      return { success: true, imageUrl };
+    }
   } catch (error: any) {
     return { 
       success: false, 
@@ -490,11 +505,39 @@ export const checkPaymentStatus = async (
 };
 
 export const getPaymentUrl = (amount: number, orderId: string, qrisOnly: boolean = true): string => {
-  const params = new URLSearchParams({
-    order_id: orderId,
-  });
+  let url = `https://app.pakasir.com/pay/aqualibria/${amount}?order_id=${orderId}`;
   if (qrisOnly) {
-    params.append("qris_only", "1");
+    url += "&qris_only=1";
   }
-  return `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?${params.toString()}`;
+  return url;
+};
+
+// HuggingFace TTS API - Fallback TTS
+export const textToSpeechHF = async (
+  text: string
+): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+  try {
+    const response = await fetch(HUGGINGFACE_TTS_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputs: text }),
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HuggingFace TTS API returned ${response.status}`);
+    }
+
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    return { success: true, audioUrl };
+  } catch (error: any) {
+    console.error("HuggingFace TTS Error:", error);
+    return { 
+      success: false, 
+      error: error.message || "Failed to generate speech" 
+    };
+  }
 };
