@@ -283,7 +283,7 @@ export const getPreferences = (): UserPreferences => {
   }
 };
 
-// ==================== AI MEMORY SYSTEM (ENHANCED) ====================
+// ==================== AI MEMORY SYSTEM (ENHANCED - MUCH SMARTER) ====================
 
 export const getDefaultMemory = (): AIMemory => ({
   userName: "",
@@ -502,40 +502,73 @@ export const extractMemoryFromMessage = (message: string, isAIResponse: boolean 
   }
 };
 
-// Build memory context for API (for enhanced responses)
+// Build ENHANCED memory context for API (much richer context for smarter AI)
 export const buildMemoryContext = (): string => {
   const memory = getAIMemory();
   const parts: string[] = [];
   
+  // User identity
   if (memory.userName) {
-    parts.push(`User: ${memory.userName}`);
+    parts.push(`User's name is ${memory.userName}`);
   }
   
+  // Emotional awareness
   if (memory.emotionalState && memory.emotionalState !== "neutral") {
-    parts.push(`Mood: ${memory.emotionalState}`);
+    parts.push(`User's current mood: ${memory.emotionalState}`);
   }
   
+  // Preferences (expanded)
   if (memory.userPreferences.length > 0) {
-    parts.push(`Likes: ${memory.userPreferences.slice(-3).join(", ")}`);
+    parts.push(`User likes/prefers: ${memory.userPreferences.slice(-5).join(", ")}`);
   }
   
+  // Goals (expanded)
   if (memory.userGoals.length > 0) {
-    parts.push(`Goals: ${memory.userGoals.slice(-2).join(", ")}`);
+    parts.push(`User's goals: ${memory.userGoals.slice(-4).join(", ")}`);
   }
   
+  // Habits
+  if (memory.userHabits.length > 0) {
+    parts.push(`User's habits: ${memory.userHabits.slice(-3).join(", ")}`);
+  }
+  
+  // Recent conversation topics (more context)
   if (memory.recentTopics.length > 0) {
-    parts.push(`Recent topics: ${memory.recentTopics.slice(-3).join(", ")}`);
+    parts.push(`Recent discussion topics: ${memory.recentTopics.slice(-5).join(", ")}`);
   }
   
+  // Key moments/important facts
   if (memory.keyMoments.length > 0) {
-    parts.push(`Remember: ${memory.keyMoments.slice(-2).join("; ")}`);
+    parts.push(`Important to remember: ${memory.keyMoments.slice(-3).join("; ")}`);
   }
   
+  // Important facts
+  if (memory.importantFacts.length > 0) {
+    parts.push(`Known facts about user: ${memory.importantFacts.slice(-3).join("; ")}`);
+  }
+  
+  // Communication style
   if (memory.communicationStyle) {
-    parts.push(`Style: ${memory.communicationStyle}`);
+    parts.push(`User communication style: ${memory.communicationStyle}`);
   }
   
-  return parts.join(" | ");
+  // Conversation history snippets for context
+  if (memory.conversationHistory.length > 0) {
+    const recentHistory = memory.conversationHistory.slice(-3).join(" ... ");
+    parts.push(`Recent conversation context: ${recentHistory.slice(0, 300)}`);
+  }
+  
+  // Personality traits
+  if (memory.personalityTraits.length > 0) {
+    parts.push(`User personality: ${memory.personalityTraits.slice(-3).join(", ")}`);
+  }
+  
+  // Total interactions for relationship context
+  if (memory.totalInteractions > 10) {
+    parts.push(`This is interaction #${memory.totalInteractions} with this user`);
+  }
+  
+  return parts.join(". ") + (parts.length > 0 ? "." : "");
 };
 
 // ==================== MESSAGE REACTIONS ====================

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { textToSpeech, VoiceOption } from "@/lib/api";
+import { textToSpeechWithFallback, VoiceOption } from "@/lib/api";
 
 // TypeScript declarations for Web Speech API
 interface SpeechRecognitionEvent extends Event {
@@ -143,7 +143,8 @@ export const useVoiceChat = ({
       setError(null);
 
       try {
-        const result = await textToSpeech(text, selectedVoice);
+        // Use TTS with fallback (primary -> HuggingFace)
+        const result = await textToSpeechWithFallback(text, selectedVoice);
 
         if (result.success && result.audioUrl) {
           // Stop any currently playing audio
