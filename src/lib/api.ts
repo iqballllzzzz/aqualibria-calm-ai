@@ -1,8 +1,8 @@
-// API Configuration - Updated to GPT-5-Nano
-const API_BASE = "https://api.nekolabs.web.id/text.gen/gpt/5-nano";
+// API Configuration - Updated to Gemini API
+const API_BASE = "https://api.ryzumi.vip/api/ai/gemini";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.nexray.web.id/ai/v1/text2image";
-const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzencdn";
+const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzumicdn";
 const IMAGE_EDIT_API = "https://api.nekolabs.web.id/image.gen/qwen/image-edit";
 const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
 const HUGGINGFACE_TTS_API = "https://api-inference.huggingface.co/models/espnet/kan-bayashi_ljspeech_vits";
@@ -149,7 +149,7 @@ const getSystemPromptForModel = (model: string, isCodingMode: boolean = false): 
   }
 };
 
-// Chat API - Main function for all AI interactions
+// Chat API - Main function for all AI interactions using Gemini
 export const sendChatMessage = async (
   message: string,
   sessionId: string,
@@ -178,11 +178,12 @@ export const sendChatMessage = async (
     // Select system prompt based on mode and model
     const systemPrompt = getSystemPromptForModel(model, isCodingMode);
     
-    // Build URL with parameters
+    // Build URL with parameters for Gemini API
+    // Format: https://api.ryzumi.vip/api/ai/gemini?text=TEXT&prompt=PROMPT&imageUrl=URL&session=SESSION_ID
     const params = new URLSearchParams({
       text: textToSend,
-      systemPrompt: systemPrompt,
-      sessionId: sessionId,
+      prompt: systemPrompt,
+      session: sessionId,
     });
     
     // Add imageUrl if provided (for image analysis)
@@ -194,6 +195,7 @@ export const sendChatMessage = async (
 
     const response = await fetch(url, {
       method: "GET",
+      headers: { accept: "application/json" },
       signal: AbortSignal.timeout(60000),
     });
 
@@ -202,8 +204,8 @@ export const sendChatMessage = async (
     }
 
     const data = await response.json();
-    // Handle nested result.text format from the new API
-    const responseText = data.result?.text || data.result || data.response || data.message || JSON.stringify(data);
+    // Handle various response formats
+    const responseText = data.result?.text || data.result || data.response || data.message || data.data?.text || JSON.stringify(data);
     return { 
       success: true, 
       response: responseText 
@@ -313,7 +315,7 @@ export const generateImage = async (
   }
 };
 
-// Upload image and get public URL
+// Upload image and get public URL - Using ryzumicdn API
 export const uploadImage = async (
   file: File
 ): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
@@ -331,18 +333,25 @@ export const uploadImage = async (
     });
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      console.error("Upload failed:", response.status, errorText);
       throw new Error(`Upload API returned ${response.status}`);
     }
 
     const data = await response.json();
-    const imageUrl = data.url || data.result?.url || data.data?.url || data.link;
+    console.log("Upload response:", data);
+    
+    // Handle various response formats from ryzumicdn
+    const imageUrl = data.url || data.result?.url || data.data?.url || data.link || data.fileUrl || data.file_url;
     
     if (!imageUrl) {
+      console.error("No URL in response:", data);
       throw new Error("No URL returned from upload API");
     }
 
     return { success: true, imageUrl };
   } catch (error: any) {
+    console.error("Upload error:", error);
     return { 
       success: false, 
       error: error.message || "Failed to upload image" 
@@ -435,14 +444,19 @@ export interface PaymentTransaction {
   qrString?: string;
   expiredAt?: string;
   paymentMethod?: string;
+  totalPayment?: number;
+  fee?: number;
 }
 
+// Create QRIS payment transaction using Pakasir API
 export const createPaymentTransaction = async (
   amount: number,
   orderId: string
 ): Promise<{ success: boolean; payment?: any; error?: string }> => {
   try {
-    const response = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
+    console.log("Creating payment:", { amount, orderId, project: PAKASIR_SLUG });
+    
+    const response = await fetch(`${PAKASIR_BASE_URL}/api/transactioncreate/qris`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -456,13 +470,31 @@ export const createPaymentTransaction = async (
       signal: AbortSignal.timeout(30000),
     });
 
+    const responseText = await response.text();
+    console.log("Pakasir response:", response.status, responseText);
+    
     if (!response.ok) {
-      throw new Error(`Payment API returned ${response.status}`);
+      throw new Error(`Payment API returned ${response.status}: ${responseText}`);
     }
 
-    const data = await response.json();
-    return { success: true, payment: data.payment };
+    const data = JSON.parse(responseText);
+    
+    // Response format: { payment: { project, order_id, amount, fee, total_payment, payment_method, payment_number, expired_at } }
+    if (data.payment) {
+      return { 
+        success: true, 
+        payment: {
+          ...data.payment,
+          qrString: data.payment.payment_number,
+          expiredAt: data.payment.expired_at,
+          totalPayment: data.payment.total_payment,
+        }
+      };
+    }
+    
+    return { success: true, payment: data };
   } catch (error: any) {
+    console.error("Payment creation error:", error);
     return { 
       success: false, 
       error: error.message || "Failed to create payment" 
@@ -512,21 +544,26 @@ export const getPaymentUrl = (amount: number, orderId: string, qrisOnly: boolean
   return url;
 };
 
-// HuggingFace TTS API - Fallback TTS
+// HuggingFace TTS API - Fallback TTS using espnet model
 export const textToSpeechHF = async (
   text: string
 ): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
+    // Clean text for TTS
+    const cleanText = text.replace(/[*#_`]/g, "").slice(0, 500);
+    
     const response = await fetch(HUGGINGFACE_TTS_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ inputs: text }),
+      body: JSON.stringify({ inputs: cleanText }),
       signal: AbortSignal.timeout(60000),
     });
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      console.error("HuggingFace TTS error:", response.status, errorText);
       throw new Error(`HuggingFace TTS API returned ${response.status}`);
     }
 
@@ -540,4 +577,21 @@ export const textToSpeechHF = async (
       error: error.message || "Failed to generate speech" 
     };
   }
+};
+
+// Combined TTS with fallback: Try primary API first, then HuggingFace
+export const textToSpeechWithFallback = async (
+  text: string,
+  voice: VoiceOption = "Fenrir"
+): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+  // Try primary TTS first
+  const primaryResult = await textToSpeech(text, voice);
+  if (primaryResult.success) {
+    return primaryResult;
+  }
+  
+  console.log("Primary TTS failed, trying HuggingFace fallback...");
+  
+  // Fallback to HuggingFace
+  return textToSpeechHF(text);
 };
