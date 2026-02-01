@@ -1,10 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, Wand2, Loader2, Download, RotateCcw, Image as ImageIcon, Clock } from "lucide-react";
-import { editImageLatentLeaf, uploadImage } from "@/lib/api";
-import { getSubscription, getImageEditSession, updateImageEditSession, canUseLatentLeaf, incrementLatentLeafUsage } from "@/lib/storage";
+import React, { useEffect, useRef, useState } from "react";
+import { Loader2, Upload, X } from "lucide-react";
+import { editImageLatentLeaf } from "@/lib/api";
+import { getImageEditSession, updateImageEditSession, canUseLatentLeaf, incrementLatentLeafUsage } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface LatentLeafModalProps {
   isOpen: boolean;
@@ -13,346 +11,112 @@ interface LatentLeafModalProps {
 
 const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [imageUrl, setImageUrl] = useState<string>("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [editHistory, setEditHistory] = useState<{ prompt: string; resultUrl: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<{ prompt: string; resultUrl: string }[]>([]);
   const [usageInfo, setUsageInfo] = useState(canUseLatentLeaf());
-  
-  const subscription = getSubscription();
 
-  // Update usage info when modal opens
   useEffect(() => {
     if (isOpen) {
       setUsageInfo(canUseLatentLeaf());
-      const session = getImageEditSession();
-      if (session) {
-        setImageUrl(session.lastImageUrl);
-        setEditHistory(session.editHistory.map(h => ({ prompt: h.prompt, resultUrl: h.resultUrl })));
-      }
+      const sess = getImageEditSession();
+      if (sess) {
+        setPreview(sess.lastImageUrl || null);
+        setHistory(sess.editHistory || []);
+      } else setHistory([]);
     }
   }, [isOpen]);
 
-  // Update usage info periodically if waiting
-  useEffect(() => {
-    if (isOpen && usageInfo.waitTime && usageInfo.waitTime > 0) {
-      const interval = setInterval(() => {
-        setUsageInfo(canUseLatentLeaf());
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [isOpen, usageInfo.waitTime]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast({ title: "Error", description: "File harus berupa gambar", variant: "destructive" });
       return;
     }
-
-    setIsUploading(true);
-    const result = await uploadImage(file);
-    setIsUploading(false);
-
-    if (result.success && result.imageUrl) {
-      setImageUrl(result.imageUrl);
-      setEditHistory([]);
-      setResultUrl(null);
-      toast({ title: "Gambar siap", description: "Tulis prompt untuk mengedit gambar" });
-    } else {
-      toast({ title: "Upload gagal", description: result.error, variant: "destructive" });
-    }
-
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result as string);
+    reader.readAsDataURL(f);
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   const handleEdit = async () => {
-    if (!imageUrl || !prompt.trim()) {
+    if (!file || !prompt.trim()) {
       toast({ title: "Error", description: "Masukkan gambar dan prompt", variant: "destructive" });
       return;
     }
-
-    // Check usage limit
-    const currentUsage = canUseLatentLeaf();
-    if (!currentUsage.allowed) {
-      const waitMins = Math.floor((currentUsage.waitTime || 0) / 60);
-      const waitSecs = (currentUsage.waitTime || 0) % 60;
-      toast({ 
-        title: "Limit Tercapai", 
-        description: `Tunggu ${waitMins}:${waitSecs.toString().padStart(2, '0')} lagi atau upgrade plan.`, 
-        variant: "destructive" 
-      });
+    const u = canUseLatentLeaf();
+    if (!u.allowed) {
+      toast({ title: "Batas tercapai", description: `Sisa: ${u.remaining}`, variant: "destructive" });
       return;
     }
-
-    setIsEditing(true);
-    
-    // Use the last result URL if available (for continuous editing), otherwise use original
-    const urlToEdit = resultUrl || imageUrl;
-    
-    const result = await editImageLatentLeaf(prompt.trim(), urlToEdit);
-    setIsEditing(false);
-
-    if (result.success && result.editedImageUrl) {
-      // Increment usage for free users
-      if (subscription.plan === "junior") {
-        incrementLatentLeafUsage();
-        setUsageInfo(canUseLatentLeaf());
-      }
-      
-      setResultUrl(result.editedImageUrl);
-      
-      // Save to session
-      updateImageEditSession(imageUrl, prompt, result.editedImageUrl);
-      
-      // Add to local history
-      setEditHistory(prev => [...prev, { prompt, resultUrl: result.editedImageUrl! }]);
-      setPrompt("");
-      
-      toast({ title: "Berhasil!", description: "Gambar telah diedit" });
+    setLoading(true);
+    const res = await editImageLatentLeaf(prompt, file);
+    setLoading(false);
+    if (res.success && res.editedImageUrl) {
+      updateImageEditSession(preview || "", prompt, res.editedImageUrl);
+      incrementLatentLeafUsage();
+      setUsageInfo(canUseLatentLeaf());
+      const sess = getImageEditSession();
+      setHistory(sess?.editHistory || []);
+      toast({ title: "Sukses", description: "Gambar berhasil diedit" });
     } else {
-      toast({ title: "Edit gagal", description: result.error, variant: "destructive" });
+      toast({ title: "Gagal", description: res.error || "Gagal mengedit gambar", variant: "destructive" });
     }
   };
 
-  const handleReset = () => {
-    setResultUrl(null);
+  const clearAll = () => {
+    setFile(null);
+    setPreview(null);
+    setPrompt("");
+    setHistory([]);
   };
 
-  const handleDownload = () => {
-    if (resultUrl) {
-      window.open(resultUrl, "_blank");
-    }
-  };
-
-  const formatWaitTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Show limit reached message for free users
-  if (!usageInfo.allowed && !usageInfo.unlimited) {
-    return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-md bg-background border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="w-5 h-5 text-purple-500" />
-              LatentLeaf Image Edit
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-8 text-center">
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center"
-            >
-              <Clock className="w-8 h-8 text-amber-500" />
-            </motion.div>
-            <h3 className="text-lg font-medium text-foreground mb-2">Limit Tercapai</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Anda telah menggunakan 10 edit dalam 7 menit terakhir.
-            </p>
-            <motion.p 
-              key={usageInfo.waitTime}
-              initial={{ scale: 1.1 }}
-              animate={{ scale: 1 }}
-              className="text-2xl font-bold text-amber-500 mb-4"
-            >
-              {formatWaitTime(usageInfo.waitTime || 0)}
-            </motion.p>
-            <p className="text-purple-500 text-sm font-medium">
-              Upgrade plan untuk akses unlimited!
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
+  if (!isOpen) return null;
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-background border-border">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="w-5 h-5 text-purple-500" />
-            LatentLeaf Image Edit
-            {usageInfo.unlimited ? (
-              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
-                UNLIMITED
-              </span>
-            ) : (
-              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
-                {usageInfo.remaining}/10 tersisa
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
+    <div className="latentleaf-modal p-4 max-w-2xl mx-auto bg-card rounded-lg">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-medium">LatentLeaf Image Edit</h3>
+        <button onClick={onClose} className="p-2"><X /></button>
+      </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+      <div className="space-y-3">
+        <input ref={fileRef} id="latentleaf-file" type="file" accept="image/*" onChange={onSelect} className="hidden" />
+        <label htmlFor="latentleaf-file" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent cursor-pointer">
+          <Upload /> <span>Pilih Gambar</span>
+        </label>
 
-        <div className="space-y-6 py-4">
-          {/* Image Upload / Display */}
-          {!imageUrl ? (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="w-full h-48 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-purple-500 hover:bg-purple-500/5 transition-colors"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-                  <span className="text-foreground-muted">Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-8 h-8 text-foreground-muted" />
-                  <span className="text-foreground-muted">Klik untuk upload gambar</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="space-y-4">
-              {/* Images Grid */}
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Original Image */}
-                <div className="space-y-2">
-                  <label className="text-sm text-foreground-muted">Original</label>
-                  <div className="relative rounded-xl overflow-hidden border border-border">
-                    <img
-                      src={imageUrl}
-                      alt="Original"
-                      className="w-full h-48 object-contain bg-black/20"
-                    />
-                    <button
-                      onClick={() => {
-                        setImageUrl("");
-                        setResultUrl(null);
-                        setEditHistory([]);
-                      }}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-background/80 hover:bg-background transition-colors"
-                    >
-                      <X className="w-4 h-4 text-foreground" />
-                    </button>
-                  </div>
-                </div>
+        {preview && <img src={preview} alt="preview" className="mt-2 w-full max-h-64 object-contain rounded-md" />}
 
-                {/* Result Image */}
-                <div className="space-y-2">
-                  <label className="text-sm text-foreground-muted">Result</label>
-                  <div className="relative rounded-xl overflow-hidden border border-border h-48 flex items-center justify-center bg-black/10">
-                    {resultUrl ? (
-                      <>
-                        <img
-                          src={resultUrl}
-                          alt="Edited"
-                          className="w-full h-full object-contain"
-                        />
-                        <div className="absolute bottom-2 right-2 flex gap-2">
-                          <button
-                            onClick={handleReset}
-                            className="p-1.5 rounded-lg bg-background/80 hover:bg-background transition-colors"
-                            title="Reset ke original"
-                          >
-                            <RotateCcw className="w-4 h-4 text-foreground" />
-                          </button>
-                          <button
-                            onClick={handleDownload}
-                            className="p-1.5 rounded-lg bg-background/80 hover:bg-background transition-colors"
-                            title="Download"
-                          >
-                            <Download className="w-4 h-4 text-foreground" />
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <span className="text-foreground-muted text-sm">
-                        {isEditing ? "Processing..." : "Result akan muncul di sini"}
-                      </span>
-                    )}
-                    {isEditing && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+        <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Instruksi edit, misal: Ubah temboknya jadi warna hijau" className="w-full p-3 rounded border" rows={3} />
 
-              {/* Edit History */}
-              {editHistory.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm text-foreground-muted">Edit History</label>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {editHistory.map((edit, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setResultUrl(edit.resultUrl)}
-                        className="shrink-0 p-2 rounded-lg border border-border hover:border-purple-500 transition-colors"
-                        title={edit.prompt}
-                      >
-                        <img
-                          src={edit.resultUrl}
-                          alt={`Edit ${index + 1}`}
-                          className="w-16 h-16 object-cover rounded"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Prompt Input */}
-              <div className="space-y-2">
-                <label className="text-sm text-foreground-muted">
-                  Prompt (deskripsikan perubahan yang diinginkan)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleEdit()}
-                    placeholder="Contoh: make it sunset, add rain, change background to forest..."
-                    className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-purple-500"
-                  />
-                  <button
-                    onClick={handleEdit}
-                    disabled={isEditing || !prompt.trim()}
-                    className="px-6 py-3 rounded-xl btn-gradient-purple disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isEditing ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Wand2 className="w-5 h-5" />
-                    )}
-                    Edit
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-foreground-muted">
-                💡 Tip: Anda bisa terus mengedit gambar yang sama. Prompt baru akan diterapkan ke hasil sebelumnya.
-              </p>
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+          <button onClick={handleEdit} disabled={loading} className="px-4 py-2 rounded bg-primary text-white">
+            {loading ? <Loader2 className="animate-spin" /> : "Edit Gambar"}
+          </button>
+          <button onClick={clearAll} className="px-3 py-2 rounded border">Clear</button>
+          <div className="ml-auto text-sm text-muted">Remaining LatentLeaf: {usageInfo.remaining}</div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {history.length > 0 && (
+          <div className="mt-3">
+            <h4 className="text-sm font-medium">Riwayat Edit</h4>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              {history.map((h, i) => (
+                <div key={i} className="p-2 border rounded flex items-center gap-2">
+                  <img src={h.resultUrl} alt={`edit-${i}`} className="w-20 h-20 object-cover rounded" />
+                  <div className="text-sm">{h.prompt}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
