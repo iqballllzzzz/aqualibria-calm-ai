@@ -71,13 +71,21 @@ export interface UsageData {
 
 // LatentLeaf Usage for Free Users
 export interface LatentLeafUsage {
-  windowStart: number; // timestamp
+  date: string; // YYYY-MM-DD for daily tracking
   count: number;
+}
+
+// Model Usage (V2, V3 for free users)
+export interface ModelUsage {
+  periodStart: string; // YYYY-MM-DD
+  v2Count: number;
+  v3Count: number;
 }
 
 // LatentLeaf Image Edit Memory
 export interface ImageEditSession {
   lastImageUrl: string;
+  lastImageFile?: string; // Base64 of last uploaded image
   editHistory: { prompt: string; resultUrl: string; timestamp: Date }[];
 }
 
@@ -100,9 +108,28 @@ const STORAGE_KEYS = {
   DAILY_USAGE: "aqua-daily-usage",
   RATE_LIMIT_USAGE: "aqua-rate-limit-usage",
   LATENTLEAF_USAGE: "aqua-latentleaf-usage",
+  MODEL_USAGE: "aqua-model-usage",
   IMAGE_EDIT_SESSION: "aqua-image-edit-session",
   CHAT_MANAGEMENT: "aqua-chat-management",
 } as const;
+
+// ==================== INDONESIA TIMEZONE RESET ====================
+
+const getIndonesiaDate = (): string => {
+  // Get date in Indonesia timezone (WIB = UTC+7)
+  const now = new Date();
+  const indonesiaTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  return indonesiaTime.toISOString().split('T')[0];
+};
+
+const getIndonesiaTwoDayPeriod = (): string => {
+  // Get 2-day period start (resets every 2 days at midnight Indonesia time)
+  const now = new Date();
+  const indonesiaTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  const dayOfYear = Math.floor((indonesiaTime.getTime() - new Date(indonesiaTime.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+  const periodNumber = Math.floor(dayOfYear / 2);
+  return `${indonesiaTime.getFullYear()}-P${periodNumber}`;
+};
 
 // ==================== WELCOME STATE ====================
 
@@ -637,25 +664,14 @@ export const upgradePlan = (plan: PlanType, orderId: string): void => {
   });
 };
 
-// ==================== USAGE TRACKING (Updated with Rate Limits) ====================
+// ==================== USAGE TRACKING (Updated with New Limits) ====================
 
-// Rate limit windows: Free = 40 per 2 min, Senior = 1000/day, Superior = unlimited
-const RATE_LIMIT_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
-const FREE_RATE_LIMIT = 40;
-
-export const getRateLimitUsage = (): { windowStart: number; count: number } => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEYS.RATE_LIMIT_USAGE);
-    if (!stored) return { windowStart: Date.now(), count: 0 };
-    return JSON.parse(stored);
-  } catch {
-    return { windowStart: Date.now(), count: 0 };
-  }
-};
+// Free: 200/day, resets at midnight Indonesia time
+const FREE_DAILY_LIMIT = 200;
 
 export const getTodayUsage = (): number => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIndonesiaDate();
     const stored = localStorage.getItem(STORAGE_KEYS.DAILY_USAGE);
     if (!stored) return 0;
     const usage: UsageData = JSON.parse(stored);
@@ -667,10 +683,7 @@ export const getTodayUsage = (): number => {
 };
 
 export const incrementUsage = (): number => {
-  const today = new Date().toISOString().split('T')[0];
-  const now = Date.now();
-  
-  // Update daily usage
+  const today = getIndonesiaDate();
   let currentCount = getTodayUsage();
   const stored = localStorage.getItem(STORAGE_KEYS.DAILY_USAGE);
   if (stored) {
@@ -685,27 +698,11 @@ export const incrementUsage = (): number => {
     count: newDailyCount,
   }));
   
-  // Update rate limit window
-  const rateLimitData = getRateLimitUsage();
-  if (now - rateLimitData.windowStart > RATE_LIMIT_WINDOW_MS) {
-    // Reset window
-    localStorage.setItem(STORAGE_KEYS.RATE_LIMIT_USAGE, JSON.stringify({
-      windowStart: now,
-      count: 1,
-    }));
-  } else {
-    localStorage.setItem(STORAGE_KEYS.RATE_LIMIT_USAGE, JSON.stringify({
-      windowStart: rateLimitData.windowStart,
-      count: rateLimitData.count + 1,
-    }));
-  }
-  
   return newDailyCount;
 };
 
 export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited"; waitTime?: number } => {
   const subscription = getSubscription();
-  const now = Date.now();
   
   if (subscription.plan === "superior") {
     return { allowed: true, remaining: "unlimited" };
@@ -720,56 +717,106 @@ export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimi
     };
   }
   
-  // Free/Junior plan - 40 per 2 minutes
-  const rateLimitData = getRateLimitUsage();
-  
-  // Check if window expired
-  if (now - rateLimitData.windowStart > RATE_LIMIT_WINDOW_MS) {
-    return { allowed: true, remaining: FREE_RATE_LIMIT };
-  }
-  
-  const remaining = FREE_RATE_LIMIT - rateLimitData.count;
-  if (remaining <= 0) {
-    const waitTime = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - rateLimitData.windowStart)) / 1000);
-    return { allowed: false, remaining: 0, waitTime };
-  }
-  
-  return { allowed: true, remaining };
+  // Free/Junior plan - 200 per day (Indonesia timezone)
+  const usage = getTodayUsage();
+  const remaining = FREE_DAILY_LIMIT - usage;
+  return { 
+    allowed: remaining > 0, 
+    remaining: Math.max(0, remaining) 
+  };
 };
 
-// ==================== LATENTLEAF USAGE (Free: 10x per 7 min) ====================
+// ==================== MODEL USAGE (V2, V3 for Free Users) ====================
 
-const LATENTLEAF_WINDOW_MS = 7 * 60 * 1000; // 7 minutes
-const LATENTLEAF_FREE_LIMIT = 10;
+// V2: 90 per 2 days, V3: 45 per 2 days (resets at midnight Indonesia time)
+const V2_FREE_LIMIT = 90;
+const V3_FREE_LIMIT = 45;
+
+export const getModelUsage = (): ModelUsage => {
+  try {
+    const period = getIndonesiaTwoDayPeriod();
+    const stored = localStorage.getItem(STORAGE_KEYS.MODEL_USAGE);
+    if (!stored) return { periodStart: period, v2Count: 0, v3Count: 0 };
+    const usage: ModelUsage = JSON.parse(stored);
+    // Reset if period changed
+    if (usage.periodStart !== period) {
+      return { periodStart: period, v2Count: 0, v3Count: 0 };
+    }
+    return usage;
+  } catch {
+    return { periodStart: getIndonesiaTwoDayPeriod(), v2Count: 0, v3Count: 0 };
+  }
+};
+
+export const canUseModel = (model: "aqualibriav2" | "aqualibriav3"): { allowed: boolean; remaining: number } => {
+  const subscription = getSubscription();
+  
+  // Senior and Superior have unlimited access
+  if (subscription.plan === "senior" || subscription.plan === "superior") {
+    return { allowed: true, remaining: 999 };
+  }
+  
+  const usage = getModelUsage();
+  
+  if (model === "aqualibriav2") {
+    const remaining = V2_FREE_LIMIT - usage.v2Count;
+    return { allowed: remaining > 0, remaining: Math.max(0, remaining) };
+  } else {
+    const remaining = V3_FREE_LIMIT - usage.v3Count;
+    return { allowed: remaining > 0, remaining: Math.max(0, remaining) };
+  }
+};
+
+export const incrementModelUsage = (model: "aqualibriav2" | "aqualibriav3"): void => {
+  const period = getIndonesiaTwoDayPeriod();
+  const usage = getModelUsage();
+  
+  if (model === "aqualibriav2") {
+    localStorage.setItem(STORAGE_KEYS.MODEL_USAGE, JSON.stringify({
+      periodStart: period,
+      v2Count: usage.v2Count + 1,
+      v3Count: usage.v3Count,
+    }));
+  } else {
+    localStorage.setItem(STORAGE_KEYS.MODEL_USAGE, JSON.stringify({
+      periodStart: period,
+      v2Count: usage.v2Count,
+      v3Count: usage.v3Count + 1,
+    }));
+  }
+};
+
+// ==================== LATENTLEAF USAGE (Free: 15x per day, Indonesia timezone) ====================
+
+const LATENTLEAF_FREE_LIMIT = 15;
 
 export const getLatentLeafUsage = (): LatentLeafUsage => {
   try {
+    const today = getIndonesiaDate();
     const stored = localStorage.getItem(STORAGE_KEYS.LATENTLEAF_USAGE);
-    if (!stored) return { windowStart: Date.now(), count: 0 };
-    return JSON.parse(stored);
+    if (!stored) return { date: today, count: 0 };
+    const usage: LatentLeafUsage = JSON.parse(stored);
+    // Reset if day changed
+    if (usage.date !== today) {
+      return { date: today, count: 0 };
+    }
+    return usage;
   } catch {
-    return { windowStart: Date.now(), count: 0 };
+    return { date: getIndonesiaDate(), count: 0 };
   }
 };
 
 export const incrementLatentLeafUsage = (): void => {
-  const now = Date.now();
+  const today = getIndonesiaDate();
   const current = getLatentLeafUsage();
   
-  if (now - current.windowStart > LATENTLEAF_WINDOW_MS) {
-    localStorage.setItem(STORAGE_KEYS.LATENTLEAF_USAGE, JSON.stringify({
-      windowStart: now,
-      count: 1,
-    }));
-  } else {
-    localStorage.setItem(STORAGE_KEYS.LATENTLEAF_USAGE, JSON.stringify({
-      windowStart: current.windowStart,
-      count: current.count + 1,
-    }));
-  }
+  localStorage.setItem(STORAGE_KEYS.LATENTLEAF_USAGE, JSON.stringify({
+    date: today,
+    count: current.count + 1,
+  }));
 };
 
-export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; waitTime?: number; unlimited?: boolean } => {
+export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; unlimited?: boolean } => {
   const subscription = getSubscription();
   
   // Senior and Superior have unlimited LatentLeaf
@@ -777,22 +824,11 @@ export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; waitT
     return { allowed: true, remaining: 999, unlimited: true };
   }
   
-  // Free plan - 10 per 7 minutes
-  const now = Date.now();
+  // Free plan - 15 per day (Indonesia timezone)
   const usage = getLatentLeafUsage();
-  
-  // Check if window expired
-  if (now - usage.windowStart > LATENTLEAF_WINDOW_MS) {
-    return { allowed: true, remaining: LATENTLEAF_FREE_LIMIT };
-  }
-  
   const remaining = LATENTLEAF_FREE_LIMIT - usage.count;
-  if (remaining <= 0) {
-    const waitTime = Math.ceil((LATENTLEAF_WINDOW_MS - (now - usage.windowStart)) / 1000);
-    return { allowed: false, remaining: 0, waitTime };
-  }
   
-  return { allowed: true, remaining };
+  return { allowed: remaining > 0, remaining: Math.max(0, remaining) };
 };
 
 // ==================== IMAGE EDIT SESSION ====================
@@ -818,7 +854,7 @@ export const saveImageEditSession = (session: ImageEditSession): void => {
   localStorage.setItem(STORAGE_KEYS.IMAGE_EDIT_SESSION, JSON.stringify(session));
 };
 
-export const updateImageEditSession = (imageUrl: string, prompt: string, resultUrl: string): void => {
+export const updateImageEditSession = (imageUrl: string, prompt: string, resultUrl: string, imageFileBase64?: string): void => {
   const current = getImageEditSession();
   const newEntry = { prompt, resultUrl, timestamp: new Date() };
   
@@ -826,12 +862,14 @@ export const updateImageEditSession = (imageUrl: string, prompt: string, resultU
     // Same image, add to history
     saveImageEditSession({
       lastImageUrl: imageUrl,
+      lastImageFile: imageFileBase64 || current.lastImageFile,
       editHistory: [...current.editHistory.slice(-9), newEntry],
     });
   } else {
     // New image, reset history
     saveImageEditSession({
       lastImageUrl: imageUrl,
+      lastImageFile: imageFileBase64,
       editHistory: [newEntry],
     });
   }

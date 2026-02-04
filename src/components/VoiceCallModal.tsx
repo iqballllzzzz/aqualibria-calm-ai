@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Volume2, ChevronDown, User, Bot } from "lucide-react";
+import { X, Mic, MicOff, Volume2, ChevronDown, Phone, PhoneOff } from "lucide-react";
 import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, getVoiceInfo, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -21,7 +21,7 @@ interface ConversationMessage {
   id: string;
 }
 
-const SILENCE_TIMEOUT_MS = 2500; // Auto-send after 2.5s of silence
+const SILENCE_TIMEOUT_MS = 4000; // Auto-send after 4s of silence (updated from 2.5s)
 
 const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   isOpen,
@@ -37,16 +37,44 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
-  const [audioAnalyser, setAudioAnalyser] = useState<AnalyserNode | null>(null);
-  const [audioData, setAudioData] = useState<number[]>(new Array(5).fill(0));
+  const [audioData, setAudioData] = useState<number[]>(new Array(7).fill(0));
+  const [callDuration, setCallDuration] = useState(0);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef<string>("");
+  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Call duration timer
+  useEffect(() => {
+    if (isOpen) {
+      callTimerRef.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+      }
+      setCallDuration(0);
+    }
+    return () => {
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+      }
+    };
+  }, [isOpen]);
+
+  // Format duration
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Initialize speech recognition with multilingual support
   useEffect(() => {
@@ -90,7 +118,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           clearTimeout(silenceTimerRef.current);
         }
         
-        // Start silence detection timer - auto-send after silence
+        // Start silence detection timer - auto-send after 4s silence
         silenceTimerRef.current = setTimeout(() => {
           if (lastTranscriptRef.current.trim() && callState === "listening") {
             recognitionRef.current?.stop();
@@ -142,15 +170,22 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   }, [isOpen]);
 
-  // Analyze audio for sound wave animation
+  // Real-time audio analysis for reactive sound waves
   const analyzeAudio = useCallback(() => {
-    if (!audioAnalyser) return;
+    if (!analyserRef.current) {
+      // Idle animation when not speaking
+      if (callState !== "speaking") {
+        setAudioData(prev => prev.map(() => Math.random() * 0.1));
+      }
+      animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+      return;
+    }
 
-    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-    audioAnalyser.getByteFrequencyData(dataArray);
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
 
-    // Get 5 frequency bands for the sound wave bars
-    const bands = 5;
+    // Get frequency bands for the sound wave bars (7 bars)
+    const bands = 7;
     const bandSize = Math.floor(dataArray.length / bands);
     const newData = [];
 
@@ -159,23 +194,19 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       for (let j = 0; j < bandSize; j++) {
         sum += dataArray[i * bandSize + j];
       }
-      // Normalize to 0-1 range
-      newData.push(sum / (bandSize * 255));
+      // Normalize to 0-1 range with some amplification
+      const normalized = (sum / (bandSize * 255)) * 1.5;
+      newData.push(Math.min(1, normalized));
     }
 
     setAudioData(newData);
     animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-  }, [audioAnalyser]);
+  }, [callState]);
 
-  // Start audio analysis when speaking
+  // Start/stop audio analysis
   useEffect(() => {
-    if (callState === "speaking" && audioAnalyser) {
+    if (isOpen) {
       animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-    } else {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      setAudioData(new Array(5).fill(0));
     }
 
     return () => {
@@ -183,7 +214,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [callState, audioAnalyser, analyzeAudio]);
+  }, [isOpen, analyzeAudio]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -283,24 +314,23 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
 
         // Set up audio context for visualization
         try {
-          const audioContext = new AudioContext();
-          audioContextRef.current = audioContext;
-          const source = audioContext.createMediaElementSource(audio);
-          const analyser = audioContext.createAnalyser();
-          analyser.fftSize = 64;
+          if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+            audioContextRef.current = new AudioContext();
+          }
+          const source = audioContextRef.current.createMediaElementSource(audio);
+          const analyser = audioContextRef.current.createAnalyser();
+          analyser.fftSize = 128;
+          analyser.smoothingTimeConstant = 0.8;
           source.connect(analyser);
-          analyser.connect(audioContext.destination);
-          setAudioAnalyser(analyser);
+          analyser.connect(audioContextRef.current.destination);
+          analyserRef.current = analyser;
         } catch (e) {
           console.warn("Audio analysis not supported:", e);
         }
 
         audio.onended = () => {
           setCallState("idle");
-          setAudioAnalyser(null);
-          if (result.audioUrl) {
-            URL.revokeObjectURL(result.audioUrl);
-          }
+          analyserRef.current = null;
           // Auto-start listening again for continuous conversation
           setTimeout(() => {
             if (isOpen) startListening();
@@ -310,6 +340,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         audio.onerror = () => {
           setError("Failed to play audio");
           setCallState("idle");
+          analyserRef.current = null;
         };
 
         await audio.play();
@@ -331,7 +362,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       audioRef.current.pause();
       audioRef.current = null;
     }
-    if (audioContextRef.current) {
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
       audioContextRef.current.close();
     }
     
@@ -349,7 +380,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     setAiResponse("");
     setError(null);
     setConversation([]);
-    setAudioAnalyser(null);
+    analyserRef.current = null;
     onClose(chatMessages);
   };
 
@@ -368,42 +399,60 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         audioRef.current.pause();
         audioRef.current = null;
       }
+      analyserRef.current = null;
       setCallState("idle");
       startListening();
     }
   };
 
-  // Sound wave bars animation - reactive to audio
+  // Enhanced reactive sound wave animation
   const renderSoundWave = () => {
-    const barCount = 5;
-    const isActive = callState === "speaking" || callState === "processing";
+    const barCount = 7;
     
     return (
-      <div className="flex items-center justify-center gap-1.5 h-32">
+      <div className="flex items-center justify-center gap-1 h-40">
         {Array.from({ length: barCount }).map((_, index) => {
-          const height = isActive 
-            ? 24 + (audioData[index] || 0) * 80
-            : 24;
+          // Calculate height based on audio data and call state
+          let baseHeight = 16;
+          let maxHeight = 120;
+          let currentHeight = baseHeight;
+          
+          if (callState === "speaking") {
+            // Reactive to actual audio with smooth interpolation
+            currentHeight = baseHeight + (audioData[index] || 0) * (maxHeight - baseHeight);
+          } else if (callState === "processing") {
+            // Pulsing animation while processing
+            currentHeight = baseHeight + Math.sin(Date.now() / 200 + index * 0.5) * 40 + 40;
+          } else if (callState === "listening") {
+            // Subtle breathing animation while listening
+            currentHeight = baseHeight + Math.sin(Date.now() / 500 + index * 0.3) * 15 + 10;
+          }
+          
+          // Center bar is tallest
+          const centerIndex = Math.floor(barCount / 2);
+          const distanceFromCenter = Math.abs(index - centerIndex);
+          const centerMultiplier = 1 - (distanceFromCenter * 0.1);
+          currentHeight *= centerMultiplier;
           
           return (
             <motion.div
               key={index}
-              className="w-2 bg-foreground rounded-full"
+              className={`w-2 rounded-full transition-colors duration-300 ${
+                callState === "speaking" 
+                  ? "bg-gradient-to-t from-purple-600 to-purple-400" 
+                  : callState === "listening"
+                  ? "bg-gradient-to-t from-blue-600 to-blue-400"
+                  : callState === "processing"
+                  ? "bg-gradient-to-t from-amber-600 to-amber-400"
+                  : "bg-muted-foreground/30"
+              }`}
               animate={{
-                height: callState === "processing" 
-                  ? [24, 60, 40, 72, 24]
-                  : height,
+                height: currentHeight,
               }}
-              transition={
-                callState === "processing"
-                  ? {
-                      duration: 0.8,
-                      repeat: Infinity,
-                      delay: index * 0.1,
-                      ease: "easeInOut",
-                    }
-                  : { duration: 0.1, ease: "linear" }
-              }
+              transition={{
+                duration: callState === "speaking" ? 0.05 : 0.2,
+                ease: "linear",
+              }}
             />
           );
         })}
@@ -420,7 +469,20 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       case "speaking":
         return "Speaking...";
       default:
-        return "Tap to speak";
+        return "Tap microphone to speak";
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (callState) {
+      case "listening":
+        return "text-blue-500";
+      case "processing":
+        return "text-amber-500";
+      case "speaking":
+        return "text-purple-500";
+      default:
+        return "text-muted-foreground";
     }
   };
 
@@ -433,45 +495,71 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-background z-50 flex flex-col"
         >
-          {/* Gradient Background */}
+          {/* Animated Gradient Background */}
           <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute bottom-0 left-0 right-0 h-[60%] bg-gradient-to-t from-accent/20 via-accent/10 to-transparent" />
             <motion.div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[150%] h-[40%] rounded-t-[100%] bg-gradient-to-t from-accent/30 to-transparent blur-3xl"
+              className="absolute inset-0 opacity-30"
               animate={{
-                scale: callState === "speaking" || callState === "processing" ? [1, 1.1, 1] : 1,
-                opacity: callState === "speaking" ? [0.3, 0.5, 0.3] : 0.3,
+                background: [
+                  "radial-gradient(circle at 30% 80%, hsl(var(--primary)) 0%, transparent 50%)",
+                  "radial-gradient(circle at 70% 80%, hsl(var(--primary)) 0%, transparent 50%)",
+                  "radial-gradient(circle at 50% 70%, hsl(var(--primary)) 0%, transparent 50%)",
+                  "radial-gradient(circle at 30% 80%, hsl(var(--primary)) 0%, transparent 50%)",
+                ],
+              }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200%] h-[50%] rounded-t-[100%] blur-3xl"
+              animate={{
+                background: callState === "speaking" 
+                  ? ["hsla(var(--primary), 0.2)", "hsla(var(--primary), 0.4)", "hsla(var(--primary), 0.2)"]
+                  : callState === "listening"
+                  ? ["hsla(217, 91%, 60%, 0.2)", "hsla(217, 91%, 60%, 0.3)", "hsla(217, 91%, 60%, 0.2)"]
+                  : "hsla(var(--muted), 0.2)",
+                scale: callState === "speaking" ? [1, 1.1, 1] : 1,
               }}
               transition={{ duration: 2, repeat: Infinity }}
             />
           </div>
 
           {/* Header */}
-          <header className="relative z-10 flex items-center justify-between p-4">
-            <button
+          <header className="relative z-10 flex items-center justify-between p-4 safe-area-inset-top">
+            {/* End Call Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleClose}
               className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/30 transition-colors"
             >
-              <X className="w-6 h-6 text-destructive" />
-            </button>
+              <PhoneOff className="w-6 h-6 text-destructive" />
+            </motion.button>
+            
+            {/* Call Duration */}
+            <div className="flex flex-col items-center">
+              <span className="text-sm font-medium text-foreground">AquaLibriaAI</span>
+              <span className="text-xs text-muted-foreground">{formatDuration(callDuration)}</span>
+            </div>
             
             {/* Voice Selector */}
             <div className="relative">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setShowVoiceSelector(!showVoiceSelector)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-accent/50 hover:bg-accent transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-full bg-accent/50 hover:bg-accent transition-colors"
               >
                 <Volume2 className="w-4 h-4 text-foreground-muted" />
-                <span className="text-sm text-foreground">{getVoiceDisplayName(selectedVoice)}</span>
+                <span className="text-sm text-foreground hidden sm:inline">{getVoiceDisplayName(selectedVoice)}</span>
                 <ChevronDown className={`w-4 h-4 text-foreground-muted transition-transform ${showVoiceSelector ? "rotate-180" : ""}`} />
-              </button>
+              </motion.button>
               
               <AnimatePresence>
                 {showVoiceSelector && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-80 overflow-y-auto"
                   >
                     {VOICE_OPTIONS.map((voice) => {
@@ -507,42 +595,49 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                 )}
               </AnimatePresence>
             </div>
-            
-            <div className="w-12" /> {/* Spacer for centering */}
           </header>
 
           {/* Main Content */}
           <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6">
-            {/* Title */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-2xl font-medium text-foreground mb-2"
+            {/* Sound Wave Visualization */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="my-8"
             >
-              AquaLibriaAI Live
-            </motion.h1>
-
-            {/* Sound Wave */}
-            <div className="my-8">
               {renderSoundWave()}
-            </div>
+            </motion.div>
 
-            {/* Status Text */}
-            <motion.p
+            {/* Status Indicator */}
+            <motion.div
               key={callState}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-foreground-muted text-center max-w-sm text-sm leading-relaxed min-h-[3rem]"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center gap-2"
             >
-              {getStatusText()}
-            </motion.p>
+              <div className={`flex items-center gap-2 ${getStatusColor()}`}>
+                {callState === "listening" && (
+                  <motion.div
+                    className="w-2 h-2 rounded-full bg-current"
+                    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                )}
+                <span className="text-sm font-medium uppercase tracking-wider">
+                  {callState === "idle" ? "Ready" : callState}
+                </span>
+              </div>
+              <p className="text-foreground-muted text-center max-w-sm text-sm leading-relaxed min-h-[3rem] break-words-safe">
+                {getStatusText()}
+              </p>
+            </motion.div>
 
             {/* Error Display */}
             {error && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-destructive text-sm mt-4"
+                className="text-destructive text-sm mt-4 text-center"
               >
                 {error}
               </motion.p>
@@ -550,45 +645,55 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
 
             {/* Conversation History */}
             {conversation.length > 0 && (
-              <div 
+              <motion.div 
                 ref={conversationRef}
-                className="w-full max-w-md mt-6 max-h-40 overflow-y-auto space-y-2 px-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-md mt-6 max-h-32 overflow-y-auto space-y-2 px-4 custom-scrollbar"
               >
                 {conversation.map((msg) => (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`text-sm p-2 rounded-lg ${
+                    initial={{ opacity: 0, x: msg.role === "user" ? 20 : -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`text-sm p-2.5 rounded-xl ${
                       msg.role === "user"
-                        ? "bg-foreground/5 text-foreground-muted ml-8"
-                        : "bg-accent/30 text-foreground mr-8"
+                        ? "bg-primary/10 text-foreground ml-8 rounded-br-sm"
+                        : "bg-accent/50 text-foreground mr-8 rounded-bl-sm"
                     }`}
                   >
-                    {msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}
+                    <p className="break-words-safe">{msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}</p>
                   </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </div>
 
           {/* Bottom Controls */}
-          <div className="relative z-10 pb-12 flex justify-center">
+          <div className="relative z-10 pb-12 safe-area-inset-bottom flex justify-center">
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleMicToggle}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg ${
                 callState === "listening"
-                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-blue-500/30"
                   : callState === "speaking" || callState === "processing"
-                  ? "bg-accent text-foreground"
-                  : "bg-foreground text-background"
+                  ? "bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-purple-500/30"
+                  : "bg-gradient-to-br from-foreground to-foreground/90 text-background"
               }`}
             >
+              {/* Pulse ring animation */}
+              {callState === "listening" && (
+                <motion.div
+                  className="absolute inset-0 rounded-full border-2 border-blue-400"
+                  animate={{ scale: [1, 1.3], opacity: [0.8, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              )}
               {callState === "listening" ? (
-                <MicOff className="w-7 h-7" />
+                <MicOff className="w-8 h-8" />
               ) : (
-                <Mic className="w-7 h-7" />
+                <Mic className="w-8 h-8" />
               )}
             </motion.button>
           </div>
