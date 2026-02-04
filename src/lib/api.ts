@@ -3,19 +3,32 @@ const API_BASE = "https://api.ryzumi.vip/api/ai/gemini";
 const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
 const IMAGE_GEN_API = "https://api.nexray.web.id/ai/v1/text2image";
 const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzumicdn";
-const IMAGE_EDIT_API = "https://api.nekolabs.web.id/image.gen/qwen/image-edit";
-const QWEN_TTS_API = "https://api.ryzumi.vip/api/ai/tts-gemini";
-const HUGGINGFACE_TTS_API = "https://api-inference.huggingface.co/models/espnet/kan-bayashi_ljspeech_vits";
-// Voice options for TTS - Using Qwen3 voices
+const IMAGE_EDIT_API = "https://api.nexray.web.id/ai/gptimage";
+const QWEN_TTS_API = "https://rynekoo-api.hf.space/tools/tts/qwen";
+
+// New TTS Voice Options
+export const TTS_VOICE_OPTIONS = ["dylan", "sunny", "jada", "cherry", "ethan", "serena", "chelsie"] as const;
+export type TTSVoiceOption = typeof TTS_VOICE_OPTIONS[number];
+
+export const TTS_VOICE_INFO: Record<TTSVoiceOption, { displayName: string; gender: "male" | "female"; description: string }> = {
+  dylan: { displayName: "Dylan", gender: "male", description: "Natural & friendly" },
+  sunny: { displayName: "Sunny", gender: "female", description: "Bright & cheerful" },
+  jada: { displayName: "Jada", gender: "female", description: "Smooth & elegant" },
+  cherry: { displayName: "Cherry", gender: "female", description: "Sweet & lively" },
+  ethan: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
+  serena: { displayName: "Serena", gender: "female", description: "Calm & soothing" },
+  chelsie: { displayName: "Chelsie", gender: "female", description: "Warm & expressive" },
+};
+
+// Legacy voice mapping (keep for backward compatibility)
 export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = {
-  Fenrir: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
-  Leda: { displayName: "Sophia", gender: "female", description: "Warm & elegant" },
-  Zephyr: { displayName: "Alex", gender: "male", description: "Calm & smooth" },
-  Aoede: { displayName: "Luna", gender: "female", description: "Melodic & soft" },
-  Charon: { displayName: "Marcus", gender: "male", description: "Strong & deep" },
-  Kore: { displayName: "Emma", gender: "female", description: "Gentle & clear" },
-  Puck: { displayName: "Oliver", gender: "male", description: "Light & friendly" },
-  Orus: { displayName: "Ava", gender: "female", description: "Warm & expressive" },
+  dylan: { displayName: "Dylan", gender: "male", description: "Natural & friendly" },
+  sunny: { displayName: "Sunny", gender: "female", description: "Bright & cheerful" },
+  jada: { displayName: "Jada", gender: "female", description: "Smooth & elegant" },
+  cherry: { displayName: "Cherry", gender: "female", description: "Sweet & lively" },
+  ethan: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
+  serena: { displayName: "Serena", gender: "female", description: "Calm & soothing" },
+  chelsie: { displayName: "Chelsie", gender: "female", description: "Warm & expressive" },
 } as const;
 
 export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as VoiceOption[];
@@ -77,15 +90,17 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     name: "Junior",
     price: 0,
     priceDisplay: "Free",
-    dailyLimit: 40, // 40 per 2 minutes
+    dailyLimit: 200, // 200 per day
     model: "aqualibriav1",
     modelDisplay: "AqualibriaV1",
     features: [
-      "40 requests / 2 menit",
+      "200 requests / hari",
       "Basic AI responses",
       "Image upload & analysis",
       "Image generation",
-      "LatentLeaf (10x / 7 menit)",
+      "LatentLeaf (15x / hari)",
+      "V2 Model (90x / 2 hari)",
+      "V3 Model (45x / 2 hari)",
       "Spotify search",
       "Quote maker",
     ],
@@ -359,19 +374,19 @@ export const uploadImage = async (
   }
 };
 
-// LatentLeaf Image Edit - Premium feature for Senior and Superior plans
+// LatentLeaf Image Edit - Using nexray gptimage API (POST with FormData)
 export const editImageLatentLeaf = async (
   prompt: string,
-  imageUrl: string
+  imageFile: File
 ): Promise<{ success: boolean; editedImageUrl?: string; error?: string }> => {
   try {
-    const params = new URLSearchParams({
-      prompt: prompt,
-      imageUrl: imageUrl,
-    });
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("param", prompt);
 
-    const response = await fetch(`${IMAGE_EDIT_API}?${params.toString()}`, {
-      method: "GET",
+    const response = await fetch(IMAGE_EDIT_API, {
+      method: "POST",
+      body: formData,
       signal: AbortSignal.timeout(120000),
     });
 
@@ -379,14 +394,23 @@ export const editImageLatentLeaf = async (
       throw new Error(`Image edit API returned ${response.status}`);
     }
 
-    const data = await response.json();
-    const editedUrl = data.result?.url || data.url || data.image || data.result;
-    
-    if (!editedUrl) {
-      throw new Error("No edited image URL returned");
-    }
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      const data = await response.json();
+      const editedUrl = data.result?.url || data.url || data.image || data.result || data.data?.url;
+      
+      if (!editedUrl) {
+        throw new Error("No edited image URL returned");
+      }
 
-    return { success: true, editedImageUrl: editedUrl };
+      return { success: true, editedImageUrl: editedUrl };
+    } else {
+      // Direct image response
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      return { success: true, editedImageUrl: imageUrl };
+    }
   } catch (error: any) {
     return { 
       success: false, 
@@ -395,33 +419,37 @@ export const editImageLatentLeaf = async (
   }
 };
 
-// Text to Speech API - returns audio blob URL
+// Text to Speech API - Using new Qwen TTS API
 export const textToSpeech = async (
   text: string,
-  voice: VoiceOption = "Fenrir"
+  voice: VoiceOption = "dylan"
 ): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
-    const params = new URLSearchParams({
-      text: text,
-      style: "default",
-      voice: voice,
-    });
-
-    const response = await fetch(`${QWEN_TTS_API}?${params.toString()}`, {
-      method: "GET",
-      headers: { accept: "audio/wav" },
-      signal: AbortSignal.timeout(120000),
-    });
+    // Format text for URL (replace spaces with +, encode special chars)
+    const formattedText = encodeURIComponent(text);
+    const voiceName = voice.toLowerCase();
+    
+    const response = await fetch(
+      `${QWEN_TTS_API}?text=${formattedText}&voice=${voiceName}`,
+      {
+        method: "GET",
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(120000),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`TTS API returned ${response.status}`);
     }
 
-    // Create blob URL from audio response
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
+    const data = await response.json();
     
-    return { success: true, audioUrl };
+    // Response format: { success: true, result: "http://...wav", timestamp, responseTime }
+    if (data.success && data.result) {
+      return { success: true, audioUrl: data.result };
+    }
+    
+    throw new Error("No audio URL in response");
   } catch (error: any) {
     console.error("TTS Error:", error);
     return { 
@@ -431,167 +459,60 @@ export const textToSpeech = async (
   }
 };
 
-// Pakasir Payment Integration
+// Pakasir Payment Integration - Using URL-based approach
 const PAKASIR_SLUG = "aqualibria";
-const PAKASIR_API_KEY = "gi2fPnZQlH8ytZJK6T5jpFEM7qHuh2aN";
-const PAKASIR_BASE_URL = "https://app.pakasir.com";
 
 export interface PaymentTransaction {
   orderId: string;
   amount: number;
   plan: PlanType;
   status: "pending" | "completed" | "cancelled";
-  qrString?: string;
-  expiredAt?: string;
-  paymentMethod?: string;
-  totalPayment?: number;
-  fee?: number;
+  paymentUrl?: string;
 }
 
-// Create QRIS payment transaction using Pakasir API
-export const createPaymentTransaction = async (
-  amount: number,
-  orderId: string
-): Promise<{ success: boolean; payment?: any; error?: string }> => {
+// Generate payment URL for Pakasir
+export const getPaymentUrl = (amount: number, orderId: string): string => {
+  return `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&qris_only=1`;
+};
+
+// Generate unique order ID
+export const generateOrderId = (): string => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `AQ${timestamp}${random}`;
+};
+
+// Check API status
+export const checkAPIStatus = async (): Promise<APIStatus> => {
+  const results: APIStatus = {
+    chat: false,
+    imageAnalysis: false,
+    research: false,
+    spotify: false,
+    imageGeneration: false,
+  };
+
   try {
-    console.log("Creating payment:", { amount, orderId, project: PAKASIR_SLUG });
-    
-    const response = await fetch(`${PAKASIR_BASE_URL}/api/transactioncreate/qris`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        project: PAKASIR_SLUG,
-        order_id: orderId,
-        amount: amount,
-        api_key: PAKASIR_API_KEY,
-      }),
-      signal: AbortSignal.timeout(30000),
+    const response = await fetch(`${API_BASE}?text=ping&prompt=test&session=healthcheck`, {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
     });
-
-    const responseText = await response.text();
-    console.log("Pakasir response:", response.status, responseText);
-    
-    if (!response.ok) {
-      throw new Error(`Payment API returned ${response.status}: ${responseText}`);
-    }
-
-    const data = JSON.parse(responseText);
-    
-    // Response format: { payment: { project, order_id, amount, fee, total_payment, payment_method, payment_number, expired_at } }
-    if (data.payment) {
-      return { 
-        success: true, 
-        payment: {
-          ...data.payment,
-          qrString: data.payment.payment_number,
-          expiredAt: data.payment.expired_at,
-          totalPayment: data.payment.total_payment,
-        }
-      };
-    }
-    
-    return { success: true, payment: data };
-  } catch (error: any) {
-    console.error("Payment creation error:", error);
-    return { 
-      success: false, 
-      error: error.message || "Failed to create payment" 
-    };
+    results.chat = response.ok;
+    results.imageAnalysis = response.ok;
+    results.research = response.ok;
+  } catch {
+    // API is down
   }
-};
 
-export const checkPaymentStatus = async (
-  orderId: string,
-  amount: number
-): Promise<{ success: boolean; transaction?: any; error?: string }> => {
   try {
-    const params = new URLSearchParams({
-      project: PAKASIR_SLUG,
-      order_id: orderId,
-      amount: amount.toString(),
-      api_key: PAKASIR_API_KEY,
+    const response = await fetch(`${SPOTIFY_API}?query=test`, {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
     });
-
-    const response = await fetch(
-      `https://app.pakasir.com/api/transactiondetail?${params.toString()}`,
-      {
-        method: "GET",
-        signal: AbortSignal.timeout(10000),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Payment status API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    return { success: true, transaction: data.transaction };
-  } catch (error: any) {
-    return { 
-      success: false, 
-      error: error.message || "Failed to check payment status" 
-    };
+    results.spotify = response.ok;
+  } catch {
+    // API is down
   }
-};
 
-export const getPaymentUrl = (amount: number, orderId: string, qrisOnly: boolean = true): string => {
-  let url = `https://app.pakasir.com/pay/aqualibria/${amount}?order_id=${orderId}`;
-  if (qrisOnly) {
-    url += "&qris_only=1";
-  }
-  return url;
-};
-
-// HuggingFace TTS API - Fallback TTS using espnet model
-export const textToSpeechHF = async (
-  text: string
-): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
-  try {
-    // Clean text for TTS
-    const cleanText = text.replace(/[*#_`]/g, "").slice(0, 500);
-    
-    const response = await fetch(HUGGINGFACE_TTS_API, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs: cleanText }),
-      signal: AbortSignal.timeout(60000),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      console.error("HuggingFace TTS error:", response.status, errorText);
-      throw new Error(`HuggingFace TTS API returned ${response.status}`);
-    }
-
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    return { success: true, audioUrl };
-  } catch (error: any) {
-    console.error("HuggingFace TTS Error:", error);
-    return { 
-      success: false, 
-      error: error.message || "Failed to generate speech" 
-    };
-  }
-};
-
-// Combined TTS with fallback: Try primary API first, then HuggingFace
-export const textToSpeechWithFallback = async (
-  text: string,
-  voice: VoiceOption = "Fenrir"
-): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
-  // Try primary TTS first
-  const primaryResult = await textToSpeech(text, voice);
-  if (primaryResult.success) {
-    return primaryResult;
-  }
-  
-  console.log("Primary TTS failed, trying HuggingFace fallback...");
-  
-  // Fallback to HuggingFace
-  return textToSpeechHF(text);
+  return results;
 };
