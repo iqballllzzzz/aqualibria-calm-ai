@@ -9,7 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS } from "@/lib/api";
-import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf } from "@/lib/storage";
+import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
@@ -56,10 +56,11 @@ const Chat: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string>(urlSessionId || generateSessionId());
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [selectedModel, setSelectedModel] = useState<"aqualibriav1" | "aqualibriav2" | "aqualibriav3">("aqualibriav1");
   
   // Modal states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -229,7 +230,11 @@ const Chat: React.FC = () => {
           if (imageToAnalyze) {
             result = await analyzeImage(imageToAnalyze, messageText, currentSessionId);
           } else {
-            result = await sendChatMessage(messageText, currentSessionId, { model: currentPlan?.model, memoryContext });
+            // Increment model usage for V2/V3 if free user
+            if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") {
+              incrementModelUsage(selectedModel);
+            }
+            result = await sendChatMessage(messageText, currentSessionId, { model: selectedModel, memoryContext });
           }
       }
       
@@ -537,7 +542,9 @@ const Chat: React.FC = () => {
               <div className="relative">
                 <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full hover:bg-accent transition-colors">
                   <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">{currentPlan?.modelDisplay || "AqualibriaV1"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedModel === "aqualibriav1" ? "AqualibriaV1" : selectedModel === "aqualibriav2" ? "AqualibriaV2" : "AqualibriaV3"}
+                  </span>
                   <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
                 </button>
                 <AnimatePresence>
@@ -546,19 +553,51 @@ const Chat: React.FC = () => {
                       initial={{ opacity: 0, y: 5 }} 
                       animate={{ opacity: 1, y: 0 }} 
                       exit={{ opacity: 0, y: 5 }} 
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
                     >
                       {SUBSCRIPTION_PLANS.map((plan) => {
-                        const isLocked = SUBSCRIPTION_PLANS.findIndex(p => p.id === subscription.plan) < SUBSCRIPTION_PLANS.findIndex(p => p.id === plan.id);
-                        const isActive = subscription.plan === plan.id;
+                        const modelKey = plan.model as "aqualibriav1" | "aqualibriav2" | "aqualibriav3";
+                        const isActive = selectedModel === modelKey;
+                        
+                        // For free users, check if they can use V2/V3
+                        let modelAccess = { allowed: true, remaining: 999 };
+                        let limitText = "";
+                        
+                        if (subscription.plan === "junior" && modelKey !== "aqualibriav1") {
+                          modelAccess = canUseModel(modelKey);
+                          const usage = getModelUsage();
+                          if (modelKey === "aqualibriav2") {
+                            limitText = `(${90 - usage.v2Count}/90 per 2 hari)`;
+                          } else {
+                            limitText = `(${45 - usage.v3Count}/45 per 2 hari)`;
+                          }
+                        }
+                        
+                        const handleSelectModel = () => {
+                          if (!modelAccess.allowed) {
+                            toast({
+                              title: "Limit Tercapai",
+                              description: `Anda telah mencapai batas penggunaan ${plan.modelDisplay}. Reset setiap 2 hari.`,
+                              variant: "destructive"
+                            });
+                            return;
+                          }
+                          setSelectedModel(modelKey);
+                          setShowModelSelector(false);
+                        };
+                        
                         return (
                           <button 
                             key={plan.id} 
-                            onClick={() => { if (!isLocked) setShowModelSelector(false); }} 
-                            className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between ${isLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-accent"} ${isActive ? "bg-accent" : ""}`}
+                            onClick={handleSelectModel}
+                            className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between ${!modelAccess.allowed ? "opacity-50" : "hover:bg-accent"} ${isActive ? "bg-accent" : ""}`}
                           >
-                            <span className="text-sm text-foreground font-medium">{plan.modelDisplay}</span>
-                            {isLocked && <Crown className="w-4 h-4 text-purple-500" />}
+                            <div className="flex flex-col">
+                              <span className="text-sm text-foreground font-medium">{plan.modelDisplay}</span>
+                              {subscription.plan === "junior" && limitText && (
+                                <span className="text-xs text-muted-foreground">{limitText}</span>
+                              )}
+                            </div>
                             {isActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
                           </button>
                         );

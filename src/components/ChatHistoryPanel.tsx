@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Trash2, MessageSquare, Search, MoreVertical, Pin, Archive, Edit2, Check } from "lucide-react";
+import { X, Trash2, MessageSquare, Search, MoreVertical, Pin, Archive, Edit2, Check, Share2, ExternalLink, Copy } from "lucide-react";
 import { ChatSession, deleteChatSession } from "@/lib/storage";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,41 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const { toast } = useToast();
+
+  const handleShareSession = async (session: ChatSession) => {
+    // Generate shareable link
+    const shareUrl = `${window.location.origin}/shared/${session.id}`;
+    
+    // Try to use Web Share API first
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `AquaLibriaAI Chat: ${session.title}`,
+          text: `Lihat percakapan AI ini: ${session.title}`,
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        // User cancelled or share failed, fall back to clipboard
+      }
+    }
+    
+    // Fall back to clipboard
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link disalin!",
+        description: "Link percakapan telah disalin ke clipboard",
+      });
+    } catch {
+      toast({
+        title: "Gagal menyalin",
+        description: "Tidak dapat menyalin link ke clipboard",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Filter out archived sessions and apply search
   const visibleSessions = sessions.filter((session) => {
@@ -238,6 +274,13 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                                     Archive
                                   </DropdownMenuItem>
                                 )}
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); handleShareSession(session); }}
+                                  className="cursor-pointer"
+                                >
+                                  <Share2 className="w-4 h-4 mr-2" />
+                                  Share Link
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}
                                   className="cursor-pointer text-destructive focus:text-destructive"

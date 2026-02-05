@@ -13,6 +13,7 @@ import Welcome from "./pages/Welcome";
 import Chat from "./pages/Chat";
 import CodingPartner from "./pages/CodingPartner";
 import Settings from "./pages/Settings";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 
@@ -102,6 +103,7 @@ const AppRoutes = () => {
       <Route path="/chat/:sessionId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/coding" element={<ProtectedRoute><CodingPartner /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
