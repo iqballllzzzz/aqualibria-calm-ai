@@ -459,6 +459,15 @@ export const textToSpeech = async (
   }
 };
 
+// TTS with fallback - wrapper for voice chat compatibility
+export const textToSpeechWithFallback = async (
+  text: string,
+  voice: VoiceOption = "dylan"
+): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+  // Use the main TTS function directly (Qwen API is reliable)
+  return textToSpeech(text, voice);
+};
+
 // Pakasir Payment Integration - Using URL-based approach
 const PAKASIR_SLUG = "aqualibria";
 
@@ -480,6 +489,40 @@ export const generateOrderId = (): string => {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `AQ${timestamp}${random}`;
+};
+
+// Create payment transaction - returns URL for the user to pay
+export const createPaymentTransaction = async (
+  amount: number,
+  orderId: string
+): Promise<{ success: boolean; payment?: { payment_url: string; qris_string?: string }; error?: string }> => {
+  try {
+    if (amount === 0) {
+      return { success: false, error: "Invalid amount" };
+    }
+    
+    const paymentUrl = getPaymentUrl(amount, orderId);
+    
+    return { 
+      success: true, 
+      payment: { 
+        payment_url: paymentUrl,
+        qris_string: paymentUrl
+      }
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to create payment" };
+  }
+};
+
+// Check payment status - placeholder (since we're using URL-based payment)
+export const checkPaymentStatus = async (
+  orderId: string,
+  amount?: number
+): Promise<{ success: boolean; transaction?: { status: "pending" | "completed" | "cancelled" }; error?: string }> => {
+  // For URL-based payment, we can't check status programmatically
+  // User must confirm payment manually
+  return { success: true, transaction: { status: "pending" } };
 };
 
 // Check API status
