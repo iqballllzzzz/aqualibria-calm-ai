@@ -349,7 +349,10 @@ const Settings: React.FC = () => {
             {t("settings.privacy")}
           </h2>
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <button className="w-full p-4 flex items-center justify-between hover:bg-accent/50 transition-colors">
+            <button 
+              onClick={() => navigate("/privacy")}
+              className="w-full p-4 flex items-center justify-between hover:bg-accent/50 transition-colors"
+            >
               <div className="flex items-center gap-3">
                 <Shield className="w-5 h-5 text-foreground-muted" />
                 <span className="text-foreground">{t("settings.privacyPolicy")}</span>
