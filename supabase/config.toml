@@ -1,1 +1,4 @@
 project_id = "awkolliegwmdgpklqqwr"
+
+[functions.pakasir-payment]
+verify_jwt = false

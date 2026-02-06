@@ -15,17 +15,23 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg"],
+      includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg", "icon-192.png", "icon-512.png"],
       manifest: {
+        id: "/",
         name: "AquaLibriaAI",
         short_name: "AquaLibria",
         description: "Your calm, intelligent AI companion for thinking, coding, learning, and creating.",
         theme_color: "#7c3aed",
         background_color: "#121212",
         display: "standalone",
+        display_override: ["standalone", "minimal-ui"],
         orientation: "portrait",
         scope: "/",
         start_url: "/",
+        dir: "ltr",
+        lang: "id",
+        categories: ["productivity", "utilities", "education"],
+        prefer_related_applications: false,
         icons: [
           {
             src: "/favicon.ico",
@@ -33,12 +39,72 @@ export default defineConfig(({ mode }) => ({
             type: "image/x-icon",
           },
           {
-            src: "/placeholder.svg",
+            src: "/icon-192.png",
             sizes: "192x192",
-            type: "image/svg+xml",
-            purpose: "any maskable",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
+        screenshots: [
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "wide",
+            label: "AquaLibriaAI - AI Companion",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "AquaLibriaAI - AI Companion",
+          },
+        ],
+        shortcuts: [
+          {
+            name: "Chat Baru",
+            short_name: "Chat",
+            description: "Mulai percakapan baru dengan AI",
+            url: "/chat",
+            icons: [{ src: "/icon-192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Coding Partner",
+            short_name: "Code",
+            description: "Buka coding partner AI",
+            url: "/coding",
+            icons: [{ src: "/icon-192.png", sizes: "192x192" }],
+          },
+        ],
+        launch_handler: {
+          client_mode: "navigate-existing",
+        },
+        share_target: {
+          action: "/chat",
+          method: "GET",
+          params: {
+            text: "text",
+          },
+        },
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}"],
@@ -50,7 +116,7 @@ export default defineConfig(({ mode }) => ({
               cacheName: "api-cache",
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60, // 1 hour
+                maxAgeSeconds: 60 * 60,
               },
             },
           },
@@ -61,7 +127,7 @@ export default defineConfig(({ mode }) => ({
               cacheName: "google-fonts-cache",
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },

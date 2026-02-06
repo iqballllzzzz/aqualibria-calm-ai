@@ -468,8 +468,10 @@ export const textToSpeechWithFallback = async (
   return textToSpeech(text, voice);
 };
 
-// Pakasir Payment Integration
+// Pakasir Payment Integration via Edge Function
 const PAKASIR_SLUG = "aqualibria";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export interface PaymentTransaction {
   orderId: string;
@@ -479,7 +481,7 @@ export interface PaymentTransaction {
   paymentUrl?: string;
 }
 
-// Generate payment URL for Pakasir (direct link approach)
+// Generate payment URL for Pakasir (fallback)
 export const getPaymentUrl = (amount: number, orderId: string): string => {
   return `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&qris_only=1`;
 };
@@ -491,9 +493,7 @@ export const generateOrderId = (): string => {
   return `AQ${timestamp}${random}`;
 };
 
-// Create payment transaction - returns URL for the user to pay
-// Note: For full QRIS integration, you need to call the Pakasir API from a backend with your API key
-// Current implementation uses URL-based redirect which still works
+// Create payment transaction via edge function - returns QRIS data
 export const createPaymentTransaction = async (
   amount: number,
   orderId: string
@@ -502,29 +502,70 @@ export const createPaymentTransaction = async (
     if (amount === 0) {
       return { success: false, error: "Invalid amount" };
     }
-    
-    const paymentUrl = getPaymentUrl(amount, orderId);
-    
-    return { 
-      success: true, 
-      payment: { 
-        payment_url: paymentUrl,
-        qris_string: paymentUrl,
-        total_payment: amount,
+
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/pakasir-payment?action=create`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+        },
+        body: JSON.stringify({ order_id: orderId, amount }),
       }
+    );
+
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+      const text = await response.text();
+      console.error("Edge function returned non-JSON:", text.substring(0, 200));
+      throw new Error("Server returned invalid response");
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.payment) {
+      return { success: false, error: data.error || "Gagal membuat pembayaran" };
+    }
+
+    return {
+      success: true,
+      payment: {
+        payment_url: data.payment.payment_url,
+        qris_string: data.payment.payment_number,
+        payment_number: data.payment.payment_number,
+        total_payment: data.payment.total_payment,
+      },
     };
   } catch (error: any) {
+    console.error("Payment error:", error);
     return { success: false, error: error.message || "Failed to create payment" };
   }
 };
 
-// Check payment status
+// Check payment status via edge function
 export const checkPaymentStatus = async (
   orderId: string,
   amount?: number
 ): Promise<{ success: boolean; transaction?: { status: "pending" | "completed" | "cancelled" }; error?: string }> => {
-  // User must confirm payment manually for URL-based approach
-  return { success: true, transaction: { status: "pending" } };
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/pakasir-payment?action=status&order_id=${orderId}&amount=${amount || 0}`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+        },
+      }
+    );
+
+    const data = await response.json();
+    return {
+      success: true,
+      transaction: { status: data.transaction?.status || "pending" },
+    };
+  } catch {
+    return { success: true, transaction: { status: "pending" } };
+  }
 };
 
 // Check API status
