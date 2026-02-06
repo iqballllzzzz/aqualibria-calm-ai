@@ -468,7 +468,7 @@ export const textToSpeechWithFallback = async (
   return textToSpeech(text, voice);
 };
 
-// Pakasir Payment Integration - Using URL-based approach
+// Pakasir Payment Integration
 const PAKASIR_SLUG = "aqualibria";
 
 export interface PaymentTransaction {
@@ -479,7 +479,7 @@ export interface PaymentTransaction {
   paymentUrl?: string;
 }
 
-// Generate payment URL for Pakasir
+// Generate payment URL for Pakasir (direct link approach)
 export const getPaymentUrl = (amount: number, orderId: string): string => {
   return `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&qris_only=1`;
 };
@@ -492,10 +492,12 @@ export const generateOrderId = (): string => {
 };
 
 // Create payment transaction - returns URL for the user to pay
+// Note: For full QRIS integration, you need to call the Pakasir API from a backend with your API key
+// Current implementation uses URL-based redirect which still works
 export const createPaymentTransaction = async (
   amount: number,
   orderId: string
-): Promise<{ success: boolean; payment?: { payment_url: string; qris_string?: string }; error?: string }> => {
+): Promise<{ success: boolean; payment?: { payment_url: string; qris_string?: string; payment_number?: string; total_payment?: number }; error?: string }> => {
   try {
     if (amount === 0) {
       return { success: false, error: "Invalid amount" };
@@ -507,7 +509,8 @@ export const createPaymentTransaction = async (
       success: true, 
       payment: { 
         payment_url: paymentUrl,
-        qris_string: paymentUrl
+        qris_string: paymentUrl,
+        total_payment: amount,
       }
     };
   } catch (error: any) {
@@ -515,13 +518,12 @@ export const createPaymentTransaction = async (
   }
 };
 
-// Check payment status - placeholder (since we're using URL-based payment)
+// Check payment status
 export const checkPaymentStatus = async (
   orderId: string,
   amount?: number
 ): Promise<{ success: boolean; transaction?: { status: "pending" | "completed" | "cancelled" }; error?: string }> => {
-  // For URL-based payment, we can't check status programmatically
-  // User must confirm payment manually
+  // User must confirm payment manually for URL-based approach
   return { success: true, transaction: { status: "pending" } };
 };
 
