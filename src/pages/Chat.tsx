@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Send, Menu, X, Image, Search, Sparkles, Music, Quote, 
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Wand2, Crown, User, ImageIcon,
+  MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -28,6 +29,12 @@ import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Mobile viewport height fix
 const setVH = () => {
@@ -70,6 +77,8 @@ const Chat: React.FC = () => {
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [editingSidebarId, setEditingSidebarId] = useState<string | null>(null);
+  const [editSidebarTitle, setEditSidebarTitle] = useState("");
 
   // Chat management
   const [chatManagement, setChatManagement] = useState(getChatManagement());
@@ -294,6 +303,27 @@ const Chat: React.FC = () => {
     setChatHistory(getChatHistory());
   };
 
+  const handleShareSession = async (session: ChatSession) => {
+    const shareUrl = `${window.location.origin}/shared/${session.id}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `AquaLibriaAI: ${session.title}`, url: shareUrl }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!", description: "Link percakapan telah disalin ke clipboard" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+  };
+
+  const handleStartSidebarRename = (session: ChatSession) => {
+    setEditingSidebarId(session.id);
+    setEditSidebarTitle(session.title);
+  };
+
+  const handleConfirmSidebarRename = () => {
+    if (editingSidebarId && editSidebarTitle.trim()) {
+      handleRenameSession(editingSidebarId, editSidebarTitle.trim());
+    }
+    setEditingSidebarId(null);
+    setEditSidebarTitle("");
+  };
+
   const handleQuoteGenerate = (data: QuoteData) => { 
     setMessages((prev) => [
       ...prev, 
@@ -354,13 +384,6 @@ const Chat: React.FC = () => {
                   <MessageSquare className="w-5 h-5" />
                   <span className="font-medium">New Chat</span>
                 </button>
-                <button onClick={() => setShowHistory(!showHistory)} className="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
-                  <div className="flex items-center gap-3">
-                    <Search className="w-5 h-5" />
-                    <span className="font-medium">Chat History</span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showHistory ? "rotate-180" : ""}`} />
-                </button>
                 <button onClick={() => { setShowImageGallery(true); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground">
                   <ImageIcon className="w-5 h-5" />
                   <span className="font-medium">Image Gallery</span>
@@ -387,11 +410,43 @@ const Chat: React.FC = () => {
                   <p className="text-center text-sidebar-foreground/50 py-8">Belum ada riwayat chat</p>
                 ) : (
                   <div className="space-y-1 pb-4">
-                    {filteredHistory.filter(s => !chatManagement.archivedSessions.includes(s.id)).slice(0, 20).map((session) => (
-                      <button key={session.id} onClick={() => handleSelectSession(session)} className={`w-full text-left px-4 py-2.5 rounded-lg transition-colors text-sm truncate ${currentSessionId === session.id ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"}`}>
-                        {session.title}
-                      </button>
-                    ))}
+                    {filteredHistory.filter(s => !chatManagement.archivedSessions.includes(s.id)).slice(0, 20).map((session) => {
+                      const isPinned = chatManagement.pinnedSessions.includes(session.id);
+                      const isEditing = editingSidebarId === session.id;
+                      return (
+                        <div key={session.id} className={`group relative rounded-lg px-4 py-2.5 cursor-pointer transition-colors ${currentSessionId === session.id ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"}`} onClick={() => !isEditing && handleSelectSession(session)}>
+                          <div className="pr-8">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <input type="text" value={editSidebarTitle} onChange={(e) => setEditSidebarTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleConfirmSidebarRename()} onClick={(e) => e.stopPropagation()} className="flex-1 text-sm text-sidebar-foreground bg-sidebar border border-sidebar-border rounded px-2 py-1 focus:outline-none" autoFocus />
+                                <button onClick={(e) => { e.stopPropagation(); handleConfirmSidebarRename(); }} className="p-1 rounded hover:bg-sidebar-accent"><Check className="w-4 h-4 text-green-500" /></button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                {isPinned && <Pin className="w-3 h-3 text-purple-400 shrink-0" />}
+                                <span className="text-sm text-sidebar-foreground truncate">{session.title}</span>
+                              </div>
+                            )}
+                          </div>
+                          {!isEditing && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent transition-all"><MoreVertical className="w-4 h-4 text-sidebar-foreground" /></button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer"><Edit2 className="w-4 h-4 mr-2" />Rename</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer"><Pin className="w-4 h-4 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer"><Archive className="w-4 h-4 mr-2" />Archive</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer"><Share2 className="w-4 h-4 mr-2" />Share Link</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-destructive focus:text-destructive"><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
@@ -553,7 +608,7 @@ const Chat: React.FC = () => {
                       initial={{ opacity: 0, y: 5 }} 
                       animate={{ opacity: 1, y: 0 }} 
                       exit={{ opacity: 0, y: 5 }} 
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
+                      className="absolute bottom-full right-0 mb-2 w-56 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
                     >
                       {SUBSCRIPTION_PLANS.map((plan) => {
                         const modelKey = plan.model as "aqualibriav1" | "aqualibriav2" | "aqualibriav3";
