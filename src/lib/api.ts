@@ -1,10 +1,7 @@
-// API Configuration - Updated to Gemini API
-const API_BASE = "https://api.ryzumi.vip/api/ai/gemini";
-const SPOTIFY_API = "https://api.ryzumi.vip/api/search/spotify";
-const IMAGE_GEN_API = "https://api.nexray.web.id/ai/v1/text2image";
-const IMAGE_UPLOAD_API = "https://api.ryzumi.vip/api/uploader/ryzumicdn";
-const IMAGE_EDIT_API = "https://api.nexray.web.id/ai/gptimage";
-const QWEN_TTS_API = "https://rynekoo-api.hf.space/tools/tts/qwen";
+// API Configuration - All requests go through edge function proxy
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const PROXY_BASE = `${SUPABASE_URL}/functions/v1/api-proxy`;
 
 // New TTS Voice Options
 export const TTS_VOICE_OPTIONS = ["dylan", "sunny", "jada", "cherry", "ethan", "serena", "chelsie"] as const;
@@ -196,6 +193,7 @@ export const sendChatMessage = async (
     // Build URL with parameters for Gemini API
     // Format: https://api.ryzumi.vip/api/ai/gemini?text=TEXT&prompt=PROMPT&imageUrl=URL&session=SESSION_ID
     const params = new URLSearchParams({
+      action: "chat",
       text: textToSend,
       prompt: systemPrompt,
       session: sessionId,
@@ -206,11 +204,11 @@ export const sendChatMessage = async (
       params.append("imageUrl", imageUrl);
     }
     
-    const url = `${API_BASE}?${params.toString()}`;
+    const url = `${PROXY_BASE}?${params.toString()}`;
 
     const response = await fetch(url, {
       method: "GET",
-      headers: { accept: "application/json" },
+      headers: { accept: "application/json", apikey: SUPABASE_KEY },
       signal: AbortSignal.timeout(60000),
     });
 
@@ -266,10 +264,10 @@ export const searchSpotify = async (
 ): Promise<{ success: boolean; results?: any[]; error?: string }> => {
   try {
     const response = await fetch(
-      `${SPOTIFY_API}?query=${encodeURIComponent(query)}`,
+      `${PROXY_BASE}?action=spotify&query=${encodeURIComponent(query)}`,
       {
         method: "GET",
-        headers: { accept: "application/json" },
+        headers: { accept: "application/json", apikey: SUPABASE_KEY },
         signal: AbortSignal.timeout(10000),
       }
     );
@@ -296,9 +294,10 @@ export const generateImage = async (
     // Format prompt for URL (replace spaces with +)
     const formattedPrompt = prompt.replace(/\s+/g, '+');
     const response = await fetch(
-      `${IMAGE_GEN_API}?prompt=${formattedPrompt}`,
+      `${PROXY_BASE}?action=image_gen&prompt=${formattedPrompt}`,
       {
         method: "GET",
+        headers: { apikey: SUPABASE_KEY },
         signal: AbortSignal.timeout(120000),
       }
     );
@@ -338,10 +337,11 @@ export const uploadImage = async (
     const formData = new FormData();
     formData.append("file", file, file.name);
 
-    const response = await fetch(IMAGE_UPLOAD_API, {
+    const response = await fetch(`${PROXY_BASE}?action=image_upload`, {
       method: "POST",
       headers: {
         accept: "application/json",
+        apikey: SUPABASE_KEY,
       },
       body: formData,
       signal: AbortSignal.timeout(30000),
@@ -384,8 +384,9 @@ export const editImageLatentLeaf = async (
     formData.append("image", imageFile);
     formData.append("param", prompt);
 
-    const response = await fetch(IMAGE_EDIT_API, {
+    const response = await fetch(`${PROXY_BASE}?action=image_edit`, {
       method: "POST",
+      headers: { apikey: SUPABASE_KEY },
       body: formData,
       signal: AbortSignal.timeout(120000),
     });
@@ -430,10 +431,10 @@ export const textToSpeech = async (
     const voiceName = voice.toLowerCase();
     
     const response = await fetch(
-      `${QWEN_TTS_API}?text=${formattedText}&voice=${voiceName}`,
+      `${PROXY_BASE}?action=tts&text=${formattedText}&voice=${voiceName}`,
       {
         method: "GET",
-        headers: { accept: "application/json" },
+        headers: { accept: "application/json", apikey: SUPABASE_KEY },
         signal: AbortSignal.timeout(120000),
       }
     );
@@ -470,8 +471,6 @@ export const textToSpeechWithFallback = async (
 
 // Pakasir Payment Integration via Edge Function
 const PAKASIR_SLUG = "aqualibria";
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export interface PaymentTransaction {
   orderId: string;
@@ -579,8 +578,9 @@ export const checkAPIStatus = async (): Promise<APIStatus> => {
   };
 
   try {
-    const response = await fetch(`${API_BASE}?text=ping&prompt=test&session=healthcheck`, {
+    const response = await fetch(`${PROXY_BASE}?action=chat&text=ping&prompt=test&session=healthcheck`, {
       method: "GET",
+      headers: { apikey: SUPABASE_KEY },
       signal: AbortSignal.timeout(5000),
     });
     results.chat = response.ok;
@@ -591,8 +591,9 @@ export const checkAPIStatus = async (): Promise<APIStatus> => {
   }
 
   try {
-    const response = await fetch(`${SPOTIFY_API}?query=test`, {
+    const response = await fetch(`${PROXY_BASE}?action=spotify&query=test`, {
       method: "GET",
+      headers: { apikey: SUPABASE_KEY },
       signal: AbortSignal.timeout(5000),
     });
     results.spotify = response.ok;

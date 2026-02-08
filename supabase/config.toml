@@ -2,3 +2,6 @@ project_id = "awkolliegwmdgpklqqwr"
 
 [functions.pakasir-payment]
 verify_jwt = false
+
+[functions.api-proxy]
+verify_jwt = false
