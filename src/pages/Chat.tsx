@@ -432,7 +432,7 @@ const Chat: React.FC = () => {
                             <div className="absolute right-2 top-1/2 -translate-y-1/2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent transition-all"><MoreVertical className="w-4 h-4 text-sidebar-foreground" /></button>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-sidebar-accent transition-all"><MoreVertical className="w-4 h-4 text-sidebar-foreground" /></button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48">
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer"><Edit2 className="w-4 h-4 mr-2" />Rename</DropdownMenuItem>
