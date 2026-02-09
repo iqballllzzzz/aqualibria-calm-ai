@@ -8,14 +8,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "env": {
-    "VITE_FIREBASE_API_KEY": "AIzaSyAGoobiJBMJfqiaB1i4Vw1avWW5ZVHhfzs",
-    "VITE_FIREBASE_AUTH_DOMAIN": "aqualibria-7ddec.firebaseapp.com",
-    "VITE_FIREBASE_PROJECT_ID": "aqualibria-7ddec",
-    "VITE_FIREBASE_STORAGE_BUCKET": "aqualibria-7ddec.firebasestorage.app",
-    "VITE_FIREBASE_MESSAGING_SENDER_ID": "680796176782",
-    "VITE_FIREBASE_APP_ID": "1:680796176782:web:590a69de6d07d9d184e4df"
-  },
+  "env": {},
   "headers": [
     {
       "source": "/(.*)",
