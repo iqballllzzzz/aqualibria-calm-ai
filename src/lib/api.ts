@@ -176,10 +176,21 @@ export const sendChatMessage = async (
   try {
     const { imageUrl, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "" } = options;
     
-    // Determine the text to send - include memory context for better responses
-    let textToSend = message;
+    // Input validation
+    if (!message || message.trim().length === 0) {
+      return { success: false, error: "Message cannot be empty" };
+    }
+    if (message.length > 10000) {
+      return { success: false, error: "Message too long (max 10000 characters)" };
+    }
+    if (imageUrl && !/^https?:\/\/.+/.test(imageUrl)) {
+      return { success: false, error: "Invalid image URL" };
+    }
+    
+    // Sanitize input - remove control characters
+    let textToSend = message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
     if (isResearchMode) {
-      textToSend = `please research ${message}`;
+      textToSend = `please research ${textToSend}`;
     }
     
     // Add memory context to improve AI awareness

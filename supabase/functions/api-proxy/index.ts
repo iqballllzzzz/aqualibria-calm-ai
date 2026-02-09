@@ -1,8 +1,20 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  "https://id-preview--e62bce47-cea9-435b-af2a-e3a7bda27e91.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 // All API endpoints are stored server-side only
 const ENDPOINTS: Record<string, string> = {
@@ -14,7 +26,31 @@ const ENDPOINTS: Record<string, string> = {
   tts: "https://rynekoo-api.hf.space/tools/tts/qwen",
 };
 
+// Input validation
+const MAX_TEXT_LENGTH = 10000;
+const MAX_PROMPT_LENGTH = 5000;
+const VALID_ACTIONS = new Set(Object.keys(ENDPOINTS));
+
+function validateAction(action: string | null): action is string {
+  return !!action && VALID_ACTIONS.has(action);
+}
+
+function sanitizeText(text: string, maxLength: number): string {
+  return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").slice(0, maxLength);
+}
+
+function validateUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -23,7 +59,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
-    if (!action || !ENDPOINTS[action]) {
+    if (!validateAction(action)) {
       return new Response(
         JSON.stringify({ error: "Invalid action. Valid: " + Object.keys(ENDPOINTS).join(", ") }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -32,12 +68,57 @@ Deno.serve(async (req) => {
 
     const targetBase = ENDPOINTS[action];
 
+    // Validate specific parameters based on action
+    if (action === "chat") {
+      const text = url.searchParams.get("text");
+      if (!text || text.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Text parameter is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (text.length > MAX_TEXT_LENGTH) {
+        return new Response(
+          JSON.stringify({ error: `Text too long (max ${MAX_TEXT_LENGTH} chars)` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const imageUrl = url.searchParams.get("imageUrl");
+      if (imageUrl && !validateUrl(imageUrl)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid imageUrl" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    if (action === "spotify") {
+      const query = url.searchParams.get("query");
+      if (!query || query.trim().length === 0 || query.length > 200) {
+        return new Response(
+          JSON.stringify({ error: "Invalid query parameter" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    if (action === "image_gen") {
+      const prompt = url.searchParams.get("prompt");
+      if (!prompt || prompt.trim().length === 0 || prompt.length > MAX_PROMPT_LENGTH) {
+        return new Response(
+          JSON.stringify({ error: "Invalid prompt parameter" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Handle GET-based APIs (chat, spotify, image_gen, tts)
     if (req.method === "GET" || (req.method === "POST" && action === "chat_get")) {
-      // Forward all query params except 'action'
       const forwardParams = new URLSearchParams();
       url.searchParams.forEach((value, key) => {
-        if (key !== "action") forwardParams.append(key, value);
+        if (key !== "action") {
+          forwardParams.append(key, sanitizeText(value, MAX_TEXT_LENGTH));
+        }
       });
 
       const targetUrl = `${targetBase}?${forwardParams.toString()}`;
@@ -56,7 +137,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
-        // Binary response (images, audio)
         const blob = await response.arrayBuffer();
         return new Response(blob, {
           status: response.status,
@@ -75,16 +155,31 @@ Deno.serve(async (req) => {
       let fetchOptions: RequestInit;
 
       if (contentType.includes("multipart/form-data")) {
-        // Forward FormData as-is
         const formData = await req.formData();
+        
+        // Validate file size (max 10MB)
+        for (const [, value] of formData.entries()) {
+          if (value instanceof File && value.size > 10 * 1024 * 1024) {
+            return new Response(
+              JSON.stringify({ error: "File too large (max 10MB)" }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
         fetchOptions = {
           method: "POST",
           body: formData,
           signal: AbortSignal.timeout(120000),
         };
       } else {
-        // Forward JSON body
         const body = await req.text();
+        if (body.length > 100000) {
+          return new Response(
+            JSON.stringify({ error: "Request body too large" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         fetchOptions = {
           method: "POST",
           headers: { "Content-Type": "application/json", accept: "application/json" },
@@ -119,9 +214,10 @@ Deno.serve(async (req) => {
       { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
+    const corsHeaders = getCorsHeaders(req);
     console.error("API proxy error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
