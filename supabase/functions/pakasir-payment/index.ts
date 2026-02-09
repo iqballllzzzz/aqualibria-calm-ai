@@ -1,15 +1,36 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  "https://id-preview--e62bce47-cea9-435b-af2a-e3a7bda27e91.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 const BASE_API_URL = "https://app.pakasir.com";
 const PAKASIR_SLUG = "aqualibria";
 
+// Input validation
+function validateOrderId(orderId: string): boolean {
+  return /^[A-Z0-9]{4,30}$/.test(orderId);
+}
+
+function validateAmount(amount: number): boolean {
+  return Number.isInteger(amount) && amount >= 500 && amount <= 10000000;
+}
+
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -18,7 +39,7 @@ Deno.serve(async (req) => {
     const PAKASIR_API_KEY = Deno.env.get("PAKASIR_API_KEY");
     if (!PAKASIR_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "PAKASIR_API_KEY not configured" }),
+        JSON.stringify({ error: "Payment service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -27,16 +48,23 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get("action");
 
     if (action === "create" && req.method === "POST") {
-      const { order_id, amount } = await req.json();
+      const body = await req.json();
+      const { order_id, amount } = body;
 
-      if (!order_id || !amount || amount < 500) {
+      if (!order_id || typeof order_id !== "string" || !validateOrderId(order_id)) {
         return new Response(
-          JSON.stringify({ error: "Invalid order_id or amount (min Rp500)" }),
+          JSON.stringify({ error: "Invalid order_id format" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Call Pakasir API to create QRIS payment
+      if (!amount || typeof amount !== "number" || !validateAmount(amount)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid amount (min Rp500, max Rp10.000.000)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const response = await fetch(`${BASE_API_URL}/api/transactioncreate/qris`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,7 +96,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Calculate fee for QRIS
       const fee = amount > 105000 ? Math.round(0.01 * amount) : Math.round(0.007 * amount + 310);
 
       return new Response(
@@ -93,15 +120,22 @@ Deno.serve(async (req) => {
       const order_id = url.searchParams.get("order_id");
       const amount = url.searchParams.get("amount");
 
-      if (!order_id || !amount) {
+      if (!order_id || !validateOrderId(order_id)) {
         return new Response(
-          JSON.stringify({ error: "Missing order_id or amount" }),
+          JSON.stringify({ error: "Invalid order_id" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!amount || isNaN(Number(amount))) {
+        return new Response(
+          JSON.stringify({ error: "Invalid amount" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       const response = await fetch(
-        `${BASE_API_URL}/api/transactiondetail?project=${PAKASIR_SLUG}&amount=${amount}&order_id=${order_id}&api_key=${PAKASIR_API_KEY}`
+        `${BASE_API_URL}/api/transactiondetail?project=${PAKASIR_SLUG}&amount=${encodeURIComponent(amount)}&order_id=${encodeURIComponent(order_id)}&api_key=${PAKASIR_API_KEY}`
       );
 
       const contentType = response.headers.get("content-type");
@@ -138,9 +172,10 @@ Deno.serve(async (req) => {
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
+    const corsHeaders = getCorsHeaders(req);
     console.error("Pakasir payment error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
