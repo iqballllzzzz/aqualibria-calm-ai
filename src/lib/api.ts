@@ -1,7 +1,16 @@
-// API Configuration - All requests go through edge function proxy
+// API Configuration - Direct browser calls (proxy blocked by Cloudflare)
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const PROXY_BASE = `${SUPABASE_URL}/functions/v1/api-proxy`;
+
+// Direct API endpoints
+const API_ENDPOINTS = {
+  chat: "https://api.ryzumi.vip/api/ai/gemini",
+  spotify: "https://api.ryzumi.vip/api/search/spotify",
+  image_gen: "https://api.nexray.web.id/ai/v1/text2image",
+  image_upload: "https://api.ryzumi.vip/api/uploader/ryzumicdn",
+  image_edit: "https://api.nexray.web.id/ai/gptimage",
+  tts: "https://rynekoo-api.hf.space/tools/tts/qwen",
+};
 
 // New TTS Voice Options
 export const TTS_VOICE_OPTIONS = ["dylan", "sunny", "jada", "cherry", "ethan", "serena", "chelsie"] as const;
@@ -204,22 +213,20 @@ export const sendChatMessage = async (
     // Build URL with parameters for Gemini API
     // Format: https://api.ryzumi.vip/api/ai/gemini?text=TEXT&prompt=PROMPT&imageUrl=URL&session=SESSION_ID
     const params = new URLSearchParams({
-      action: "chat",
       text: textToSend,
       prompt: systemPrompt,
       session: sessionId,
     });
     
-    // Add imageUrl if provided (for image analysis)
     if (imageUrl) {
       params.append("imageUrl", imageUrl);
     }
     
-    const url = `${PROXY_BASE}?${params.toString()}`;
+    const url = `${API_ENDPOINTS.chat}?${params.toString()}`;
 
     const response = await fetch(url, {
       method: "GET",
-      headers: { accept: "application/json", apikey: SUPABASE_KEY },
+      headers: { accept: "application/json" },
       signal: AbortSignal.timeout(60000),
     });
 
@@ -275,10 +282,10 @@ export const searchSpotify = async (
 ): Promise<{ success: boolean; results?: any[]; error?: string }> => {
   try {
     const response = await fetch(
-      `${PROXY_BASE}?action=spotify&query=${encodeURIComponent(query)}`,
+      `${API_ENDPOINTS.spotify}?query=${encodeURIComponent(query)}`,
       {
         method: "GET",
-        headers: { accept: "application/json", apikey: SUPABASE_KEY },
+        headers: { accept: "application/json" },
         signal: AbortSignal.timeout(10000),
       }
     );
@@ -305,10 +312,9 @@ export const generateImage = async (
     // Format prompt for URL (replace spaces with +)
     const formattedPrompt = prompt.replace(/\s+/g, '+');
     const response = await fetch(
-      `${PROXY_BASE}?action=image_gen&prompt=${formattedPrompt}`,
+      `${API_ENDPOINTS.image_gen}?prompt=${formattedPrompt}`,
       {
         method: "GET",
-        headers: { apikey: SUPABASE_KEY },
         signal: AbortSignal.timeout(120000),
       }
     );
@@ -348,11 +354,10 @@ export const uploadImage = async (
     const formData = new FormData();
     formData.append("file", file, file.name);
 
-    const response = await fetch(`${PROXY_BASE}?action=image_upload`, {
+    const response = await fetch(API_ENDPOINTS.image_upload, {
       method: "POST",
       headers: {
         accept: "application/json",
-        apikey: SUPABASE_KEY,
       },
       body: formData,
       signal: AbortSignal.timeout(30000),
@@ -395,9 +400,8 @@ export const editImageLatentLeaf = async (
     formData.append("image", imageFile);
     formData.append("param", prompt);
 
-    const response = await fetch(`${PROXY_BASE}?action=image_edit`, {
+    const response = await fetch(API_ENDPOINTS.image_edit, {
       method: "POST",
-      headers: { apikey: SUPABASE_KEY },
       body: formData,
       signal: AbortSignal.timeout(120000),
     });
@@ -442,10 +446,10 @@ export const textToSpeech = async (
     const voiceName = voice.toLowerCase();
     
     const response = await fetch(
-      `${PROXY_BASE}?action=tts&text=${formattedText}&voice=${voiceName}`,
+      `${API_ENDPOINTS.tts}?text=${formattedText}&voice=${voiceName}`,
       {
         method: "GET",
-        headers: { accept: "application/json", apikey: SUPABASE_KEY },
+        headers: { accept: "application/json" },
         signal: AbortSignal.timeout(120000),
       }
     );
@@ -589,9 +593,8 @@ export const checkAPIStatus = async (): Promise<APIStatus> => {
   };
 
   try {
-    const response = await fetch(`${PROXY_BASE}?action=chat&text=ping&prompt=test&session=healthcheck`, {
+    const response = await fetch(`${API_ENDPOINTS.chat}?text=ping&prompt=test&session=healthcheck`, {
       method: "GET",
-      headers: { apikey: SUPABASE_KEY },
       signal: AbortSignal.timeout(5000),
     });
     results.chat = response.ok;
@@ -602,9 +605,8 @@ export const checkAPIStatus = async (): Promise<APIStatus> => {
   }
 
   try {
-    const response = await fetch(`${PROXY_BASE}?action=spotify&query=test`, {
+    const response = await fetch(`${API_ENDPOINTS.spotify}?query=test`, {
       method: "GET",
-      headers: { apikey: SUPABASE_KEY },
       signal: AbortSignal.timeout(5000),
     });
     results.spotify = response.ok;
