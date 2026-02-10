@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { signInWithEmail, signInWithGoogle } from "@/lib/firebase";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { logActivity } from "@/lib/activity";
 import Logo from "@/components/Logo";
 
 const Login: React.FC = () => {
@@ -25,7 +26,8 @@ const Login: React.FC = () => {
     if (result.error) {
       setError(result.error);
       setLoading(false);
-    } else {
+    } else if (result.user) {
+      logActivity(result.user.uid, "login_email", { method: "email" }, result.user.email || undefined);
       navigate("/welcome");
     }
   };
@@ -39,7 +41,8 @@ const Login: React.FC = () => {
     if (result.error) {
       setError(result.error);
       setLoading(false);
-    } else {
+    } else if (result.user) {
+      logActivity(result.user.uid, "login_google", { method: "google" }, result.user.email || undefined, result.user.displayName || undefined);
       navigate("/welcome");
     }
   };
