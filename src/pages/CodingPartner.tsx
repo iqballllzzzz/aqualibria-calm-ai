@@ -90,10 +90,10 @@ const CodingPartner: React.FC = () => {
       const base64 = await fileToBase64(file);
       setPendingImageUrl(base64);
       toast({ title: "Image ready", description: "Describe what you want to do with this code screenshot" });
-    } else {
-      toast({ title: "Upload failed", description: result.error || "Failed to upload image", variant: "destructive" });
+    } catch {
+      toast({ title: "Upload failed", description: "Failed to process image", variant: "destructive" });
     }
-
+    setIsUploadingImage(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
