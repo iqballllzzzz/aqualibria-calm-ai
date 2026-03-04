@@ -28,7 +28,7 @@ const CodingPartner: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [sessionId] = useState(generateSessionId());
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("Fenrir");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
 
   // Handle voice transcript
@@ -85,11 +85,10 @@ const CodingPartner: React.FC = () => {
     }
 
     setIsUploadingImage(true);
-    const result = await uploadImage(file);
-    setIsUploadingImage(false);
-
-    if (result.success && result.imageUrl) {
-      setPendingImageUrl(result.imageUrl);
+    try {
+      const { fileToBase64 } = await import("@/lib/api");
+      const base64 = await fileToBase64(file);
+      setPendingImageUrl(base64);
       toast({ title: "Image ready", description: "Describe what you want to do with this code screenshot" });
     } else {
       toast({ title: "Upload failed", description: result.error || "Failed to upload image", variant: "destructive" });
