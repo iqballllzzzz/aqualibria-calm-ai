@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.api-proxy]
 verify_jwt = false
+
+[functions.gemini-chat]
+verify_jwt = false
+
+[functions.log-activity]
+verify_jwt = false
