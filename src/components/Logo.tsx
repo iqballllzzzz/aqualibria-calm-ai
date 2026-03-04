@@ -1,7 +1,5 @@
 import React from "react";
-import { useTheme } from "@/contexts/ThemeContext";
-import logoLight from "@/assets/logo.jpg";
-import logoDark from "@/assets/logo-dark.jpg";
+import logoImage from "@/assets/logo-new.png";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -16,20 +14,12 @@ const sizeClasses = {
 };
 
 const Logo: React.FC<LogoProps> = ({ size = "md", className = "" }) => {
-  const { theme } = useTheme();
-  const logoImage = theme === "dark" ? logoDark : logoLight;
-
   return (
-    <div 
-      className={`relative ${sizeClasses[size]} ${className} rounded-xl overflow-hidden`}
-      style={{
-        backgroundColor: theme === "dark" ? "#000000" : "#ffffff",
-      }}
-    >
+    <div className={`relative ${sizeClasses[size]} ${className}`}>
       <img
         src={logoImage}
         alt="AquaLibriaAI Logo"
-        className="w-full h-full object-contain p-0.5"
+        className="w-full h-full object-contain"
       />
     </div>
   );
