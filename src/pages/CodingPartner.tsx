@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { sendCodingMessage, uploadImage, ChatMessage, generateMessageId, VoiceOption } from "@/lib/api";
+import { sendCodingMessage, ChatMessage, generateMessageId, VoiceOption } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import Logo from "@/components/Logo";
