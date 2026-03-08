@@ -76,7 +76,7 @@ const Chat: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>(urlSessionId || generateSessionId());
   const [pendingImageData, setPendingImageData] = useState<string | null>(null);
-  const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string } | null>(null);
+  const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
