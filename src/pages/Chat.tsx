@@ -454,7 +454,7 @@ const Chat: React.FC = () => {
         <div className="ambient-orb w-[400px] h-[400px] -bottom-32 -left-32 bg-amber/15" style={{ animationDelay: '3s' }} />
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" capture="environment" />
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" multiple />
       <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={handleDocUpload} className="hidden" />
 
       <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} pinnedSessions={chatManagement.pinnedSessions} archivedSessions={chatManagement.archivedSessions} onPinSession={handlePinSession} onArchiveSession={handleArchiveSession} onRenameSession={handleRenameSession} onShareSession={handleShareSession} />
