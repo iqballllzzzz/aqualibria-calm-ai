@@ -7,6 +7,28 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+// YouTube transcript extraction via public API
+async function getYouTubeInfo(videoId: string): Promise<string> {
+  try {
+    // Try to get video info from noembed (free, no API key)
+    const oembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (oembed.ok) {
+      const data = await oembed.json();
+      return `[YouTube Video Info]\nTitle: ${data.title || "Unknown"}\nChannel: ${data.author_name || "Unknown"}\nVideo ID: ${videoId}\nURL: https://www.youtube.com/watch?v=${videoId}`;
+    }
+  } catch (e) {
+    console.error("YouTube info error:", e);
+  }
+  return `[YouTube Video]\nVideo ID: ${videoId}\nURL: https://www.youtube.com/watch?v=${videoId}`;
+}
+
+function extractVideoId(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  return match ? match[1] : null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -16,15 +38,13 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const body = await req.json();
-    const { action, messages, systemPrompt, model } = body;
+    const { action, messages, systemPrompt, model, youtubeUrl } = body;
 
-    // Model mapping
     const modelMap: Record<string, string> = {
       "gemini-2.5-flash-preview-05-20": "google/gemini-2.5-flash",
       "gemini-2.5-pro-preview-05-06": "google/gemini-2.5-pro",
@@ -49,7 +69,7 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("Image generation error:", response.status, errText);
+        console.error("Image gen error:", response.status, errText);
         return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
           status: response.status === 429 ? 429 : response.status === 402 ? 402 : 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -57,7 +77,6 @@ serve(async (req) => {
       }
 
       const data = await response.json();
-      // Extract image from response
       const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
       const textResponse = data.choices?.[0]?.message?.content || "";
 
@@ -121,7 +140,18 @@ serve(async (req) => {
     }
 
     // ===== CHAT / VISION / FILE ANALYSIS =====
-    const systemInstruction = systemPrompt || "You are AquaLibriaAI, a calm, intelligent AI assistant created by M Iqbal.S. You help with thinking, coding, learning, and creating. Always respond in the user's language.";
+    let systemInstruction = systemPrompt || "You are AquaLibriaAI, a calm, intelligent AI assistant created by M Iqbal.S. You help with thinking, coding, learning, and creating. Always respond in the user's language.";
+
+    // Handle YouTube URL - fetch video info and add to context
+    let youtubeContext = "";
+    if (youtubeUrl) {
+      const videoId = extractVideoId(youtubeUrl);
+      if (videoId) {
+        youtubeContext = await getYouTubeInfo(videoId);
+        console.log("YouTube context:", youtubeContext);
+        systemInstruction += `\n\nThe user is asking about a YouTube video. Here is the video information:\n${youtubeContext}\n\nIMPORTANT: Since you cannot watch the video directly, analyze based on the title, channel, and URL context. If the user asks specific questions about video content, explain that you can see the video title and metadata but cannot watch or transcribe the actual video content. Provide helpful analysis based on available information.`;
+      }
+    }
 
     const gatewayMessages: any[] = [
       { role: "system", content: systemInstruction },
@@ -131,20 +161,16 @@ serve(async (req) => {
       for (const msg of messages) {
         const contentParts: any[] = [];
 
-        // Image data (base64 data URL for images)
         if (msg.imageData) {
           contentParts.push({ type: "image_url", image_url: { url: msg.imageData } });
         }
 
-        // File data - only support images and PDFs as image_url
-        // For other file types, the text content should be sent in msg.content
         if (msg.fileData) {
           const isImage = msg.fileData.startsWith("data:image/");
           const isPdf = msg.fileData.startsWith("data:application/pdf");
           if (isImage || isPdf) {
             contentParts.push({ type: "image_url", image_url: { url: msg.fileData } });
           }
-          // For other types (DOCX etc.), fileTextContent should be appended to content by client
         }
 
         if (msg.content) {
@@ -200,8 +226,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("gemini-chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
