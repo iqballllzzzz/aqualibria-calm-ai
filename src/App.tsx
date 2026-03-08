@@ -15,6 +15,7 @@ import CodingPartner from "./pages/CodingPartner";
 import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
+import SharedChat from "./pages/SharedChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import { useEffect, useState } from "react";
