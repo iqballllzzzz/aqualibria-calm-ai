@@ -24,7 +24,6 @@ import VoiceCallModal from "@/components/VoiceCallModal";
 import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
-import UserPanel from "@/components/UserPanel";
 import TypingAnimation from "@/components/TypingAnimation";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
@@ -89,7 +88,6 @@ const Chat: React.FC = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showLatentLeaf, setShowLatentLeaf] = useState(false);
   const [showMusea, setShowMusea] = useState(false);
-  const [showUserPanel, setShowUserPanel] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -378,19 +376,14 @@ const Chat: React.FC = () => {
 
               {/* Sidebar footer */}
               <div className="p-3 border-t border-border shrink-0 space-y-1">
-                <button onClick={() => { navigate("/settings"); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
-                  <Settings className="w-4 h-4" /><span>Settings</span>
-                </button>
-                <button onClick={() => { setShowUserPanel(true); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-accent transition-colors">
+                <button onClick={() => { navigate("/settings"); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-accent transition-colors">
                   {userPhotoURL ? (
                     <img src={userPhotoURL} alt="" className="w-7 h-7 rounded-full object-cover" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
                   )}
                   <span className="flex-1 text-left font-medium text-foreground text-sm truncate">{userName}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${subscription.plan === "junior" ? "bg-muted text-muted-foreground" : subscription.plan === "senior" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-500"}`}>
-                    {currentPlan?.name || "Free"}
-                  </span>
+                  <Settings className="w-4 h-4 text-foreground-muted" />
                 </button>
               </div>
             </motion.aside>
@@ -407,7 +400,7 @@ const Chat: React.FC = () => {
           <Logo size="sm" />
           <span className="font-bold text-foreground text-sm">AquaLibriaAI</span>
         </div>
-        <button onClick={() => setShowUserPanel(true)} className="overflow-hidden rounded-full">
+        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full">
           {userPhotoURL ? (
             <img src={userPhotoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
           ) : (
@@ -656,7 +649,7 @@ const Chat: React.FC = () => {
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
-      <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} onOpenArchivedChats={() => setShowArchivedChats(true)} />
+      <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ArchivedChatsModal isOpen={showArchivedChats} onClose={() => setShowArchivedChats(false)} sessions={chatHistory} archivedIds={chatManagement.archivedSessions} onRestoreSession={handleArchiveSession} onDeleteSession={handleDeleteSession} onSelectSession={handleSelectSession} />
 
