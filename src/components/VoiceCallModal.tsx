@@ -4,6 +4,7 @@ import { X, Mic, MicOff, Volume2, ChevronDown, Phone, PhoneOff } from "lucide-re
 import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, getVoiceInfo, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { parsePcmDataUrl, pcmToWavUrl } from "@/lib/audioUtils";
 
 interface VoiceCallModalProps {
   isOpen: boolean;
