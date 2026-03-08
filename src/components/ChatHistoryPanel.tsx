@@ -24,6 +24,7 @@ interface ChatHistoryPanelProps {
   onPinSession?: (sessionId: string) => void;
   onArchiveSession?: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, newTitle: string) => void;
+  onShareSession?: (session: ChatSession) => void;
 }
 
 const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
