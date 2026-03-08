@@ -89,7 +89,6 @@ const Chat: React.FC = () => {
   const [showLatentLeaf, setShowLatentLeaf] = useState(false);
   const [showMusea, setShowMusea] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
-  const [showImageGallery, setShowImageGallery] = useState(false);
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [editingSidebarId, setEditingSidebarId] = useState<string | null>(null);
