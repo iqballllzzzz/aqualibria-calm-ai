@@ -635,6 +635,11 @@ const Chat: React.FC = () => {
                 <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-xl hover:bg-accent transition-colors">
                   <LucideImage className="w-[18px] h-[18px] text-foreground-muted" />
                 </button>
+
+                {/* Voice Call */}
+                <button onClick={() => setShowVoiceCall(true)} className="p-2 rounded-xl hover:bg-accent transition-colors" title="Voice Call">
+                  <AudioLines className="w-[18px] h-[18px] text-foreground-muted" />
+                </button>
               </div>
 
               <div className="flex items-center gap-0.5">
