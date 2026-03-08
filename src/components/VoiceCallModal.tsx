@@ -550,6 +550,13 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
+  const getBetaMessage = () => {
+    if (callState === "processing" || callState === "speaking") {
+      return "Mohon sabar menunggu ai berbicara karena ini merupakan project beta test dan belum memiliki sistem yang baik.";
+    }
+    return null;
+  };
+
   const getStatusColor = () => {
     switch (callState) {
       case "listening":
