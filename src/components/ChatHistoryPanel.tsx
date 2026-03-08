@@ -277,7 +277,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); handleShareSession(session); }}
+                                  onClick={(e) => { e.stopPropagation(); onShareSession ? onShareSession(session) : handleShareSession(session); }}
                                   className="cursor-pointer"
                                 >
                                   <Share2 className="w-4 h-4 mr-2" />
