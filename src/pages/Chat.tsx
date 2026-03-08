@@ -247,6 +247,13 @@ const Chat: React.FC = () => {
         if (result?.success && result?.imageUrl) {
           setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: result.imageUrl }]);
           setIsLoading(false); setActiveMode("chat"); return;
+        } else if (result?.success && result?.response) {
+          // Image gen returned text only (no image produced)
+          setMessages((prev) => [...prev, { role: "assistant", content: result.response, timestamp: new Date(), id: generateMessageId() }]);
+          setIsLoading(false); setActiveMode("chat"); return;
+        } else if (result?.error) {
+          toast({ title: "Image Error", description: result.error, variant: "destructive" });
+          setIsLoading(false); setActiveMode("chat"); return;
         }
       }
 
@@ -444,7 +451,7 @@ const Chat: React.FC = () => {
                             <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-44 rounded-2xl">
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
