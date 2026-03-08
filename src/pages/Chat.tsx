@@ -581,13 +581,26 @@ const Chat: React.FC = () => {
           <Logo size="sm" />
           <span className="font-display font-bold text-foreground tracking-tight">AquaLibria</span>
         </div>
-        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
-          {userPhotoURL ? (
-            <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
-          ) : (
-            <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Upgrade Plan button */}
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="p-2 rounded-2xl hover:bg-accent/80 transition-colors relative"
+            title="Upgrade Plan"
+          >
+            <Crown className="w-5 h-5 text-amber-500" />
+            {subscription.plan === "junior" && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            )}
+          </button>
+          <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
+            {userPhotoURL ? (
+              <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Messages area */}
