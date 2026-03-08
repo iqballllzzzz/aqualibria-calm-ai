@@ -42,8 +42,7 @@ const Settings: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [selectedDeleteSession, setSelectedDeleteSession] = useState<string | null>(null);
-  const [selectedDeleteMsgIds, setSelectedDeleteMsgIds] = useState<Set<string>>(new Set());
+  const [selectedDeleteSessions, setSelectedDeleteSessions] = useState<Set<string>>(new Set());
 
   const subscription = getSubscription();
   const usage = canUseFeature();
@@ -372,8 +371,8 @@ const Settings: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Hapus Pesan Modal — Delete individual messages */}
-      <Dialog open={showHapusPesan} onOpenChange={setShowHapusPesan}>
+      {/* Hapus Pesan Modal — Delete entire chat sessions */}
+      <Dialog open={showHapusPesan} onOpenChange={(open) => { setShowHapusPesan(open); if (!open) setSelectedDeleteSessions(new Set()); }}>
         <DialogContent className="max-w-lg max-h-[85vh] bg-background border-border p-0">
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="flex items-center gap-2 text-lg">
@@ -382,87 +381,51 @@ const Settings: React.FC = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {!selectedDeleteSession ? (
-            <>
-              <div className="px-5 pt-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input type="text" value={chatSearchQuery} onChange={(e) => setChatSearchQuery(e.target.value)} placeholder="Cari chat..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
-                </div>
+          <div className="px-5 pt-3 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input type="text" value={chatSearchQuery} onChange={(e) => setChatSearchQuery(e.target.value)} placeholder="Cari chat..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+            </div>
+            {selectedDeleteSessions.size > 0 && (
+              <button onClick={() => {
+                selectedDeleteSessions.forEach(id => deleteChatSession(id));
+                refreshChats();
+                toast({ title: `${selectedDeleteSessions.size} percakapan dihapus` });
+                setSelectedDeleteSessions(new Set());
+              }} className="px-3 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold shrink-0">
+                Hapus ({selectedDeleteSessions.size})
+              </button>
+            )}
+          </div>
+
+          <ScrollArea className="h-[calc(85vh-140px)] px-5 pb-5">
+            {filteredChats.length === 0 ? (
+              <p className="text-center text-muted-foreground py-12 text-sm">Belum ada chat</p>
+            ) : (
+              <div className="space-y-1 pt-3">
+                {filteredChats.map((session) => {
+                  const isSelected = selectedDeleteSessions.has(session.id);
+                  return (
+                    <button key={session.id} onClick={() => {
+                      setSelectedDeleteSessions(prev => {
+                        const next = new Set(prev);
+                        if (next.has(session.id)) next.delete(session.id); else next.add(session.id);
+                        return next;
+                      });
+                    }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-colors text-left ${isSelected ? "bg-destructive/10 border border-destructive/30" : "hover:bg-accent border border-transparent"}`}>
+                      <div className={`w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isSelected ? "border-destructive bg-destructive" : "border-border"}`}>
+                        {isSelected && <Check className="w-3 h-3 text-destructive-foreground" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-foreground font-medium truncate block">{session.title}</span>
+                        <span className="text-[10px] text-muted-foreground">{session.messages.length} pesan · {new Date(session.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <ScrollArea className="h-[calc(85vh-140px)] px-5 pb-5">
-                {filteredChats.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12 text-sm">Belum ada chat</p>
-                ) : (
-                  <div className="space-y-1 pt-3">
-                    {filteredChats.map((session) => (
-                      <button key={session.id} onClick={() => { setSelectedDeleteSession(session.id); setSelectedDeleteMsgIds(new Set()); }} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-left">
-                        <span className="text-sm text-foreground font-medium truncate flex-1">{session.title}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{session.messages.length} pesan</span>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground ml-1 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </>
-          ) : (
-            <>
-              <div className="px-5 pt-3 flex items-center gap-2">
-                <button onClick={() => setSelectedDeleteSession(null)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                  <ArrowLeft className="w-4 h-4 text-foreground" />
-                </button>
-                <span className="text-sm font-medium text-foreground truncate">{chatHistory.find(s => s.id === selectedDeleteSession)?.title}</span>
-                {selectedDeleteMsgIds.size > 0 && (
-                  <button onClick={() => {
-                    const session = chatHistory.find(s => s.id === selectedDeleteSession);
-                    if (session) {
-                      const updatedMessages = session.messages.filter(m => !selectedDeleteMsgIds.has(m.id || ''));
-                      const updatedSession = { ...session, messages: updatedMessages, updatedAt: new Date() };
-                      const allHistory = getChatHistory();
-                      const idx = allHistory.findIndex(s => s.id === selectedDeleteSession);
-                      if (idx >= 0) {
-                        allHistory[idx] = updatedSession;
-                        localStorage.setItem("aqua-chat-history", JSON.stringify(allHistory));
-                      }
-                      refreshChats();
-                      setSelectedDeleteMsgIds(new Set());
-                      toast({ title: `${selectedDeleteMsgIds.size} pesan dihapus` });
-                    }
-                  }} className="ml-auto px-3 py-1.5 rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold">
-                    Hapus ({selectedDeleteMsgIds.size})
-                  </button>
-                )}
-              </div>
-              <ScrollArea className="h-[calc(85vh-160px)] px-5 pb-5">
-                <div className="space-y-1 pt-2">
-                  {chatHistory.find(s => s.id === selectedDeleteSession)?.messages.map((msg, i) => {
-                    const msgId = msg.id || `msg-${i}`;
-                    const isSelected = selectedDeleteMsgIds.has(msgId);
-                    return (
-                      <button key={msgId} onClick={() => {
-                        setSelectedDeleteMsgIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(msgId)) next.delete(msgId); else next.add(msgId);
-                          return next;
-                        });
-                      }} className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors ${isSelected ? "bg-destructive/10 border border-destructive/30" : "hover:bg-accent border border-transparent"}`}>
-                        <div className="flex items-start gap-2">
-                          <div className={`w-4 h-4 mt-0.5 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isSelected ? "border-destructive bg-destructive" : "border-border"}`}>
-                            {isSelected && <Check className="w-2.5 h-2.5 text-destructive-foreground" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-[10px] font-semibold uppercase ${msg.role === "user" ? "text-primary" : "text-foreground-muted"}`}>{msg.role === "user" ? "You" : "AI"}</span>
-                            <p className="text-xs text-foreground truncate">{msg.content.slice(0, 120)}</p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </>
-          )}
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 

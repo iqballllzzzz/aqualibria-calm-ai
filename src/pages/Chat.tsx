@@ -89,7 +89,10 @@ const Chat: React.FC = () => {
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>(() => {
+    const saved = localStorage.getItem("aqua-selected-voice");
+    return (saved && ["aurora","river","luna","ember","atlas","iris","nova","onyx"].includes(saved)) ? saved as VoiceOption : "aurora";
+  });
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -357,7 +360,7 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageData: imagesToAnalyze[0] || undefined, imageDataList: imagesToAnalyze.length > 1 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+          result = await sendChatMessage(messageText, currentSessionId, { imageDataList: imagesToAnalyze.length > 0 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
       }
       if (result?.success && result?.response) {
@@ -896,7 +899,7 @@ const Chat: React.FC = () => {
 
       {/* Modals */}
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
-      <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={setSelectedVoice} sessionId={currentSessionId} />
+      <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={(v) => { setSelectedVoice(v); localStorage.setItem("aqua-selected-voice", v); }} sessionId={currentSessionId} />
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />

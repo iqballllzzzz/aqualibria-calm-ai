@@ -661,7 +661,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-80 overflow-y-auto"
+                    className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-elevated overflow-hidden max-h-80 overflow-y-auto z-50"
                   >
                     {VOICE_OPTIONS.map((voice) => {
                       const info = getVoiceInfo(voice);
