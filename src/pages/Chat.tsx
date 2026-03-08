@@ -302,7 +302,7 @@ const Chat: React.FC = () => {
       }
       // Auto-detect image generation request
       const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
-      const isImageRequest = activeMode === "image" || (!imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
+      const isImageRequest = activeMode === "image" || (imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
 
       // Auto-detect image editing request via chat - look for edit patterns with a previous generated image
       const imageEditPatterns = /^(edit\s*(gambar|image|foto)|ubah\s*(gambar|image|foto)|modif|change\s*(the\s*)?(image|picture|photo)|make\s*(it|the\s*image)|jadikan|rubah|ganti\s*(background|warna|style))/i;
