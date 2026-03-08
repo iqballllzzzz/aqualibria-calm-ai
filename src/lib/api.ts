@@ -388,9 +388,10 @@ export const searchSpotify = async (query: string): Promise<{ success: boolean; 
   }
 };
 
-// TTS using Gemini AI voices via edge function
+// TTS using Google AI voices via edge function with browser speech synthesis
 export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
+    // Call edge function to get cleaned text and voice config
     const response = await fetch(TTS_URL, {
       method: "POST",
       headers: {
@@ -399,46 +400,62 @@ export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"):
         "Authorization": `Bearer ${SUPABASE_KEY}`,
       },
       body: JSON.stringify({ text, voice }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(15000),
     });
+
+    let cleanedText = text;
+    let voiceConfig: any = null;
 
     if (response.ok) {
       const data = await response.json();
-      if (data.success && data.audioData) {
-        // Convert base64 audio to data URL for playback
-        const mimeType = data.mimeType || "audio/mp3";
-        const audioUrl = `data:${mimeType};base64,${data.audioData}`;
-        return { success: true, audioUrl };
-      }
+      if (data.cleanedText) cleanedText = data.cleanedText;
+      if (data.voice) voiceConfig = data.voice;
     }
 
-    // Fallback to browser TTS
-    console.warn("AI TTS failed, falling back to browser TTS");
-    return browserTTSFallback(text, voice);
+    // Use enhanced browser TTS with voice matching
+    return enhancedBrowserTTS(cleanedText, voiceConfig || { gender: "female", name: voice });
   } catch (error: any) {
-    console.warn("TTS error, using browser fallback:", error.message);
-    return browserTTSFallback(text, voice);
+    console.warn("TTS error, using basic fallback:", error.message);
+    return enhancedBrowserTTS(text, { gender: "female", name: voice });
   }
 };
 
-// Browser TTS fallback
-const browserTTSFallback = (text: string, voice: VoiceOption): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+// Enhanced browser TTS with better voice selection
+const enhancedBrowserTTS = (text: string, voiceConfig: { gender: string; name: string }): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   return new Promise((resolve) => {
     if (!window.speechSynthesis) {
       resolve({ success: false, error: "Speech synthesis not supported" });
       return;
     }
+
     window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 2000));
-    const voiceInfo = VOICE_OPTIONS_MAP[voice];
     utterance.rate = 0.95;
-    utterance.pitch = voiceInfo?.gender === "male" ? 0.9 : 1.1;
+    utterance.pitch = voiceConfig.gender === "female" ? 1.1 : 0.9;
     utterance.volume = 1;
+
+    // Find the best matching voice
     const voices = window.speechSynthesis.getVoices();
-    const bestVoice = voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) || voices.find(v => v.lang.startsWith("en")) || voices[0];
-    if (bestVoice) utterance.voice = bestVoice;
+    let selectedSynthVoice = null;
+
+    // Priority: Google voices > Microsoft voices > Apple voices > default
+    const genderFilter = voiceConfig.gender === "male" 
+      ? (v: SpeechSynthesisVoice) => v.name.toLowerCase().includes("male") || v.name.includes("David") || v.name.includes("James") || v.name.includes("Guy") || v.name.includes("Mark")
+      : (v: SpeechSynthesisVoice) => v.name.toLowerCase().includes("female") || v.name.includes("Samantha") || v.name.includes("Zira") || v.name.includes("Google") || v.name.includes("Sara");
+
+    selectedSynthVoice = voices.find(v => v.lang.startsWith("en") && v.name.includes("Google") && genderFilter(v)) ||
+      voices.find(v => v.lang.startsWith("en") && genderFilter(v)) ||
+      voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) ||
+      voices.find(v => v.lang.startsWith("en")) ||
+      voices.find(v => v.lang.startsWith("id")) ||
+      voices[0];
+
+    if (selectedSynthVoice) utterance.voice = selectedSynthVoice;
+
     utterance.onend = () => resolve({ success: true, audioUrl: "__browser_tts__" });
     utterance.onerror = () => resolve({ success: false, error: "Browser TTS failed" });
+
     window.speechSynthesis.speak(utterance);
     resolve({ success: true, audioUrl: "__browser_tts__" });
   });
