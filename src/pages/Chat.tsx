@@ -877,8 +877,8 @@ const Chat: React.FC = () => {
                 {isListening ? (
                   <button onClick={stopListening} className="p-2.5 rounded-2xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-[18px] h-[18px]" /></button>
                 ) : (
-                  <button onClick={inputValue.trim() || pendingImageData || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2.5 rounded-2xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImageData || pendingFileData ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-accent"}`}>
-                    {inputValue.trim() || pendingImageData || pendingFileData ? <Send className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px] text-foreground-muted" />}
+                  <button onClick={inputValue.trim() || pendingImages.length > 0 || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2.5 rounded-2xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImages.length > 0 || pendingFileData ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-accent"}`}>
+                    {inputValue.trim() || pendingImages.length > 0 || pendingFileData ? <Send className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px] text-foreground-muted" />}
                   </button>
                 )}
               </div>
