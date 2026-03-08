@@ -328,81 +328,98 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         // Check if this is PCM data that needs conversion
         const { isPcm, mimeType, base64 } = parsePcmDataUrl(result.audioUrl);
         
-        let audioSrc: string;
         if (isPcm) {
-          // Convert PCM to WAV for playback
-          const wavUrl = pcmToWavUrl(base64, mimeType);
-          if (!wavUrl) {
-            throw new Error("Failed to convert PCM audio");
+          // Use direct PCM → AudioContext playback (most reliable, no decodeAudioData needed)
+          try {
+            if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+              await audioContextRef.current.close();
+            }
+            const { playPcmWithAudioContext } = await import("@/lib/audioUtils");
+            const playResult = await playPcmWithAudioContext(base64, mimeType);
+            
+            if (playResult.played && playResult.audioContext && playResult.source) {
+              audioContextRef.current = playResult.audioContext;
+              
+              // Set up analyser for visualization
+              const analyser = playResult.audioContext.createAnalyser();
+              analyser.fftSize = 128;
+              analyser.smoothingTimeConstant = 0.8;
+              analyserRef.current = analyser;
+              
+              playResult.source.onended = () => {
+                setCallState("idle");
+                analyserRef.current = null;
+                setTimeout(() => {
+                  if (isOpen) startListening();
+                }, 500);
+              };
+            } else {
+              throw new Error("PCM playback failed");
+            }
+          } catch (e) {
+            console.error("Direct PCM playback failed:", e);
+            // Try WAV conversion fallback
+            const wavUrl = pcmToWavUrl(base64, mimeType);
+            if (wavUrl) {
+              const audio = new Audio(wavUrl);
+              audioRef.current = audio;
+              audio.onended = () => {
+                setCallState("idle");
+                analyserRef.current = null;
+                URL.revokeObjectURL(wavUrl);
+                setTimeout(() => { if (isOpen) startListening(); }, 500);
+              };
+              audio.onerror = () => {
+                setError("Failed to play audio");
+                setCallState("idle");
+                URL.revokeObjectURL(wavUrl);
+              };
+              await audio.play();
+            } else {
+              setError("Failed to convert audio");
+              setCallState("idle");
+            }
           }
-          audioSrc = wavUrl;
         } else {
-          audioSrc = result.audioUrl;
-        }
-
-        // Use AudioContext for reliable playback (especially for WAV blobs)
-        try {
-          // Close previous AudioContext if exists
-          if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-            await audioContextRef.current.close();
+          // Non-PCM audio (regular mp3/wav URL)
+          try {
+            if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+              await audioContextRef.current.close();
+            }
+            const audioCtx = new AudioContext();
+            audioContextRef.current = audioCtx;
+            
+            const response = await fetch(result.audioUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 128;
+            analyserRef.current = analyser;
+            
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            source.onended = () => {
+              setCallState("idle");
+              analyserRef.current = null;
+              setTimeout(() => { if (isOpen) startListening(); }, 500);
+            };
+            source.start(0);
+          } catch (e) {
+            console.error("AudioContext failed, fallback to Audio:", e);
+            const audio = new Audio(result.audioUrl);
+            audioRef.current = audio;
+            audio.onended = () => {
+              setCallState("idle");
+              analyserRef.current = null;
+              setTimeout(() => { if (isOpen) startListening(); }, 500);
+            };
+            audio.onerror = () => { setError("Failed to play audio"); setCallState("idle"); };
+            await audio.play();
           }
-          
-          const audioCtx = new AudioContext();
-          audioContextRef.current = audioCtx;
-          
-          // Fetch the audio data as ArrayBuffer
-          const response = await fetch(audioSrc);
-          const arrayBuffer = await response.arrayBuffer();
-          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-          
-          // Set up analyser for visualization
-          const analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 128;
-          analyser.smoothingTimeConstant = 0.8;
-          analyserRef.current = analyser;
-          
-          const source = audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(analyser);
-          analyser.connect(audioCtx.destination);
-          
-          source.onended = () => {
-            setCallState("idle");
-            analyserRef.current = null;
-            if (isPcm && audioSrc.startsWith("blob:")) {
-              URL.revokeObjectURL(audioSrc);
-            }
-            setTimeout(() => {
-              if (isOpen) startListening();
-            }, 500);
-          };
-          
-          source.start(0);
-        } catch (e) {
-          console.error("AudioContext playback failed:", e);
-          
-          // Fallback to Audio element
-          const audio = new Audio(audioSrc);
-          audioRef.current = audio;
-          
-          audio.onended = () => {
-            setCallState("idle");
-            analyserRef.current = null;
-            if (isPcm && audioSrc.startsWith("blob:")) {
-              URL.revokeObjectURL(audioSrc);
-            }
-            setTimeout(() => {
-              if (isOpen) startListening();
-            }, 500);
-          };
-          
-          audio.onerror = (err) => {
-            console.error("Audio fallback error:", err);
-            setError("Failed to play audio");
-            setCallState("idle");
-          };
-          
-          await audio.play();
         }
       } else {
         throw new Error(result.error || "Failed to generate speech");

@@ -65,10 +65,15 @@ export const persistImageToCDN = async (imageUrl: string): Promise<string> => {
   // Already a permanent URL (not base64)
   if (!imageUrl.startsWith("data:")) return imageUrl;
 
-  const result = await uploadToRyzumiCDN(imageUrl);
-  if (result.success && result.url) {
-    return result.url;
+  // Retry up to 2 times
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await uploadToRyzumiCDN(imageUrl);
+    if (result.success && result.url) {
+      return result.url;
+    }
+    console.warn(`CDN upload attempt ${attempt + 1} failed:`, result.error);
+    if (attempt < 1) await new Promise(r => setTimeout(r, 1000));
   }
-  console.warn("CDN upload failed, returning original:", result.error);
+  console.warn("CDN upload failed after retries, returning original");
   return imageUrl;
 };

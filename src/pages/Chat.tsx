@@ -510,7 +510,7 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`group relative flex items-center rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                        <div key={session.id} className={`group flex items-center gap-1 rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
                           {/* Chat title area */}
                           <div className="flex-1 min-w-0 px-3.5 py-3" onClick={() => !isEditing && handleSelectSession(session)}>
                             {isEditing ? (
