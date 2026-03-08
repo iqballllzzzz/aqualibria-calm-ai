@@ -306,9 +306,24 @@ const Chat: React.FC = () => {
   const handleArchiveSession = (id: string) => { toggleArchiveSession(id); setChatManagement(getChatManagement()); setChatHistory(getChatHistory()); };
   const handleRenameSession = (id: string, newTitle: string) => { renameSession(id, newTitle); setChatHistory(getChatHistory()); };
   const handleShareSession = async (session: ChatSession) => {
-    const shareUrl = `${window.location.origin}/shared/${session.id}`;
-    if (navigator.share) { try { await navigator.share({ title: `AquaLibriaAI: ${session.title}`, url: shareUrl }); return; } catch {} }
-    try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/share-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ action: "create", sessionId: session.id, title: session.title, messages: session.messages, sharedByName: user?.displayName || "Anonymous" }),
+      });
+      const data = await response.json();
+      if (data.success && data.shareId) {
+        const shareUrl = `${window.location.origin}/shared/${data.shareId}`;
+        if (navigator.share) { try { await navigator.share({ title: `AquaLibriaAI: ${session.title}`, url: shareUrl }); return; } catch {} }
+        try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!", description: "Link chat bisa dibagikan ke siapa saja" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+      } else {
+        toast({ title: "Gagal membagikan", description: data.error || "Coba lagi nanti", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal membagikan chat", variant: "destructive" });
+    }
   };
   const handleStartSidebarRename = (session: ChatSession) => { setEditingSidebarId(session.id); setEditSidebarTitle(session.title); };
   const handleConfirmSidebarRename = () => { if (editingSidebarId && editSidebarTitle.trim()) handleRenameSession(editingSidebarId, editSidebarTitle.trim()); setEditingSidebarId(null); setEditSidebarTitle(""); };
