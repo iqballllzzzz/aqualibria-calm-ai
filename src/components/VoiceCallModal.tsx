@@ -52,6 +52,11 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const callStateRef = useRef<CallState>("idle");
 
+  // Keep callStateRef in sync
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
   // Call duration timer
   useEffect(() => {
     if (isOpen) {
