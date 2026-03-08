@@ -172,11 +172,9 @@ const Settings: React.FC = () => {
                   </div>
                   <p className="text-[10px] text-muted-foreground">Reset setiap pagi 00:00 WIB</p>
 
-                  {subscription.plan !== "superior" && (
-                    <button onClick={() => navigate("/chat")} className="w-full mt-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                      <Crown className="w-4 h-4" />Upgrade Plan
-                    </button>
-                  )}
+                  <button onClick={() => navigate("/chat")} className="w-full mt-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                    <Crown className="w-4 h-4" />Upgrade Plan
+                  </button>
                 </div>
               </motion.div>
             )}
