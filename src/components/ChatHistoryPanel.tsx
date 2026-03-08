@@ -40,6 +40,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
   onPinSession,
   onArchiveSession,
   onRenameSession,
+  onShareSession,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
