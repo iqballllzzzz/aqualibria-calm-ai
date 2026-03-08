@@ -7,6 +7,7 @@ import {
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone,
 } from "lucide-react";
+import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
