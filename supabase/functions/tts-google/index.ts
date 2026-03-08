@@ -25,8 +25,9 @@ serve(async (req) => {
   try {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured" }), {
-        status: 500,
+      console.error("GEMINI_API_KEY not configured");
+      return new Response(JSON.stringify({ error: "API key not configured", fallback: true }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -42,25 +43,31 @@ serve(async (req) => {
     const cleanText = text.slice(0, 3000);
     const geminiVoice = VOICE_MAP[voice] || VOICE_MAP.aurora;
 
-    // Use Gemini TTS model directly
+    console.log(`TTS request: voice=${voice} -> ${geminiVoice}, text length=${cleanText.length}`);
+
+    // Use Gemini TTS model
     const ttsUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`;
+
+    const requestBody = {
+      contents: [{ parts: [{ text: cleanText }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: geminiVoice,
+            },
+          },
+        },
+      },
+    };
+
+    console.log("Calling Gemini TTS API...");
 
     const response = await fetch(ttsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: cleanText }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: geminiVoice,
-              },
-            },
-          },
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -70,12 +77,13 @@ serve(async (req) => {
         error: `TTS API error: ${response.status}`,
         fallback: true,
       }), {
-        status: 200, // Return 200 so client can fallback gracefully
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
+    console.log("Gemini TTS response received, checking for audio data...");
     
     // Extract audio data from response
     const audioPart = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
@@ -83,6 +91,8 @@ serve(async (req) => {
     if (audioPart && audioPart.data) {
       const mimeType = audioPart.mimeType || "audio/wav";
       const audioDataUrl = `data:${mimeType};base64,${audioPart.data}`;
+      
+      console.log(`TTS success: ${mimeType}, data length=${audioPart.data.length}`);
       
       return new Response(JSON.stringify({ 
         success: true,
@@ -93,7 +103,7 @@ serve(async (req) => {
       });
     }
 
-    // No audio in response
+    console.error("No audio in response:", JSON.stringify(data).slice(0, 500));
     return new Response(JSON.stringify({ 
       error: "No audio generated",
       fallback: true,
