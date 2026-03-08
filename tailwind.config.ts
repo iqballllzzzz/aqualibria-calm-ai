@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "-apple-system", "sans-serif"],
-        display: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        sans: ["DM Sans", "system-ui", "-apple-system", "sans-serif"],
+        display: ["Space Grotesk", "DM Sans", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Menlo", "Monaco", "monospace"],
       },
       colors: {
@@ -70,6 +70,10 @@ export default {
           light: "hsl(var(--aqua-light))",
           glow: "hsl(var(--aqua-glow))",
         },
+        amber: {
+          DEFAULT: "hsl(var(--amber))",
+          light: "hsl(var(--amber-light))",
+        },
         chat: {
           user: "hsl(var(--chat-user-bg))",
           ai: "hsl(var(--chat-ai-bg))",
@@ -88,6 +92,7 @@ export default {
       },
       borderRadius: {
         "3xl": "1.5rem",
+        "4xl": "2rem",
         lg: "var(--radius-lg)",
         md: "var(--radius)",
         sm: "var(--radius-sm)",

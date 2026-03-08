@@ -13,14 +13,14 @@ const STAGES = {
   ],
   medium: [
     { icon: Brain, label: "Thinking...", duration: 1500 },
-    { icon: Search, label: "Searching for information...", duration: 2500 },
-    { icon: PenTool, label: "Composing response...", duration: 3000 },
+    { icon: Search, label: "Researching...", duration: 2500 },
+    { icon: PenTool, label: "Composing...", duration: 3000 },
   ],
   complex: [
     { icon: Brain, label: "Analyzing your question...", duration: 2000 },
-    { icon: Search, label: "Researching deeply...", duration: 3000 },
-    { icon: Sparkles, label: "Processing data...", duration: 2500 },
-    { icon: PenTool, label: "Composing detailed response...", duration: 4000 },
+    { icon: Search, label: "Deep research in progress...", duration: 3000 },
+    { icon: Sparkles, label: "Processing insights...", duration: 2500 },
+    { icon: PenTool, label: "Crafting detailed response...", duration: 4000 },
   ],
 };
 
@@ -69,7 +69,7 @@ const SmartThinkingIndicator: React.FC<SmartThinkingIndicatorProps> = ({
       exit={{ opacity: 0, y: -8 }}
       className="flex justify-start px-1"
     >
-      <div className="flex items-center gap-3 py-2.5 px-3 rounded-2xl bg-accent/30 border border-border/50">
+      <div className="flex items-center gap-3 py-3 px-4 rounded-3xl bg-card border border-border/60 shadow-sm">
         <div className="relative">
           <AnimatePresence mode="wait">
             <motion.div
@@ -83,9 +83,9 @@ const SmartThinkingIndicator: React.FC<SmartThinkingIndicatorProps> = ({
             </motion.div>
           </AnimatePresence>
           <motion.div
-            className="absolute -inset-1 rounded-full border border-primary/30"
-            animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
+            className="absolute -inset-1.5 rounded-full border border-primary/25"
+            animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0, 0.4] }}
+            transition={{ duration: 1.8, repeat: Infinity }}
           />
         </div>
 
@@ -103,18 +103,20 @@ const SmartThinkingIndicator: React.FC<SmartThinkingIndicatorProps> = ({
         </AnimatePresence>
 
         {/* Progress dots */}
-        <div className="flex items-center gap-1 ml-1">
-          {stages.map((_, i) => (
-            <motion.div
-              key={i}
-              className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-                i <= currentStage ? "bg-primary" : "bg-muted-foreground/20"
-              }`}
-              animate={i === currentStage ? { scale: [1, 1.3, 1] } : {}}
-              transition={{ duration: 0.6, repeat: Infinity }}
-            />
-          ))}
-        </div>
+        {stages.length > 1 && (
+          <div className="flex items-center gap-1.5 ml-1">
+            {stages.map((_, i) => (
+              <motion.div
+                key={i}
+                className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                  i <= currentStage ? "bg-primary" : "bg-border"
+                }`}
+                animate={i === currentStage ? { scale: [1, 1.4, 1] } : {}}
+                transition={{ duration: 0.6, repeat: Infinity }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -126,19 +128,17 @@ export default SmartThinkingIndicator;
 export const classifyMessageComplexity = (message: string): "simple" | "medium" | "complex" => {
   const lower = message.toLowerCase().trim();
   
-  // Simple: greetings, short questions
   const simplePatterns = [
     /^(hi|hello|hey|hai|halo|hola|yo|sup|thanks|thank you|ok|okay|yes|no|ya|tidak|iya|terima kasih|bye|goodbye|selamat)/i,
     /^.{0,20}$/,
   ];
   if (simplePatterns.some(p => p.test(lower))) return "simple";
 
-  // Complex: long messages, analytical keywords, code, multiple questions
   const complexIndicators = [
     /\b(analyze|explain|compare|difference|why|how does|implement|architecture|design|debate|pros and cons|should i|which is better)\b/i,
     /\b(analisis|jelaskan|bandingkan|perbedaan|mengapa|bagaimana|implementasi|arsitektur|desain)\b/i,
     /```/,
-    /\?.*\?/, // Multiple questions
+    /\?.*\?/,
   ];
   const complexScore = complexIndicators.filter(p => p.test(lower)).length;
   if (complexScore >= 2 || message.length > 300) return "complex";

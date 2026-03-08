@@ -5,7 +5,7 @@ import {
   Plus, Send, Menu, X, Search, Sparkles, Music, Quote,
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Leaf, Crown, User, ImageIcon,
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
-  Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap,
+  Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -29,7 +29,6 @@ import SmartThinkingIndicator, { classifyMessageComplexity } from "@/components/
 import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -42,20 +41,19 @@ const setVH = () => {
 };
 
 const GREETINGS = [
-  "Where should we start?",
-  "Mau mulai dari mana?",
-  "어디서 시작할까요?",
-  "どこから始めましょうか？",
-  "Par où commencer ?",
-  "¿Por dónde empezamos?",
+  "What's on your mind?",
+  "Ada yang bisa dibantu?",
+  "무엇을 도와드릴까요?",
+  "何をお手伝いしましょうか？",
+  "Comment puis-je aider ?",
+  "¿En qué puedo ayudarte?",
 ];
 
 const QUICK_ACTIONS = [
-  { emoji: "🍃", label: "Create image", action: "latentleaf" },
-  { emoji: "🎸", label: "Create music", action: "musea" },
-  { emoji: "📚", label: "Help me learn", action: "learn" },
-  { emoji: "✍️", label: "Write anything", action: "write" },
-  { emoji: "💡", label: "Boost my day", action: "boost" },
+  { emoji: "🍃", label: "Edit Image", action: "latentleaf", color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20" },
+  { emoji: "✍️", label: "Write", action: "write", color: "from-primary/10 to-aqua-light/10 border-primary/20" },
+  { emoji: "📚", label: "Learn", action: "learn", color: "from-amber/10 to-amber-light/10 border-amber/20" },
+  { emoji: "💡", label: "Ideas", action: "boost", color: "from-violet-500/10 to-purple-500/10 border-violet-500/20" },
 ];
 
 const Chat: React.FC = () => {
@@ -184,18 +182,13 @@ const Chat: React.FC = () => {
     try {
       let fileData: string | undefined;
       let fileTextContent: string | undefined;
-      
       if (isVisionSupportedFile(file.type)) {
-        // PDF and images can be sent directly as base64
         fileData = await fileToBase64(file);
       } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
-        // DOCX: extract text content
         fileTextContent = await extractTextFromDocx(file);
       } else {
-        // TXT, CSV: read as text
         fileTextContent = await extractTextFromFile(file);
       }
-      
       setPendingFileData({ data: fileData || "", name: file.name, type: file.type, textContent: fileTextContent });
       toast({ title: "File ready", description: `${file.name} loaded` });
     }
@@ -214,10 +207,7 @@ const Chat: React.FC = () => {
     const usage = canUseFeature();
     if (!usage.allowed) { toast({ title: "Limit Tercapai", description: "Upgrade plan untuk lebih banyak!", variant: "destructive" }); setShowUpgradeModal(true); return; }
     const messageText = inputValue.trim() || (pendingImageData ? "Apa yang ada di gambar ini?" : "Analisis file ini");
-    
-    // Classify complexity for smart thinking indicator
     setMessageComplexity(classifyMessageComplexity(messageText));
-    
     const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: pendingImageData || undefined, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
@@ -234,27 +224,18 @@ const Chat: React.FC = () => {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
-      
-      // Check for dual-agent mode (only for default chat without attachments)
       if (activeMode === "chat" && !imageToAnalyze && !fileToAnalyze && !youtubeUrl) {
         const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
         if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
           setMessages((prev) => [...prev, {
-            role: "assistant",
-            content: "",
-            timestamp: new Date(),
-            id: generateMessageId(),
-            isDualAgent: true,
-            perspectiveA: dualResult.perspectiveA,
-            perspectiveB: dualResult.perspectiveB,
-            agentAName: dualResult.agentAName || "Optimist",
-            agentBName: dualResult.agentBName || "Realist",
+            role: "assistant", content: "", timestamp: new Date(), id: generateMessageId(),
+            isDualAgent: true, perspectiveA: dualResult.perspectiveA, perspectiveB: dualResult.perspectiveB,
+            agentAName: dualResult.agentAName || "Optimist", agentBName: dualResult.agentBName || "Realist",
           }]);
           setIsLoading(false);
           return;
         }
       }
-      
       switch (activeMode) {
         case "research":
           result = await sendChatMessage(messageText, currentSessionId, { isResearchMode: true, model: selectedModel, memoryContext, conversationHistory });
@@ -316,12 +297,17 @@ const Chat: React.FC = () => {
   const userName = memory.userName || user?.displayName?.split(" ")[0] || "User";
   const userInitial = (user?.displayName || user?.email || "U")[0].toUpperCase();
   const userPhotoURL = user?.photoURL;
-  const latentLeafAccess = canUseLatentLeaf();
   const filteredHistory = chatHistory.filter(session => session.title.toLowerCase().includes(historySearchQuery.toLowerCase()));
   const modelDisplayName = selectedModel === "aqualibriav1" ? "V1" : selectedModel === "aqualibriav2" ? "V2" : "V3";
 
   return (
-    <div className="h-screen-safe w-screen overflow-hidden flex flex-col bg-background" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="h-screen-safe w-screen overflow-hidden flex flex-col bg-background relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+      {/* Ambient background orbs */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="ambient-orb w-[500px] h-[500px] -top-48 -right-48 bg-primary/20" />
+        <div className="ambient-orb w-[400px] h-[400px] -bottom-32 -left-32 bg-amber/15" style={{ animationDelay: '3s' }} />
+      </div>
+
       <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" capture="environment" />
       <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={handleDocUpload} className="hidden" />
 
@@ -331,49 +317,52 @@ const Chat: React.FC = () => {
       <AnimatePresence>
         {showSidebar && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" onClick={() => setShowSidebar(false)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-foreground/20 z-40 backdrop-blur-md" onClick={() => setShowSidebar(false)} />
             <motion.aside
               initial={{ x: -320 }}
               animate={{ x: 0 }}
               exit={{ x: -320 }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed left-0 top-0 bottom-0 w-[300px] bg-card z-50 flex flex-col border-r border-border"
+              className="fixed left-0 top-0 bottom-0 w-[300px] glass z-50 flex flex-col border-r border-border/50"
             >
               {/* Sidebar header */}
-              <div className="p-4 flex items-center gap-3 shrink-0">
+              <div className="p-5 flex items-center gap-3 shrink-0">
                 <Logo size="sm" />
-                <span className="font-bold text-foreground">AquaLibriaAI</span>
+                <span className="font-display font-bold text-foreground tracking-tight">AquaLibria</span>
               </div>
 
               {/* New Chat */}
-              <div className="px-3 shrink-0">
-                <button onClick={handleNewChat} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all hover:opacity-90">
+              <div className="px-4 shrink-0">
+                <button onClick={handleNewChat} className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm transition-all hover:shadow-lg hover:shadow-primary/20">
                   <Plus className="w-4 h-4" /><span>New Chat</span>
                 </button>
               </div>
 
               {/* Nav */}
-              <div className="px-3 mt-2 space-y-0.5 shrink-0">
-                <button onClick={() => { setShowImageGallery(true); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
-                  <ImageIcon className="w-4 h-4" /><span>Image Gallery</span>
+              <div className="px-4 mt-3 space-y-0.5 shrink-0">
+                <button onClick={() => { setShowVoiceCall(true); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
+                  <Phone className="w-4 h-4" /><span>Voice Call</span>
                 </button>
-                <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
+                <button onClick={() => { setShowImageGallery(true); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
+                  <ImageIcon className="w-4 h-4" /><span>Gallery</span>
+                </button>
+                <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
                   <Code className="w-4 h-4" /><span>Coding Partner</span>
                 </button>
               </div>
 
               {/* Search */}
-              <div className="px-3 mt-3 shrink-0">
+              <div className="px-4 mt-4 shrink-0">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground-muted" />
-                  <input type="text" placeholder="Search chats..." value={historySearchQuery} onChange={(e) => setHistorySearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-accent border-0 rounded-xl text-foreground text-xs placeholder:text-foreground-muted focus:outline-none focus:ring-1 focus:ring-primary/30" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground-muted" />
+                  <input type="text" placeholder="Search chats..." value={historySearchQuery} onChange={(e) => setHistorySearchQuery(e.target.value)} className="w-full pl-10 pr-3 py-2.5 bg-secondary border border-border rounded-2xl text-foreground text-xs placeholder:text-foreground-muted focus:outline-none focus:border-primary/40 transition-colors" />
                 </div>
               </div>
 
               {/* History */}
-              <ScrollArea className="flex-1 px-3 mt-2">
+              <ScrollArea className="flex-1 px-4 mt-3">
                 {isLoadingHistory ? (
-                  <div className="space-y-1.5 py-2">{[...Array(5)].map((_, i) => (<div key={i} className="px-3 py-2.5"><Skeleton className="h-3.5 w-full rounded" /></div>))}</div>
+                  <div className="space-y-2 py-2">{[...Array(5)].map((_, i) => (<div key={i} className="px-3 py-3"><Skeleton className="h-3.5 w-full rounded-lg" /></div>))}</div>
                 ) : filteredHistory.length === 0 ? (
                   <p className="text-center text-foreground-muted py-8 text-xs">No chat history</p>
                 ) : (
@@ -382,11 +371,11 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`group relative rounded-xl px-3 py-2.5 cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`} onClick={() => !isEditing && handleSelectSession(session)}>
+                        <div key={session.id} className={`group relative rounded-2xl px-3.5 py-3 cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`} onClick={() => !isEditing && handleSelectSession(session)}>
                           <div className="pr-7">
                             {isEditing ? (
                               <div className="flex items-center gap-1.5">
-                                <input type="text" value={editSidebarTitle} onChange={(e) => setEditSidebarTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleConfirmSidebarRename()} onClick={(e) => e.stopPropagation()} className="flex-1 text-xs text-foreground bg-background border border-border rounded-lg px-2 py-1 focus:outline-none" autoFocus />
+                                <input type="text" value={editSidebarTitle} onChange={(e) => setEditSidebarTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleConfirmSidebarRename()} onClick={(e) => e.stopPropagation()} className="flex-1 text-xs text-foreground bg-background border border-border rounded-xl px-2.5 py-1.5 focus:outline-none" autoFocus />
                                 <button onClick={(e) => { e.stopPropagation(); handleConfirmSidebarRename(); }} className="p-1 rounded hover:bg-accent"><Check className="w-3.5 h-3.5 text-success" /></button>
                               </div>
                             ) : (
@@ -397,17 +386,17 @@ const Chat: React.FC = () => {
                             )}
                           </div>
                           {!isEditing && (
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button onClick={(e) => e.stopPropagation()} className="p-1 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-accent transition-all"><MoreVertical className="w-3.5 h-3.5 text-foreground-muted" /></button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer text-xs"><Share2 className="w-3.5 h-3.5 mr-2" />Share</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-xs text-destructive"><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
+                                <DropdownMenuContent align="end" className="w-44 rounded-2xl">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer text-xs rounded-xl"><Share2 className="w-3.5 h-3.5 mr-2" />Share</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-xs text-destructive rounded-xl"><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -420,12 +409,12 @@ const Chat: React.FC = () => {
               </ScrollArea>
 
               {/* Sidebar footer */}
-              <div className="p-3 border-t border-border shrink-0 space-y-1">
-                <button onClick={() => { navigate("/settings"); setShowSidebar(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-accent transition-colors">
+              <div className="p-4 border-t border-border/50 shrink-0">
+                <button onClick={() => { navigate("/settings"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl hover:bg-accent transition-colors">
                   {userPhotoURL ? (
-                    <img src={userPhotoURL} alt="" className="w-7 h-7 rounded-full object-cover" />
+                    <img src={userPhotoURL} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20" />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
+                    <div className="w-8 h-8 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
                   )}
                   <span className="flex-1 text-left font-medium text-foreground text-sm truncate">{userName}</span>
                   <Settings className="w-4 h-4 text-foreground-muted" />
@@ -437,47 +426,49 @@ const Chat: React.FC = () => {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="h-12 shrink-0 flex items-center justify-between px-3">
-        <button onClick={() => setShowSidebar(true)} className="p-2 -ml-1 rounded-xl hover:bg-accent transition-colors">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 relative z-10">
+        <button onClick={() => setShowSidebar(true)} className="p-2.5 -ml-1 rounded-2xl hover:bg-accent/80 transition-colors">
           <Menu className="w-5 h-5 text-foreground" />
         </button>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-bold text-foreground text-sm">AquaLibriaAI</span>
+          <span className="font-display font-bold text-foreground tracking-tight">AquaLibria</span>
         </div>
-        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full">
+        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
           {userPhotoURL ? (
-            <img src={userPhotoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+            <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
+            <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
           )}
         </button>
       </header>
 
       {/* Messages area */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
+      <main className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
         <div className="max-w-2xl mx-auto px-4 py-4">
           {messages.length === 0 ? (
-            <div className="flex flex-col justify-center" style={{ minHeight: 'calc((var(--vh, 1vh) * 100) - 160px)' }}>
+            <div className="flex flex-col justify-center" style={{ minHeight: 'calc((var(--vh, 1vh) * 100) - 180px)' }}>
               {/* Welcome */}
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="mb-8">
-                <p className="text-foreground-muted text-base mb-1.5 font-medium">Hi {userName} 👋</p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-snug tracking-tight">{randomGreeting}</h1>
+              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="mb-10">
+                <p className="text-foreground-muted text-sm mb-2 font-medium tracking-wide uppercase">Hi {userName} 👋</p>
+                <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground leading-tight tracking-tight">
+                  <span className="gradient-aqua-text">{randomGreeting}</span>
+                </h1>
               </motion.div>
 
-              {/* Quick Actions as horizontal scroll chips */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="flex flex-wrap gap-2 mb-5">
+              {/* Quick Actions — card grid */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="grid grid-cols-2 gap-3 mb-6">
                 {QUICK_ACTIONS.map((qa, i) => (
                   <motion.button
                     key={qa.action}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.3 + i * 0.06 }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + i * 0.08 }}
                     onClick={() => handleQuickAction(qa.action)}
-                    className="chip"
+                    className={`flex items-center gap-3 px-4 py-4 rounded-3xl border bg-gradient-to-br ${qa.color} hover:shadow-md transition-all hover:-translate-y-0.5`}
                   >
-                    <span className="text-base">{qa.emoji}</span>
-                    <span>{qa.label}</span>
+                    <span className="text-xl">{qa.emoji}</span>
+                    <span className="text-sm font-semibold text-foreground">{qa.label}</span>
                   </motion.button>
                 ))}
               </motion.div>
@@ -490,36 +481,43 @@ const Chat: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                     transition={{ delay: 0.5 }}
-                    className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3"
+                    className="bg-card border border-border rounded-3xl p-5 flex items-center gap-4 shadow-sm"
                   >
-                    <button onClick={dismissPromo} className="shrink-0 p-1 hover:bg-accent rounded-full transition-colors">
-                      <X className="w-4 h-4 text-foreground-muted" />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-foreground text-sm font-semibold">Edit images, better of all.</p>
-                      <p className="text-foreground-muted text-xs mt-0.5">Meet LatentLeaf 🍃</p>
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0">
+                      <Leaf className="w-6 h-6 text-primary" />
                     </div>
-                    <button onClick={() => { setShowLatentLeaf(true); dismissPromo(); }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold transition-all hover:opacity-90 shrink-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-foreground text-sm font-bold">LatentLeaf Image Editor</p>
+                      <p className="text-foreground-muted text-xs mt-0.5">AI-powered image editing at your fingertips</p>
+                    </div>
+                    <button onClick={() => { setShowLatentLeaf(true); dismissPromo(); }} className="px-4 py-2.5 rounded-2xl bg-primary text-primary-foreground text-xs font-bold transition-all hover:shadow-md hover:shadow-primary/20 shrink-0">
                       Try it
+                    </button>
+                    <button onClick={dismissPromo} className="shrink-0 p-1.5 hover:bg-accent rounded-full transition-colors -mr-1">
+                      <X className="w-3.5 h-3.5 text-foreground-muted" />
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           ) : (
-            <div className="space-y-5 pb-4">
+            <div className="space-y-6 pb-4">
               {messages.map((message, index) => (
                 <motion.div key={message.id || index} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] overflow-hidden ${message.role === "user" ? "bg-chat-user rounded-2xl rounded-br-md px-4 py-3" : "px-1 py-1"}`}>
+                  <div className={`max-w-[85%] overflow-hidden ${
+                    message.role === "user" 
+                      ? "bg-chat-user rounded-3xl rounded-br-lg px-4 py-3 border border-primary/10" 
+                      : "px-1 py-1"
+                  }`}>
                     {/* User attached image */}
                     {message.imageUrl && message.role === "user" && (
                       <div className="mb-2.5">
-                        <img src={message.imageUrl} alt="Uploaded" className="rounded-xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
+                        <img src={message.imageUrl} alt="Uploaded" className="rounded-2xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
                       </div>
                     )}
                     {/* User attached file */}
                     {message.fileName && message.role === "user" && (
-                      <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/80">
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/80 border border-border">
                         <FileText className="w-4 h-4 text-primary shrink-0" />
                         <span className="text-xs text-foreground-muted truncate">{message.fileName}</span>
                       </div>
@@ -544,9 +542,9 @@ const Chat: React.FC = () => {
                     )}
                     {/* AI generated image */}
                     {message.imageUrl && message.role === "assistant" && (
-                      <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
+                      <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-2xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
                     )}
-                    <div className="mt-1.5 flex justify-end">
+                    <div className="mt-2 flex justify-end">
                       <MessageControls messageId={message.id || `${index}`} sessionId={currentSessionId} content={message.content} isAssistant={message.role === "assistant"} selectedVoice={selectedVoice} />
                     </div>
                   </div>
@@ -561,28 +559,28 @@ const Chat: React.FC = () => {
       </main>
 
       {/* Input Area */}
-      <div className="shrink-0 px-3 pb-safe" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+      <div className="shrink-0 px-4 pb-safe relative z-10" style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
         <div className="max-w-2xl mx-auto">
           {/* Active mode indicator */}
           {activeMode !== "chat" && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-1.5 flex items-center gap-2">
-              <span className="text-[10px] text-primary font-bold px-2 py-0.5 rounded-md bg-primary/10">{activeMode === "research" ? "Research" : activeMode === "image" ? "Image" : "Spotify"}</span>
-              <button onClick={() => setActiveMode("chat")} className="text-[10px] text-foreground-muted hover:text-foreground">Cancel</button>
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] text-primary font-bold px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">{activeMode === "research" ? "Research" : activeMode === "image" ? "Image" : "Spotify"}</span>
+              <button onClick={() => setActiveMode("chat")} className="text-[10px] text-foreground-muted hover:text-foreground transition-colors">Cancel</button>
             </motion.div>
           )}
 
           {/* Pending attachments */}
           {pendingImageData && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-1.5 flex items-center gap-2">
-              <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-border">
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
+              <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-border shadow-sm">
                 <img src={pendingImageData} alt="Preview" className="w-full h-full object-cover" />
                 <button onClick={() => setPendingImageData(null)} className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-background"><X className="w-3 h-3" /></button>
               </div>
             </motion.div>
           )}
           {pendingFileData && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-1.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent border border-border">
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-accent border border-border">
                 <FileText className="w-3.5 h-3.5 text-primary" />
                 <span className="text-[11px] text-foreground-muted truncate max-w-[180px]">{pendingFileData.name}</span>
                 <button onClick={() => setPendingFileData(null)} className="p-0.5 rounded-full hover:bg-background/50"><X className="w-3 h-3" /></button>
@@ -591,22 +589,22 @@ const Chat: React.FC = () => {
           )}
 
           {/* Input box */}
-          <div className="relative bg-card border border-border rounded-2xl overflow-visible shadow-sm">
+          <div className="relative bg-card border border-border rounded-3xl overflow-visible shadow-md input-glow transition-all">
             <textarea
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`Ask AquaLibriaAI ${modelDisplayName}`}
+              placeholder={`Message AquaLibria ${modelDisplayName}...`}
               rows={1}
-              className="w-full bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none px-4 pt-3 pb-12 max-h-[200px] text-sm"
+              className="w-full bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none px-5 pt-4 pb-14 max-h-[200px] text-sm"
             />
 
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2.5 py-2">
+            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2.5">
               <div className="flex items-center gap-0.5">
                 {/* Plus menu */}
                 <div className="relative">
-                  <button onClick={() => setShowPlusMenu(!showPlusMenu)} disabled={isUploadingImage} className="p-2 rounded-xl hover:bg-accent transition-colors disabled:opacity-50">
+                  <button onClick={() => setShowPlusMenu(!showPlusMenu)} disabled={isUploadingImage} className="p-2.5 rounded-2xl hover:bg-accent transition-colors disabled:opacity-50">
                     {isUploadingImage ? <Loader2 className="w-[18px] h-[18px] animate-spin text-foreground-muted" /> : <Plus className={`w-[18px] h-[18px] text-foreground-muted transition-transform ${showPlusMenu ? "rotate-45" : ""}`} />}
                   </button>
                   <AnimatePresence>
@@ -617,19 +615,19 @@ const Chat: React.FC = () => {
                           initial={{ opacity: 0, y: 8, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                          className="absolute bottom-full left-0 mb-1.5 w-52 bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden"
+                          className="absolute bottom-full left-0 mb-2 w-56 bg-popover border border-border rounded-3xl shadow-elevated z-[60] overflow-hidden p-1.5"
                         >
-                          <button onClick={() => { fileInputRef.current?.click(); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
+                          <button onClick={() => { fileInputRef.current?.click(); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
                             <Camera className="w-4 h-4 text-foreground-muted" /><span>Camera / Image</span>
                           </button>
-                          <button onClick={() => { docInputRef.current?.click(); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
-                            <FileText className="w-4 h-4 text-foreground-muted" /><span>Upload file</span>
+                          <button onClick={() => { docInputRef.current?.click(); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
+                            <FileText className="w-4 h-4 text-foreground-muted" /><span>Upload File</span>
                           </button>
-                          <button onClick={() => { setShowVoiceCall(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
-                            <AudioLines className="w-4 h-4 text-foreground-muted" /><span>Voice Call</span>
+                          <button onClick={() => { setShowVoiceCall(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
+                            <Phone className="w-4 h-4 text-foreground-muted" /><span>Voice Call</span>
                           </button>
-                          <button onClick={() => { setShowLatentLeaf(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
-                            <Leaf className="w-4 h-4 text-green-500" /><span>LatentLeaf Edit</span>
+                          <button onClick={() => { setShowLatentLeaf(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
+                            <Leaf className="w-4 h-4 text-primary" /><span>LatentLeaf Edit</span>
                           </button>
                         </motion.div>
                       </>
@@ -638,7 +636,7 @@ const Chat: React.FC = () => {
                 </div>
 
                 {/* Image shortcut */}
-                <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-xl hover:bg-accent transition-colors">
+                <button onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
                   <LucideImage className="w-[18px] h-[18px] text-foreground-muted" />
                 </button>
               </div>
@@ -646,7 +644,7 @@ const Chat: React.FC = () => {
               <div className="flex items-center gap-0.5">
                 {/* Model selector */}
                 <div className="relative">
-                  <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-accent transition-colors">
+                  <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1 px-3 py-2 rounded-2xl hover:bg-accent transition-colors">
                     <span className="text-[11px] font-bold text-foreground-muted">{modelDisplayName}</span>
                     <ChevronDown className={`w-3 h-3 text-foreground-muted transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
                   </button>
@@ -654,7 +652,7 @@ const Chat: React.FC = () => {
                     {showModelSelector && (
                       <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55]" onClick={() => setShowModelSelector(false)} />
-                        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full right-0 mb-1.5 w-52 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-xl shadow-elevated z-[60] overflow-hidden">
+                        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full right-0 mb-2 w-56 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-3xl shadow-elevated z-[60] overflow-hidden p-1.5">
                           {SUBSCRIPTION_PLANS.map((plan) => {
                             const modelKey = plan.model as "aqualibriav1" | "aqualibriav2" | "aqualibriav3";
                             const isActive = selectedModel === modelKey;
@@ -666,7 +664,7 @@ const Chat: React.FC = () => {
                               limitText = modelKey === "aqualibriav2" ? `(${90 - usage.v2Count}/90)` : `(${45 - usage.v3Count}/45)`;
                             }
                             return (
-                              <button key={plan.id} onClick={() => { if (modelAccess.allowed) { setSelectedModel(modelKey); setShowModelSelector(false); } else { toast({ title: "Limit Tercapai", variant: "destructive" }); } }} className={`w-full px-3.5 py-3 text-left transition-colors flex items-center justify-between ${!modelAccess.allowed ? "opacity-40" : "hover:bg-accent"} ${isActive ? "bg-accent" : ""}`}>
+                              <button key={plan.id} onClick={() => { if (modelAccess.allowed) { setSelectedModel(modelKey); setShowModelSelector(false); } else { toast({ title: "Limit Tercapai", variant: "destructive" }); } }} className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between rounded-2xl ${!modelAccess.allowed ? "opacity-40" : "hover:bg-accent"} ${isActive ? "bg-accent" : ""}`}>
                                 <div>
                                   <span className="text-sm text-foreground font-semibold">{plan.modelDisplay}</span>
                                   {limitText && <span className="text-[10px] text-foreground-muted ml-1.5">{limitText}</span>}
@@ -683,9 +681,9 @@ const Chat: React.FC = () => {
 
                 {/* Mic / Send */}
                 {isListening ? (
-                  <button onClick={stopListening} className="p-2 rounded-xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-[18px] h-[18px]" /></button>
+                  <button onClick={stopListening} className="p-2.5 rounded-2xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-[18px] h-[18px]" /></button>
                 ) : (
-                  <button onClick={inputValue.trim() || pendingImageData || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2 rounded-xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImageData || pendingFileData ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
+                  <button onClick={inputValue.trim() || pendingImageData || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2.5 rounded-2xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImageData || pendingFileData ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-accent"}`}>
                     {inputValue.trim() || pendingImageData || pendingFileData ? <Send className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px] text-foreground-muted" />}
                   </button>
                 )}
@@ -707,8 +705,8 @@ const Chat: React.FC = () => {
       {/* Image Viewer */}
       <AnimatePresence>
         {showImageViewer && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowImageViewer(null)}>
-            <img src={showImageViewer} alt="View" className="max-w-full max-h-[85vh] rounded-2xl" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background/95 backdrop-blur-xl z-50 flex items-center justify-center p-4" onClick={() => setShowImageViewer(null)}>
+            <img src={showImageViewer} alt="View" className="max-w-full max-h-[85vh] rounded-3xl shadow-elevated" />
           </motion.div>
         )}
       </AnimatePresence>
