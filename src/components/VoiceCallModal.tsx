@@ -51,11 +51,17 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const lastTranscriptRef = useRef<string>("");
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const callStateRef = useRef<CallState>("idle");
+  const selectedVoiceRef = useRef<VoiceOption>(selectedVoice);
+  const processUserInputRef = useRef<(input: string) => void>(() => {});
 
-  // Keep callStateRef in sync
+  // Keep refs in sync
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  useEffect(() => {
+    selectedVoiceRef.current = selectedVoice;
+  }, [selectedVoice]);
 
   // Call duration timer
   useEffect(() => {
@@ -131,7 +137,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           if (lastTranscriptRef.current.trim() && callStateRef.current === "listening") {
             console.log("Silence detected, auto-sending:", lastTranscriptRef.current.slice(0, 50));
             recognitionRef.current?.stop();
-            processUserInput(lastTranscriptRef.current);
+            processUserInputRef.current(lastTranscriptRef.current);
           }
         }, SILENCE_TIMEOUT_MS);
       }
@@ -298,6 +304,9 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
+  // Keep processUserInputRef in sync so silence timer uses latest version
+  processUserInputRef.current = processUserInput;
+
   const speakResponse = async (text: string) => {
     setCallState("speaking");
 
@@ -311,7 +320,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       .slice(0, 600); // Shorter for faster TTS in voice call
 
     try {
-      const result = await textToSpeech(cleanText, selectedVoice);
+      const result = await textToSpeech(cleanText, selectedVoiceRef.current);
 
       if (result.success && result.audioUrl) {
         // Handle browser TTS fallback

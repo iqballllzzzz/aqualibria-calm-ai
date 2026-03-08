@@ -272,7 +272,8 @@ const Chat: React.FC = () => {
     const messageText = inputValue.trim() || (pendingImages.length > 0 ? "Apa yang ada di gambar ini?" : "Analisis file ini");
     setMessageComplexity(classifyMessageComplexity(messageText));
     const firstImage = pendingImages.length > 0 ? pendingImages[0] : undefined;
-    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
+    const allImageUrls = pendingImages.length > 0 ? [...pendingImages] : undefined;
+    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, imageUrls: allImageUrls, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
@@ -356,7 +357,7 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageData: imagesToAnalyze[0] || undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+          result = await sendChatMessage(messageText, currentSessionId, { imageData: imagesToAnalyze[0] || undefined, imageDataList: imagesToAnalyze.length > 1 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
       }
       if (result?.success && result?.response) {
@@ -664,12 +665,18 @@ const Chat: React.FC = () => {
                       ? "bg-chat-user rounded-3xl rounded-br-lg px-4 py-3 border border-primary/10" 
                       : "px-1 py-1"
                   }`}>
-                    {/* User attached image */}
-                    {message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" && (
+                    {/* User attached images - show all */}
+                    {message.imageUrls && message.imageUrls.length > 0 && message.role === "user" ? (
+                      <div className="mb-2.5 flex flex-wrap gap-1.5">
+                        {message.imageUrls.map((imgUrl, imgIdx) => (
+                          <img key={imgIdx} src={imgUrl} alt={`Uploaded ${imgIdx+1}`} className="rounded-2xl max-h-36 cursor-pointer hover:opacity-90 transition-opacity" style={{ maxWidth: message.imageUrls!.length > 2 ? '45%' : '100%' }} onClick={() => setShowImageViewer(imgUrl)} />
+                        ))}
+                      </div>
+                    ) : message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" ? (
                       <div className="mb-2.5">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-2xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
                       </div>
-                    )}
+                    ) : null}
                     {message.imageUrl === "[image]" && message.role === "user" && (
                       <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/80 border border-border">
                         <LucideImage className="w-4 h-4 text-primary shrink-0" />

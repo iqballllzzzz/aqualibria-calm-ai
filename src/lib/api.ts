@@ -46,6 +46,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  imageUrls?: string[];
   id?: string;
   isVoiceChat?: boolean;
   fileData?: string;
@@ -186,6 +187,7 @@ export const sendChatMessage = async (
   sessionId: string,
   options: {
     imageData?: string;
+    imageDataList?: string[];
     fileData?: string;
     fileTextContent?: string;
     isCodingMode?: boolean;
@@ -197,7 +199,7 @@ export const sendChatMessage = async (
   } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    const { imageData, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
+    const { imageData, imageDataList, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
 
     if (!message || message.trim().length === 0) return { success: false, error: "Message cannot be empty" };
     if (message.length > 50000) return { success: false, error: "Message too long (max 50000 characters)" };
@@ -226,10 +228,17 @@ export const sendChatMessage = async (
       messages.push(msgObj);
     }
 
-    const currentMsg: any = { role: "user", content: textToSend };
-    if (imageData) currentMsg.imageData = imageData;
-    if (fileData) currentMsg.fileData = fileData;
-    messages.push(currentMsg);
+    // If multiple images, send them all as separate image parts
+    if (imageDataList && imageDataList.length > 0) {
+      const currentMsg: any = { role: "user", content: textToSend, imageDataList };
+      if (fileData) currentMsg.fileData = fileData;
+      messages.push(currentMsg);
+    } else {
+      const currentMsg: any = { role: "user", content: textToSend };
+      if (imageData) currentMsg.imageData = imageData;
+      if (fileData) currentMsg.fileData = fileData;
+      messages.push(currentMsg);
+    }
 
     const geminiModel = MODEL_MAP[model] || MODEL_MAP.aqualibriav1;
 
