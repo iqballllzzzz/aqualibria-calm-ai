@@ -89,7 +89,10 @@ const Chat: React.FC = () => {
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>(() => {
+    const saved = localStorage.getItem("aqua-selected-voice");
+    return (saved && ["aurora","river","luna","ember","atlas","iris","nova","onyx"].includes(saved)) ? saved as VoiceOption : "aurora";
+  });
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
