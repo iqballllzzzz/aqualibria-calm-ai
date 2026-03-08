@@ -733,7 +733,11 @@ const Chat: React.FC = () => {
                 </motion.div>
               ))}
               {/* Smart Loading indicator */}
-              <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
+              {activeMode === "research" ? (
+                <ResearchIndicator isLoading={isLoading} />
+              ) : (
+                <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
+              )}
               <div ref={messagesEndRef} />
             </div>
           )}
