@@ -36,11 +36,14 @@ const Settings: React.FC = () => {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [languageSearch, setLanguageSearch] = useState("");
   const [showEditPesan, setShowEditPesan] = useState(false);
+  const [showHapusPesan, setShowHapusPesan] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [selectedDeleteSession, setSelectedDeleteSession] = useState<string | null>(null);
+  const [selectedDeleteMsgIds, setSelectedDeleteMsgIds] = useState<Set<string>>(new Set());
 
   const subscription = getSubscription();
   const usage = canUseFeature();
