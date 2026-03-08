@@ -360,7 +360,7 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageData: imagesToAnalyze[0] || undefined, imageDataList: imagesToAnalyze.length > 1 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+          result = await sendChatMessage(messageText, currentSessionId, { imageDataList: imagesToAnalyze.length > 0 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
       }
       if (result?.success && result?.response) {
