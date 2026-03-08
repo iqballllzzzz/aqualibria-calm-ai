@@ -283,12 +283,12 @@ const Chat: React.FC = () => {
     setPendingFileData(null);
     setIsLoading(true);
     incrementUsage();
-    if (user) { logActivity(user.uid, `chat_${activeMode}`, { model: selectedModel, hasImage: !!imageToAnalyze, hasFile: !!fileToAnalyze, hasYoutube: !!youtubeUrl }, user.email || undefined, user.displayName || undefined); }
+    if (user) { logActivity(user.uid, `chat_${activeMode}`, { model: selectedModel, hasImage: imagesToAnalyze.length > 0, hasFile: !!fileToAnalyze, hasYoutube: !!youtubeUrl }, user.email || undefined, user.displayName || undefined); }
     try {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
-      if (activeMode === "chat" && !imageToAnalyze && !fileToAnalyze && !youtubeUrl) {
+      if (activeMode === "chat" && imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl) {
         const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
         if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
           setMessages((prev) => [...prev, {
