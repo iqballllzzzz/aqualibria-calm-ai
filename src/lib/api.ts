@@ -377,15 +377,15 @@ export const searchSpotify = async (query: string): Promise<{ success: boolean; 
 // TTS using Gemini native TTS via edge function, with browser fallback
 export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
-    // Clean text for speech
+    // Clean text for speech - keep short for speed
     const cleanText = text
       .replace(/\*\*/g, "")
       .replace(/\*/g, "")
-      .replace(/`{1,3}[^`]*`{1,3}/g, "code block")
+      .replace(/`{1,3}[^`]*`{1,3}/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/#{1,6}\s*/g, "")
       .replace(/\n{2,}/g, ". ")
-      .slice(0, 2000);
+      .slice(0, 800);
 
     const response = await fetch(TTS_URL, {
       method: "POST",

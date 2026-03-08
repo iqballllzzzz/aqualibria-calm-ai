@@ -68,7 +68,7 @@ serve(async (req) => {
       });
     }
 
-    const cleanText = text.slice(0, 3000);
+    const cleanText = text.slice(0, 1000);
     const geminiVoice = VOICE_MAP[voice] || VOICE_MAP.aurora;
     console.log(`TTS: voice=${voice}->${geminiVoice}, len=${cleanText.length}, keys=${apiKeys.length}`);
 

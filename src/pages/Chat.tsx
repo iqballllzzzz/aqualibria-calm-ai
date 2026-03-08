@@ -170,7 +170,19 @@ const Chat: React.FC = () => {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) { toast({ title: "Error", description: "Please select an image or video file", variant: "destructive" }); return; }
     setIsUploadingImage(true);
-    try { const base64 = await fileToBase64(file); setPendingImageData(base64); toast({ title: "Ready", description: "Type a question about the image" }); }
+    try {
+      // Upload to CDN for persistence
+      const { uploadToRyzumiCDN } = await import("@/lib/cdn");
+      const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
+      if (cdnResult.success && cdnResult.url) {
+        setPendingImageData(cdnResult.url);
+      } else {
+        // Fallback to base64
+        const base64 = await fileToBase64(file);
+        setPendingImageData(base64);
+      }
+      toast({ title: "Ready", description: "Type a question about the image" });
+    }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     setIsUploadingImage(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -205,21 +217,15 @@ const Chat: React.FC = () => {
     return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
   };
 
-  // Persist base64 image to Supabase storage so it survives reload
+  // Persist base64 image to Ryzumi CDN so it survives reload
   const persistImageToStorage = async (imageUrl: string): Promise<string> => {
     if (!imageUrl.startsWith("data:")) return imageUrl; // Already a URL
     try {
-      const res = await fetch(imageUrl);
-      const blob = await res.blob();
-      const fileName = `generated/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.png`;
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data, error } = await supabase.storage.from("user-images").upload(fileName, blob, { contentType: "image/png", upsert: false });
-      if (error) { console.error("Storage upload error:", error); return imageUrl; }
-      const { data: urlData } = supabase.storage.from("user-images").getPublicUrl(data.path);
-      return urlData.publicUrl || imageUrl;
+      const { persistImageToCDN } = await import("@/lib/cdn");
+      return await persistImageToCDN(imageUrl);
     } catch (e) {
       console.error("Failed to persist image:", e);
-      return imageUrl; // Return base64 as fallback
+      return imageUrl;
     }
   };
 
@@ -495,7 +501,7 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`flex items-center gap-1 rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                        <div key={session.id} className={`group relative flex items-center rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
                           {/* Chat title area */}
                           <div className="flex-1 min-w-0 px-3.5 py-3" onClick={() => !isEditing && handleSelectSession(session)}>
                             {isEditing ? (
@@ -511,24 +517,25 @@ const Chat: React.FC = () => {
                             )}
                           </div>
                           
-                          {/* Three-dot menu - always visible, separate from title */}
+                          {/* Three-dot menu - ALWAYS visible */}
                           {!isEditing && (
-                            <div className="shrink-0 pr-1.5">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-2 rounded-xl hover:bg-accent/80 transition-all">
-                                    <MoreVertical className="w-4 h-4 text-foreground-muted" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer text-xs rounded-xl"><Share2 className="w-3.5 h-3.5 mr-2" />Share</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-xs text-destructive rounded-xl"><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="shrink-0 mr-1.5 p-2 rounded-xl bg-accent/60 hover:bg-accent transition-all"
+                                >
+                                  <MoreVertical className="w-4 h-4 text-foreground" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer text-xs rounded-xl"><Share2 className="w-3.5 h-3.5 mr-2" />Share</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-xs text-destructive rounded-xl"><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
                       );
