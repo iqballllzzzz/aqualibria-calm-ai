@@ -151,28 +151,14 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// Extract text from DOCX files (basic XML extraction)
+// Extract text from DOCX files using mammoth
 export const extractTextFromDocx = async (file: File): Promise<string> => {
   try {
+    const mammoth = await import('mammoth');
     const arrayBuffer = await file.arrayBuffer();
-    const uint8 = new Uint8Array(arrayBuffer);
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = decoder.decode(uint8);
-    const textContent = rawText
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#\d+;/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const cleanParts = textContent.split(/\s+/).filter(word => {
-      const printable = word.replace(/[^\x20-\x7E\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\uAC00-\uD7AF]/g, '');
-      return printable.length > word.length * 0.5 && word.length > 1;
-    });
-    const extracted = cleanParts.join(' ').slice(0, 15000);
-    return extracted || "Could not extract text from this document.";
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    const text = result.value.trim().slice(0, 15000);
+    return text || "Could not extract text from this document.";
   } catch (e) {
     console.error("DOCX extraction error:", e);
     return "Failed to extract document content.";
