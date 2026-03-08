@@ -340,47 +340,70 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           audioSrc = result.audioUrl;
         }
 
-        const audio = new Audio(audioSrc);
-        audioRef.current = audio;
-
-        // Set up audio context for visualization
+        // Use AudioContext for reliable playback (especially for WAV blobs)
         try {
-          if (!audioContextRef.current || audioContextRef.current.state === "closed") {
-            audioContextRef.current = new AudioContext();
+          // Close previous AudioContext if exists
+          if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+            await audioContextRef.current.close();
           }
-          const source = audioContextRef.current.createMediaElementSource(audio);
-          const analyser = audioContextRef.current.createAnalyser();
+          
+          const audioCtx = new AudioContext();
+          audioContextRef.current = audioCtx;
+          
+          // Fetch the audio data as ArrayBuffer
+          const response = await fetch(audioSrc);
+          const arrayBuffer = await response.arrayBuffer();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          // Set up analyser for visualization
+          const analyser = audioCtx.createAnalyser();
           analyser.fftSize = 128;
           analyser.smoothingTimeConstant = 0.8;
-          source.connect(analyser);
-          analyser.connect(audioContextRef.current.destination);
           analyserRef.current = analyser;
+          
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          
+          source.onended = () => {
+            setCallState("idle");
+            analyserRef.current = null;
+            if (isPcm && audioSrc.startsWith("blob:")) {
+              URL.revokeObjectURL(audioSrc);
+            }
+            setTimeout(() => {
+              if (isOpen) startListening();
+            }, 500);
+          };
+          
+          source.start(0);
         } catch (e) {
-          console.warn("Audio analysis not supported:", e);
+          console.error("AudioContext playback failed:", e);
+          
+          // Fallback to Audio element
+          const audio = new Audio(audioSrc);
+          audioRef.current = audio;
+          
+          audio.onended = () => {
+            setCallState("idle");
+            analyserRef.current = null;
+            if (isPcm && audioSrc.startsWith("blob:")) {
+              URL.revokeObjectURL(audioSrc);
+            }
+            setTimeout(() => {
+              if (isOpen) startListening();
+            }, 500);
+          };
+          
+          audio.onerror = (err) => {
+            console.error("Audio fallback error:", err);
+            setError("Failed to play audio");
+            setCallState("idle");
+          };
+          
+          await audio.play();
         }
-
-        audio.onended = () => {
-          setCallState("idle");
-          analyserRef.current = null;
-          if (isPcm && audioSrc.startsWith("blob:")) {
-            URL.revokeObjectURL(audioSrc);
-          }
-          setTimeout(() => {
-            if (isOpen) startListening();
-          }, 500);
-        };
-
-        audio.onerror = (e) => {
-          console.error("Audio playback error:", e);
-          setError("Failed to play audio");
-          setCallState("idle");
-          analyserRef.current = null;
-          if (isPcm && audioSrc.startsWith("blob:")) {
-            URL.revokeObjectURL(audioSrc);
-          }
-        };
-
-        await audio.play();
       } else {
         throw new Error(result.error || "Failed to generate speech");
       }

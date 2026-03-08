@@ -41,14 +41,23 @@ const setVH = () => {
   document.documentElement.style.setProperty('--vh', `${vh}px`);
 };
 
-const GREETINGS = [
-  "What's on your mind?",
-  "Ada yang bisa dibantu?",
-  "무엇을 도와드릴까요?",
-  "何をお手伝いしましょうか？",
-  "Comment puis-je aider ?",
-  "¿En qué puedo ayudarte?",
-];
+const GREETINGS: Record<string, string> = {
+  en: "What's on your mind?",
+  id: "Ada yang bisa dibantu?",
+  ko: "무엇을 도와드릴까요?",
+  ja: "何をお手伝いしましょうか？",
+  fr: "Comment puis-je aider ?",
+  es: "¿En qué puedo ayudarte?",
+  de: "Wie kann ich Ihnen helfen?",
+  zh: "有什么我可以帮您的？",
+  ar: "كيف يمكنني مساعدتك؟",
+  hi: "मैं आपकी कैसे मदद कर सकता हूं?",
+  ru: "Чем я могу помочь?",
+  pt: "Como posso ajudar?",
+  tr: "Size nasıl yardımcı olabilirim?",
+  vi: "Tôi có thể giúp gì?",
+  th: "ฉันช่วยอะไรได้บ้าง?",
+};
 
 const QUICK_ACTIONS = [
   { emoji: "🍃", label: "Edit Image", action: "latentleaf", color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20" },
@@ -59,7 +68,7 @@ const QUICK_ACTIONS = [
 
 const Chat: React.FC = () => {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { sessionId: urlSessionId } = useParams();
@@ -111,7 +120,7 @@ const Chat: React.FC = () => {
   const { isListening, startListening, stopListening, error: voiceError } = useVoiceChat({ onTranscript: handleVoiceTranscript, selectedVoice });
 
   useEffect(() => { if (voiceError) toast({ title: "Voice Error", description: voiceError, variant: "destructive" }); }, [voiceError, toast]);
-  useEffect(() => { setRandomGreeting(GREETINGS[Math.floor(Math.random() * GREETINGS.length)]); }, []);
+  useEffect(() => { setRandomGreeting(GREETINGS[language] || GREETINGS.en); }, [language]);
 
   useEffect(() => {
     const today = new Date().toDateString();
@@ -519,11 +528,12 @@ const Chat: React.FC = () => {
                           
                           {/* Three-dot menu - ALWAYS visible */}
                           {!isEditing && (
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
                                 <button
                                   onClick={(e) => e.stopPropagation()}
-                                  className="shrink-0 mr-1.5 p-2 rounded-xl bg-accent/60 hover:bg-accent transition-all"
+                                  className="shrink-0 mr-2 p-2.5 rounded-xl bg-accent hover:bg-primary/20 transition-all border border-border/50"
+                                  aria-label="Chat options"
                                 >
                                   <MoreVertical className="w-4 h-4 text-foreground" />
                                 </button>
