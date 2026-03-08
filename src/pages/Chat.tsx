@@ -665,12 +665,18 @@ const Chat: React.FC = () => {
                       ? "bg-chat-user rounded-3xl rounded-br-lg px-4 py-3 border border-primary/10" 
                       : "px-1 py-1"
                   }`}>
-                    {/* User attached image */}
-                    {message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" && (
+                    {/* User attached images - show all */}
+                    {message.imageUrls && message.imageUrls.length > 0 && message.role === "user" ? (
+                      <div className="mb-2.5 flex flex-wrap gap-1.5">
+                        {message.imageUrls.map((imgUrl, imgIdx) => (
+                          <img key={imgIdx} src={imgUrl} alt={`Uploaded ${imgIdx+1}`} className="rounded-2xl max-h-36 cursor-pointer hover:opacity-90 transition-opacity" style={{ maxWidth: message.imageUrls!.length > 2 ? '45%' : '100%' }} onClick={() => setShowImageViewer(imgUrl)} />
+                        ))}
+                      </div>
+                    ) : message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" ? (
                       <div className="mb-2.5">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-2xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
                       </div>
-                    )}
+                    ) : null}
                     {message.imageUrl === "[image]" && message.role === "user" && (
                       <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/80 border border-border">
                         <LucideImage className="w-4 h-4 text-primary shrink-0" />
