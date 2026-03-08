@@ -25,6 +25,8 @@ import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
 import TypingAnimation from "@/components/TypingAnimation";
+import SmartThinkingIndicator, { classifyMessageComplexity } from "@/components/SmartThinkingIndicator";
+import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import { Input } from "@/components/ui/input";
