@@ -529,11 +529,12 @@ const Chat: React.FC = () => {
                           
                           {/* Three-dot menu - ALWAYS visible */}
                           {!isEditing && (
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
                                 <button
                                   onClick={(e) => e.stopPropagation()}
-                                  className="shrink-0 mr-1.5 p-2 rounded-xl bg-accent/60 hover:bg-accent transition-all"
+                                  className="shrink-0 mr-2 p-2.5 rounded-xl bg-accent hover:bg-primary/20 transition-all border border-border/50"
+                                  aria-label="Chat options"
                                 >
                                   <MoreVertical className="w-4 h-4 text-foreground" />
                                 </button>
