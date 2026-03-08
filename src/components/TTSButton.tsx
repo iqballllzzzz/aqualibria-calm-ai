@@ -8,23 +8,34 @@ interface TTSButtonProps {
   className?: string;
 }
 
-// Convert base64 PCM L16 (24kHz mono) to playable WAV using Web Audio API
+// Convert base64 PCM L16 to playable WAV
 const playPcmAudio = async (base64Data: string, mimeType: string): Promise<HTMLAudioElement | null> => {
   try {
-    // Decode base64 to raw bytes
     const raw = atob(base64Data);
     const bytes = new Uint8Array(raw.length);
     for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
 
-    // Parse sample rate from mime type (e.g. audio/L16;codec=pcm;rate=24000)
     const rateMatch = mimeType.match(/rate=(\d+)/);
     const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
 
-    // PCM L16 is 16-bit signed, big-endian. Convert to little-endian for WAV.
-    const pcmData = new Int16Array(bytes.length / 2);
-    for (let i = 0; i < pcmData.length; i++) {
-      // Gemini L16 is big-endian
-      pcmData[i] = (bytes[i * 2] << 8) | bytes[i * 2 + 1];
+    // Determine endianness from mime type
+    // Gemini TTS with codec=pcm is typically little-endian already
+    const isBigEndian = mimeType.includes("L16") && !mimeType.includes("codec=pcm");
+    
+    const numSamples = Math.floor(bytes.length / 2);
+    const pcmData = new Int16Array(numSamples);
+    
+    if (isBigEndian) {
+      // Big-endian: swap bytes
+      for (let i = 0; i < numSamples; i++) {
+        pcmData[i] = (bytes[i * 2] << 8) | bytes[i * 2 + 1];
+      }
+    } else {
+      // Little-endian: direct copy (WAV native format)
+      const dataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      for (let i = 0; i < numSamples; i++) {
+        pcmData[i] = dataView.getInt16(i * 2, true);
+      }
     }
 
     // Build WAV header
@@ -45,7 +56,7 @@ const playPcmAudio = async (base64Data: string, mimeType: string): Promise<HTMLA
     writeStr(8, 'WAVE');
     writeStr(12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM
+    view.setUint16(20, 1, true); // PCM format
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
     view.setUint32(28, byteRate, true);
@@ -54,20 +65,62 @@ const playPcmAudio = async (base64Data: string, mimeType: string): Promise<HTMLA
     writeStr(36, 'data');
     view.setUint32(40, dataSize, true);
 
-    // Write PCM samples (already little-endian Int16)
-    const wavPcm = new Int16Array(buffer, 44);
-    wavPcm.set(pcmData);
+    // Write PCM samples as little-endian
+    for (let i = 0; i < pcmData.length; i++) {
+      view.setInt16(44 + i * 2, pcmData[i], true);
+    }
 
     const blob = new Blob([buffer], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    
     audio.onended = () => URL.revokeObjectURL(url);
-    
     return audio;
   } catch (e) {
     console.error("PCM to WAV conversion failed:", e);
     return null;
+  }
+};
+
+// Try using AudioContext for more reliable playback
+const playWithAudioContext = async (base64Data: string, mimeType: string): Promise<boolean> => {
+  try {
+    const raw = atob(base64Data);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+    const rateMatch = mimeType.match(/rate=(\d+)/);
+    const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
+    
+    const numSamples = Math.floor(bytes.length / 2);
+    const audioCtx = new AudioContext({ sampleRate });
+    const audioBuffer = audioCtx.createBuffer(1, numSamples, sampleRate);
+    const channelData = audioBuffer.getChannelData(0);
+    
+    // Determine endianness
+    const isBigEndian = mimeType.includes("L16") && !mimeType.includes("codec=pcm");
+    const dataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    
+    for (let i = 0; i < numSamples; i++) {
+      const sample = isBigEndian 
+        ? dataView.getInt16(i * 2, false) 
+        : dataView.getInt16(i * 2, true);
+      channelData[i] = sample / 32768.0; // normalize to [-1, 1]
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioCtx.destination);
+    
+    return new Promise((resolve) => {
+      source.onended = () => {
+        audioCtx.close();
+        resolve(true);
+      };
+      source.start(0);
+    });
+  } catch (e) {
+    console.error("AudioContext playback failed:", e);
+    return false;
   }
 };
 
@@ -113,33 +166,38 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, voice, className = "" }) =>
           return;
         }
 
-        // Check if it's PCM L16 data that needs conversion
         const isPcm = result.audioUrl.startsWith("data:audio/L16") || result.audioUrl.startsWith("data:audio/pcm");
         
         if (isPcm) {
-          // Extract base64 data and mime type
           const commaIdx = result.audioUrl.indexOf(",");
-          const meta = result.audioUrl.substring(5, commaIdx); // after "data:"
+          const meta = result.audioUrl.substring(5, commaIdx);
           const mimeType = meta.split(";base64")[0];
           const b64 = result.audioUrl.substring(commaIdx + 1);
           
-          const audio = await playPcmAudio(b64, mimeType);
-          if (audio) {
-            audioRef.current = audio;
-            audio.onended = () => setIsPlaying(false);
-            audio.onerror = () => { setIsPlaying(false); setIsLoading(false); };
-            await audio.play();
-            setIsPlaying(true);
-          } else {
-            // Fallback to browser TTS
+          setIsPlaying(true);
+          setIsLoading(false);
+          
+          // Try AudioContext first (more reliable), then WAV fallback
+          const played = await playWithAudioContext(b64, mimeType);
+          if (!played) {
+            const audio = await playPcmAudio(b64, mimeType);
+            if (audio) {
+              audioRef.current = audio;
+              audio.onended = () => setIsPlaying(false);
+              audio.onerror = () => setIsPlaying(false);
+              await audio.play();
+              return;
+            }
+            // Final fallback: browser TTS
             window.speechSynthesis?.cancel();
             const utterance = new SpeechSynthesisUtterance(cleanText);
             utterance.onend = () => setIsPlaying(false);
             window.speechSynthesis.speak(utterance);
-            setIsPlaying(true);
+            return;
           }
+          setIsPlaying(false);
         } else {
-          // Standard audio URL (wav, mp3, etc.)
+          // Standard audio URL
           const newAudio = new Audio(result.audioUrl);
           audioRef.current = newAudio;
           newAudio.onended = () => setIsPlaying(false);

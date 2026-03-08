@@ -7,10 +7,11 @@ import {
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone,
 } from "lucide-react";
+import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -204,6 +205,45 @@ const Chat: React.FC = () => {
     return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
   };
 
+  // Persist base64 image to Supabase storage so it survives reload
+  const persistImageToStorage = async (imageUrl: string): Promise<string> => {
+    if (!imageUrl.startsWith("data:")) return imageUrl; // Already a URL
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const fileName = `generated/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.png`;
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase.storage.from("user-images").upload(fileName, blob, { contentType: "image/png", upsert: false });
+      if (error) { console.error("Storage upload error:", error); return imageUrl; }
+      const { data: urlData } = supabase.storage.from("user-images").getPublicUrl(data.path);
+      return urlData.publicUrl || imageUrl;
+    } catch (e) {
+      console.error("Failed to persist image:", e);
+      return imageUrl; // Return base64 as fallback
+    }
+  };
+
+  // Handle image editing from the viewer
+  const handleEditImageFromViewer = async (imgUrl: string, prompt: string) => {
+    setIsLoading(true);
+    try {
+      const editResult = await editImageLatentLeaf(prompt, imgUrl);
+      if (editResult.success && editResult.editedImageUrl) {
+        const persistedUrl = await persistImageToStorage(editResult.editedImageUrl);
+        setMessages((prev) => [...prev, 
+          { role: "user", content: `Edit image: ${prompt}`, timestamp: new Date(), id: generateMessageId() },
+          { role: "assistant", content: "Here's the edited image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }
+        ]);
+        setShowImageViewer(persistedUrl);
+      } else {
+        toast({ title: "Edit gagal", description: editResult.error || "Failed to edit", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to edit image", variant: "destructive" });
+    }
+    setIsLoading(false);
+  };
+
   const handleSendMessage = async () => {
     if ((!inputValue.trim() && !pendingImageData && !pendingFileData) || isLoading) return;
     const usage = canUseFeature();
@@ -242,13 +282,35 @@ const Chat: React.FC = () => {
       const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
       const isImageRequest = activeMode === "image" || (!imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
 
+      // Auto-detect image editing request via chat - look for edit patterns with a previous generated image
+      const imageEditPatterns = /^(edit\s*(gambar|image|foto)|ubah\s*(gambar|image|foto)|modif|change\s*(the\s*)?(image|picture|photo)|make\s*(it|the\s*image)|jadikan|rubah|ganti\s*(background|warna|style))/i;
+      const lastGeneratedImage = [...messages].reverse().find(m => m.role === "assistant" && m.imageUrl && m.imageUrl !== "[image]");
+      const isEditRequest = !imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
+
+      if (isEditRequest && lastGeneratedImage?.imageUrl) {
+        try {
+          const editResult = await editImageLatentLeaf(messageText, lastGeneratedImage.imageUrl);
+          if (editResult.success && editResult.editedImageUrl) {
+            // Persist edited image to storage
+            const persistedUrl = await persistImageToStorage(editResult.editedImageUrl);
+            setMessages((prev) => [...prev, { role: "assistant", content: "Here's the edited image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+          } else {
+            setMessages((prev) => [...prev, { role: "assistant", content: editResult.error || "Failed to edit image. Please try again.", timestamp: new Date(), id: generateMessageId() }]);
+          }
+        } catch {
+          toast({ title: "Edit Error", description: "Failed to edit image", variant: "destructive" });
+        }
+        setIsLoading(false); setActiveMode("chat"); return;
+      }
+
       if (isImageRequest) {
         result = await generateImage(messageText);
         if (result?.success && result?.imageUrl) {
-          setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: result.imageUrl }]);
+          // Persist generated image to storage
+          const persistedUrl = await persistImageToStorage(result.imageUrl);
+          setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
           setIsLoading(false); setActiveMode("chat"); return;
         } else if (result?.success && result?.response) {
-          // Image gen returned text only (no image produced)
           setMessages((prev) => [...prev, { role: "assistant", content: result.response, timestamp: new Date(), id: generateMessageId() }]);
           setIsLoading(false); setActiveMode("chat"); return;
         } else if (result?.error) {
@@ -433,8 +495,9 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`group relative rounded-2xl px-3.5 py-3 cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`} onClick={() => !isEditing && handleSelectSession(session)}>
-                          <div className="pr-7">
+                        <div key={session.id} className={`flex items-center gap-1 rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                          {/* Chat title area */}
+                          <div className="flex-1 min-w-0 px-3.5 py-3" onClick={() => !isEditing && handleSelectSession(session)}>
                             {isEditing ? (
                               <div className="flex items-center gap-1.5">
                                 <input type="text" value={editSidebarTitle} onChange={(e) => setEditSidebarTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleConfirmSidebarRename()} onClick={(e) => e.stopPropagation()} className="flex-1 text-xs text-foreground bg-background border border-border rounded-xl px-2.5 py-1.5 focus:outline-none" autoFocus />
@@ -447,13 +510,17 @@ const Chat: React.FC = () => {
                               </div>
                             )}
                           </div>
-                         {!isEditing && (
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                          
+                          {/* Three-dot menu - always visible, separate from title */}
+                          {!isEditing && (
+                            <div className="shrink-0 pr-1.5">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-2 rounded-xl hover:bg-accent/80 transition-all">
+                                    <MoreVertical className="w-4 h-4 text-foreground-muted" />
+                                  </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44 rounded-2xl">
+                                <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
@@ -791,14 +858,12 @@ const Chat: React.FC = () => {
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ArchivedChatsModal isOpen={showArchivedChats} onClose={() => setShowArchivedChats(false)} sessions={chatHistory} archivedIds={chatManagement.archivedSessions} onRestoreSession={handleArchiveSession} onDeleteSession={handleDeleteSession} onSelectSession={handleSelectSession} />
 
-      {/* Image Viewer */}
-      <AnimatePresence>
-        {showImageViewer && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background/95 backdrop-blur-xl z-50 flex items-center justify-center p-4" onClick={() => setShowImageViewer(null)}>
-            <img src={showImageViewer} alt="View" className="max-w-full max-h-[85vh] rounded-3xl shadow-elevated" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Image Viewer with full actions */}
+      <GeneratedImageViewer
+        imageUrl={showImageViewer}
+        onClose={() => setShowImageViewer(null)}
+        onEditImage={handleEditImageFromViewer}
+      />
     </div>
   );
 };
