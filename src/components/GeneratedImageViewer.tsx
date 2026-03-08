@@ -66,22 +66,34 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
   const handleShare = async () => {
     try {
       if (navigator.share) {
+        // Try sharing the URL directly first (more reliable)
+        if (!imageUrl.startsWith("data:")) {
+          try {
+            await navigator.share({ url: imageUrl, title: "AquaLibria Generated Image" });
+            return;
+          } catch {}
+        }
+        // Fallback: share as file
         let blob: Blob;
         if (imageUrl.startsWith("data:")) {
           const res = await fetch(imageUrl);
           blob = await res.blob();
         } else {
-          const res = await fetch(imageUrl);
+          const res = await fetch(imageUrl, { mode: "cors" }).catch(() => fetch(imageUrl));
           blob = await res.blob();
         }
         const file = new File([blob], "aqua-image.png", { type: "image/png" });
         await navigator.share({ files: [file], title: "AquaLibria Generated Image" });
       } else {
-        await navigator.clipboard.writeText(imageUrl.startsWith("data:") ? "Image (base64 - too large to share via clipboard)" : imageUrl);
-        toast({ title: "Copied!", description: "Image link copied to clipboard" });
+        if (!imageUrl.startsWith("data:")) {
+          await navigator.clipboard.writeText(imageUrl);
+          toast({ title: "Copied!", description: "Image link copied to clipboard" });
+        } else {
+          toast({ title: "Info", description: "Image is too large to share via clipboard" });
+        }
       }
     } catch {
-      toast({ title: "Share cancelled", variant: "destructive" });
+      // User cancelled share - not an error
     }
   };
 
