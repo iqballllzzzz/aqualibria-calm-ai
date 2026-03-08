@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Code, BookOpen, Image, Quote, ArrowRight } from "lucide-react";
+import { Code, BookOpen, Image, Quote, ArrowRight, Sparkles } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { setWelcomeShown } from "@/lib/storage";
 import Logo from "@/components/Logo";
@@ -20,9 +20,7 @@ const Welcome: React.FC = () => {
 
   useEffect(() => {
     if (typedText.length < fullText.length) {
-      const timeout = setTimeout(() => {
-        setTypedText(fullText.slice(0, typedText.length + 1));
-      }, 35);
+      const timeout = setTimeout(() => setTypedText(fullText.slice(0, typedText.length + 1)), 30);
       return () => clearTimeout(timeout);
     } else {
       setTypingComplete(true);
@@ -32,33 +30,30 @@ const Welcome: React.FC = () => {
 
   useEffect(() => {
     if (!typingComplete) {
-      const interval = setInterval(() => {
-        setShowCursor((prev) => !prev);
-      }, 530);
+      const interval = setInterval(() => setShowCursor((prev) => !prev), 530);
       return () => clearInterval(interval);
     }
   }, [typingComplete]);
 
-  const handleContinue = () => {
-    setShowIntentSelection(true);
-  };
-
   const handleIntentSelect = (intent: string) => {
     localStorage.setItem("aqua-user-intent", intent);
-    setWelcomeShown(); // Mark welcome as shown
+    setWelcomeShown();
     navigate("/chat");
   };
 
   const intents = [
-    { id: "coding", icon: Code, label: t("intent.coding") },
-    { id: "learning", icon: BookOpen, label: t("intent.learning") },
-    { id: "images", icon: Image, label: t("intent.images") },
-    { id: "quotes", icon: Quote, label: t("intent.quotes") },
+    { id: "coding", icon: Code, label: t("intent.coding"), gradient: "from-blue-500/10 to-cyan-500/10", iconColor: "text-blue-500" },
+    { id: "learning", icon: BookOpen, label: t("intent.learning"), gradient: "from-emerald-500/10 to-green-500/10", iconColor: "text-emerald-500" },
+    { id: "images", icon: Image, label: t("intent.images"), gradient: "from-purple-500/10 to-pink-500/10", iconColor: "text-purple-500" },
+    { id: "quotes", icon: Quote, label: t("intent.quotes"), gradient: "from-amber-500/10 to-orange-500/10", iconColor: "text-amber-500" },
   ];
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen w-full flex items-center justify-center bg-background p-6 relative overflow-hidden">
+      {/* Ambient effects */}
+      <div className="absolute top-[10%] left-[20%] w-[40vw] h-[40vw] rounded-full opacity-[0.04] blur-[100px] pointer-events-none" style={{ background: 'hsl(217, 91%, 55%)' }} />
+
+      <div className="w-full max-w-lg relative z-10">
         <AnimatePresence mode="wait">
           {!showIntentSelection ? (
             <motion.div
@@ -69,20 +64,14 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.4 }}
               className="text-center"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                <Logo size="xl" className="mx-auto mb-10" />
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }}>
+                <Logo size="xl" className="mx-auto mb-8" />
               </motion.div>
 
-              <div className="min-h-[120px] flex items-center justify-center">
-                <p className="text-xl md:text-2xl text-foreground leading-relaxed max-w-lg">
+              <div className="min-h-[100px] flex items-center justify-center">
+                <p className="text-xl md:text-2xl text-foreground leading-relaxed max-w-md font-medium">
                   {typedText}
-                  {showCursor && (
-                    <span className="inline-block w-0.5 h-6 md:h-7 bg-foreground ml-1 align-middle" />
-                  )}
+                  {showCursor && <span className="typing-cursor" />}
                 </p>
               </div>
 
@@ -92,9 +81,9 @@ const Welcome: React.FC = () => {
                 transition={{ duration: 0.4, delay: 0.3 }}
               >
                 <button
-                  onClick={handleContinue}
+                  onClick={() => setShowIntentSelection(true)}
                   disabled={!typingComplete}
-                  className="mt-8 px-8 py-3.5 rounded-xl bg-foreground text-background font-medium hover:bg-foreground/90 disabled:opacity-0 transition-all btn-press inline-flex items-center gap-2"
+                  className="mt-8 btn-primary inline-flex items-center gap-2 disabled:opacity-0"
                 >
                   {t("welcome.continue")}
                   <ArrowRight className="w-4 h-4" />
@@ -102,29 +91,28 @@ const Welcome: React.FC = () => {
               </motion.div>
             </motion.div>
           ) : (
-            <motion.div
-              key="intent"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-center"
-            >
-              <Logo size="lg" className="mx-auto mb-8" />
-              <h2 className="text-xl md:text-2xl text-foreground mb-10">
-                {t("intent.question")}
-              </h2>
-              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+            <motion.div key="intent" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <Logo size="sm" />
+              </div>
+              <h2 className="text-xl md:text-2xl text-foreground font-bold mb-2">{t("intent.question")}</h2>
+              <p className="text-foreground-muted text-sm mb-8">Pick one to get started, you can always change later</p>
+
+              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
                 {intents.map((intent, index) => (
                   <motion.button
                     key={intent.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
+                    transition={{ duration: 0.4, delay: index * 0.08 }}
                     onClick={() => handleIntentSelect(intent.id)}
-                    className="group p-6 rounded-2xl bg-background-elevated border border-border hover:border-foreground/20 transition-all btn-press"
+                    className={`group p-5 rounded-2xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all btn-press`}
                   >
-                    <intent.icon className="w-7 h-7 mx-auto mb-3 text-foreground-muted group-hover:text-foreground transition-colors" />
-                    <span className="text-foreground font-medium">{intent.label}</span>
+                    <div className={`w-11 h-11 mx-auto mb-3 rounded-xl bg-gradient-to-br ${intent.gradient} flex items-center justify-center`}>
+                      <intent.icon className={`w-5 h-5 ${intent.iconColor}`} />
+                    </div>
+                    <span className="text-foreground font-semibold text-sm">{intent.label}</span>
                   </motion.button>
                 ))}
               </div>
