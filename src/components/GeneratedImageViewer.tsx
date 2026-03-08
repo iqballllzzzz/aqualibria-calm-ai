@@ -79,32 +79,37 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-background/95 backdrop-blur-xl z-[60] flex flex-col"
+        className="fixed inset-0 bg-black/95 backdrop-blur-xl flex flex-col"
+        style={{ zIndex: 9999 }}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between p-4 shrink-0">
-          <button onClick={onClose} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
-            <X className="w-5 h-5 text-foreground" />
+          <button onClick={onClose} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-colors">
+            <X className="w-5 h-5 text-white" />
           </button>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
-              <ZoomOut className="w-4 h-4 text-foreground-muted" />
+          <div className="flex items-center gap-2">
+            <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-colors">
+              <ZoomOut className="w-4 h-4 text-white/80" />
             </button>
-            <span className="text-xs text-foreground-muted font-medium px-2">{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
-              <ZoomIn className="w-4 h-4 text-foreground-muted" />
+            <span className="text-xs text-white/70 font-bold px-2 min-w-[3rem] text-center">{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-colors">
+              <ZoomIn className="w-4 h-4 text-white/80" />
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={handleShare} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
-              <Share2 className="w-4 h-4 text-foreground-muted" />
+          <div className="flex items-center gap-2">
+            <button onClick={handleShare} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-colors" title="Share">
+              <Share2 className="w-4 h-4 text-white/80" />
             </button>
-            <button onClick={handleDownload} className="p-2.5 rounded-2xl hover:bg-accent transition-colors">
-              <Download className="w-4 h-4 text-foreground-muted" />
+            <button onClick={handleDownload} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-colors" title="Download">
+              <Download className="w-4 h-4 text-white/80" />
             </button>
             {onEditImage && (
-              <button onClick={() => setShowEditInput(!showEditInput)} className={`p-2.5 rounded-2xl transition-colors ${showEditInput ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
-                <Edit2 className="w-4 h-4" />
+              <button
+                onClick={() => setShowEditInput(!showEditInput)}
+                className={`p-2.5 rounded-2xl transition-colors ${showEditInput ? "bg-blue-500 text-white" : "bg-white/10 hover:bg-white/20"}`}
+                title="Edit image"
+              >
+                <Edit2 className="w-4 h-4 text-white/80" />
               </button>
             )}
           </div>
@@ -115,7 +120,7 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
           <motion.img
             src={imageUrl}
             alt="Generated"
-            className="max-w-full max-h-full rounded-3xl shadow-elevated object-contain"
+            className="max-w-full max-h-full rounded-2xl shadow-2xl object-contain"
             style={{ transform: `scale(${zoom})`, transition: "transform 0.2s ease" }}
             draggable={false}
           />
@@ -128,7 +133,7 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="shrink-0 p-4 border-t border-border bg-card"
+              className="shrink-0 p-4 bg-black/60 backdrop-blur-lg border-t border-white/10"
             >
               <div className="max-w-lg mx-auto flex gap-2">
                 <input
@@ -137,14 +142,14 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
                   onChange={(e) => setEditPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleEdit()}
                   placeholder="Describe how to edit this image..."
-                  className="flex-1 px-4 py-3 rounded-2xl bg-muted border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-primary/40 text-sm"
+                  className="flex-1 px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/60 text-sm"
                   autoFocus
                   disabled={isEditing}
                 />
                 <button
                   onClick={handleEdit}
                   disabled={isEditing || !editPrompt.trim()}
-                  className="px-5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-3 rounded-2xl bg-blue-500 text-white text-sm font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-blue-400 transition-colors"
                 >
                   {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit2 className="w-4 h-4" />}
                   Edit
