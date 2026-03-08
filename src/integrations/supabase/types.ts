@@ -178,6 +178,36 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_chats: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          messages: Json
+          session_id: string
+          shared_by_name: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          messages?: Json
+          session_id: string
+          shared_by_name?: string | null
+          title?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          messages?: Json
+          session_id?: string
+          shared_by_name?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string

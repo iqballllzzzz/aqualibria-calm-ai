@@ -94,6 +94,8 @@ const Chat: React.FC = () => {
   const [editingSidebarId, setEditingSidebarId] = useState<string | null>(null);
   const [editSidebarTitle, setEditSidebarTitle] = useState("");
   const [messageComplexity, setMessageComplexity] = useState<"simple" | "medium" | "complex">("medium");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
 
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
@@ -267,6 +269,36 @@ const Chat: React.FC = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } };
+
+  // Edit message: update user message and remove all subsequent messages, then re-send
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    const msgIndex = messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1 || !newText.trim()) return;
+    
+    // Keep messages before this one, update this one
+    const updatedMessages = messages.slice(0, msgIndex);
+    const editedMsg: ChatMessage = { ...messages[msgIndex], content: newText.trim() };
+    updatedMessages.push(editedMsg);
+    setMessages(updatedMessages);
+    setEditingMessageId(null);
+    setEditingMessageText("");
+    
+    // Re-send the edited message
+    setMessageComplexity(classifyMessageComplexity(newText));
+    setIsLoading(true);
+    incrementUsage();
+    try {
+      const memoryContext = buildMemoryContext();
+      const conversationHistory = updatedMessages.slice(0, -1).slice(-20).map(m => ({ role: m.role, content: m.content }));
+      const result = await sendChatMessage(newText.trim(), currentSessionId, { model: selectedModel, memoryContext, conversationHistory });
+      if (result?.success && result?.response) {
+        setMessages(prev => [...prev, { role: "assistant", content: result.response!, timestamp: new Date(), id: generateMessageId() }]);
+      } else {
+        toast({ title: "Error", description: result?.error || "Failed to get response", variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Something went wrong.", variant: "destructive" }); }
+    finally { setIsLoading(false); }
+  };
   const handleNewChat = () => { const newId = generateSessionId(); setMessages([]); setCurrentSessionId(newId); setShowHistory(false); setShowSidebar(false); navigate(`/chat/${newId}`); };
   const handleSelectSession = (session: ChatSession) => { setMessages(session.messages); setCurrentSessionId(session.id); setShowHistory(false); setShowSidebar(false); navigate(`/chat/${session.id}`); };
   const handleDeleteSession = (id: string) => { deleteChatSession(id); setChatHistory(getChatHistory()); setChatManagement(getChatManagement()); if (currentSessionId === id) handleNewChat(); };
@@ -274,9 +306,24 @@ const Chat: React.FC = () => {
   const handleArchiveSession = (id: string) => { toggleArchiveSession(id); setChatManagement(getChatManagement()); setChatHistory(getChatHistory()); };
   const handleRenameSession = (id: string, newTitle: string) => { renameSession(id, newTitle); setChatHistory(getChatHistory()); };
   const handleShareSession = async (session: ChatSession) => {
-    const shareUrl = `${window.location.origin}/shared/${session.id}`;
-    if (navigator.share) { try { await navigator.share({ title: `AquaLibriaAI: ${session.title}`, url: shareUrl }); return; } catch {} }
-    try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/share-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ action: "create", sessionId: session.id, title: session.title, messages: session.messages, sharedByName: user?.displayName || "Anonymous" }),
+      });
+      const data = await response.json();
+      if (data.success && data.shareId) {
+        const shareUrl = `${window.location.origin}/shared/${data.shareId}`;
+        if (navigator.share) { try { await navigator.share({ title: `AquaLibriaAI: ${session.title}`, url: shareUrl }); return; } catch {} }
+        try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!", description: "Link chat bisa dibagikan ke siapa saja" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+      } else {
+        toast({ title: "Gagal membagikan", description: data.error || "Coba lagi nanti", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal membagikan chat", variant: "destructive" });
+    }
   };
   const handleStartSidebarRename = (session: ChatSession) => { setEditingSidebarId(session.id); setEditSidebarTitle(session.title); };
   const handleConfirmSidebarRename = () => { if (editingSidebarId && editSidebarTitle.trim()) handleRenameSession(editingSidebarId, editSidebarTitle.trim()); setEditingSidebarId(null); setEditSidebarTitle(""); };
@@ -311,7 +358,7 @@ const Chat: React.FC = () => {
       <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" capture="environment" />
       <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={handleDocUpload} className="hidden" />
 
-      <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} pinnedSessions={chatManagement.pinnedSessions} archivedSessions={chatManagement.archivedSessions} onPinSession={handlePinSession} onArchiveSession={handleArchiveSession} onRenameSession={handleRenameSession} />
+      <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} pinnedSessions={chatManagement.pinnedSessions} archivedSessions={chatManagement.archivedSessions} onPinSession={handlePinSession} onArchiveSession={handleArchiveSession} onRenameSession={handleRenameSession} onShareSession={handleShareSession} />
 
       {/* Sidebar */}
       <AnimatePresence>
@@ -510,9 +557,15 @@ const Chat: React.FC = () => {
                       : "px-1 py-1"
                   }`}>
                     {/* User attached image */}
-                    {message.imageUrl && message.role === "user" && (
+                    {message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" && (
                       <div className="mb-2.5">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-2xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
+                      </div>
+                    )}
+                    {message.imageUrl === "[image]" && message.role === "user" && (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/80 border border-border">
+                        <LucideImage className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs text-foreground-muted">Image attached</span>
                       </div>
                     )}
                     {/* User attached file */}
@@ -522,8 +575,22 @@ const Chat: React.FC = () => {
                         <span className="text-xs text-foreground-muted truncate">{message.fileName}</span>
                       </div>
                     )}
-                    {/* Content */}
-                    {message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
+                    {/* Content - with edit support for user messages */}
+                    {editingMessageId === message.id && message.role === "user" ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingMessageText}
+                          onChange={(e) => setEditingMessageText(e.target.value)}
+                          className="w-full bg-background border border-border rounded-2xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/40 resize-none"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="px-3 py-1.5 rounded-xl text-xs text-foreground-muted hover:bg-accent transition-colors">Cancel</button>
+                          <button onClick={() => handleEditMessage(message.id!, editingMessageText)} className="px-3 py-1.5 rounded-xl text-xs bg-primary text-primary-foreground font-semibold hover:shadow-md transition-all">Save & Resend</button>
+                        </div>
+                      </div>
+                    ) : message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
                       <DualAgentView
                         perspectiveA={message.perspectiveA}
                         perspectiveB={message.perspectiveB}
@@ -541,11 +608,18 @@ const Chat: React.FC = () => {
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
                     {/* AI generated image */}
-                    {message.imageUrl && message.role === "assistant" && (
+                    {message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" && (
                       <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-2xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
                     )}
                     <div className="mt-2 flex justify-end">
-                      <MessageControls messageId={message.id || `${index}`} sessionId={currentSessionId} content={message.content} isAssistant={message.role === "assistant"} selectedVoice={selectedVoice} />
+                      <MessageControls 
+                        messageId={message.id || `${index}`} 
+                        sessionId={currentSessionId} 
+                        content={message.content} 
+                        isAssistant={message.role === "assistant"} 
+                        selectedVoice={selectedVoice}
+                        onEdit={message.role === "user" && !editingMessageId ? () => { setEditingMessageId(message.id!); setEditingMessageText(message.content); } : undefined}
+                      />
                     </div>
                   </div>
                 </motion.div>

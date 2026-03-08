@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.dual-agent]
 verify_jwt = false
+
+[functions.share-chat]
+verify_jwt = false

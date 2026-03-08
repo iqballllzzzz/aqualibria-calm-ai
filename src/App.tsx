@@ -15,6 +15,7 @@ import CodingPartner from "./pages/CodingPartner";
 import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
+import SharedChat from "./pages/SharedChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import { useEffect, useState } from "react";
@@ -106,6 +107,7 @@ const AppRoutes = () => {
       <Route path="/coding" element={<ProtectedRoute><CodingPartner /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/shared/:shareId" element={<SharedChat />} />
       <Route path="/qwertyuiop/adminpanel/yoyoyo/loginuser" element={<AdminLogin />} />
       <Route path="/qwertyuiop/adminpanel/yoyoyo/dashboard" element={<AdminDashboard />} />
       <Route path="*" element={<NotFound />} />

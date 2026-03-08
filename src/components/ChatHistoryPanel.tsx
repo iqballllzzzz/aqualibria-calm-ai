@@ -24,6 +24,7 @@ interface ChatHistoryPanelProps {
   onPinSession?: (sessionId: string) => void;
   onArchiveSession?: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, newTitle: string) => void;
+  onShareSession?: (session: ChatSession) => void;
 }
 
 const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
@@ -39,6 +40,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
   onPinSession,
   onArchiveSession,
   onRenameSession,
+  onShareSession,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -275,7 +277,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); handleShareSession(session); }}
+                                  onClick={(e) => { e.stopPropagation(); onShareSession ? onShareSession(session) : handleShareSession(session); }}
                                   className="cursor-pointer"
                                 >
                                   <Share2 className="w-4 h-4 mr-2" />
