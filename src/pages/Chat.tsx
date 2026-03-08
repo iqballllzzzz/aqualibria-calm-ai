@@ -247,6 +247,13 @@ const Chat: React.FC = () => {
         if (result?.success && result?.imageUrl) {
           setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: result.imageUrl }]);
           setIsLoading(false); setActiveMode("chat"); return;
+        } else if (result?.success && result?.response) {
+          // Image gen returned text only (no image produced)
+          setMessages((prev) => [...prev, { role: "assistant", content: result.response, timestamp: new Date(), id: generateMessageId() }]);
+          setIsLoading(false); setActiveMode("chat"); return;
+        } else if (result?.error) {
+          toast({ title: "Image Error", description: result.error, variant: "destructive" });
+          setIsLoading(false); setActiveMode("chat"); return;
         }
       }
 
