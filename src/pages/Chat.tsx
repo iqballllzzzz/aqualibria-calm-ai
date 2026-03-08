@@ -205,6 +205,45 @@ const Chat: React.FC = () => {
     return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
   };
 
+  // Persist base64 image to Supabase storage so it survives reload
+  const persistImageToStorage = async (imageUrl: string): Promise<string> => {
+    if (!imageUrl.startsWith("data:")) return imageUrl; // Already a URL
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const fileName = `generated/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.png`;
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase.storage.from("user-images").upload(fileName, blob, { contentType: "image/png", upsert: false });
+      if (error) { console.error("Storage upload error:", error); return imageUrl; }
+      const { data: urlData } = supabase.storage.from("user-images").getPublicUrl(data.path);
+      return urlData.publicUrl || imageUrl;
+    } catch (e) {
+      console.error("Failed to persist image:", e);
+      return imageUrl; // Return base64 as fallback
+    }
+  };
+
+  // Handle image editing from the viewer
+  const handleEditImageFromViewer = async (imgUrl: string, prompt: string) => {
+    setIsLoading(true);
+    try {
+      const editResult = await editImageLatentLeaf(prompt, imgUrl);
+      if (editResult.success && editResult.editedImageUrl) {
+        const persistedUrl = await persistImageToStorage(editResult.editedImageUrl);
+        setMessages((prev) => [...prev, 
+          { role: "user", content: `Edit image: ${prompt}`, timestamp: new Date(), id: generateMessageId() },
+          { role: "assistant", content: "Here's the edited image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }
+        ]);
+        setShowImageViewer(persistedUrl);
+      } else {
+        toast({ title: "Edit gagal", description: editResult.error || "Failed to edit", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to edit image", variant: "destructive" });
+    }
+    setIsLoading(false);
+  };
+
   const handleSendMessage = async () => {
     if ((!inputValue.trim() && !pendingImageData && !pendingFileData) || isLoading) return;
     const usage = canUseFeature();
