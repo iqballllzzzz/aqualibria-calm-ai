@@ -407,7 +407,7 @@ const Chat: React.FC = () => {
           <Logo size="sm" />
           <span className="font-bold text-foreground text-sm">AquaLibriaAI</span>
         </div>
-        <button onClick={() => setShowUserPanel(true)} className="overflow-hidden rounded-full">
+        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full">
           {userPhotoURL ? (
             <img src={userPhotoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
           ) : (
