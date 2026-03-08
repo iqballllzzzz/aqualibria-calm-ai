@@ -177,21 +177,26 @@ const Chat: React.FC = () => {
   }, [messages, currentSessionId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) { toast({ title: "Error", description: "Please select an image or video file", variant: "destructive" }); return; }
+    const files = e.target.files; if (!files || files.length === 0) return;
+    const remaining = 10 - pendingImages.length;
+    if (remaining <= 0) { toast({ title: "Maksimal 10 gambar", variant: "destructive" }); return; }
+    const filesToProcess = Array.from(files).slice(0, remaining);
     setIsUploadingImage(true);
     try {
-      // Upload to CDN for persistence
       const { uploadToRyzumiCDN } = await import("@/lib/cdn");
-      const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
-      if (cdnResult.success && cdnResult.url) {
-        setPendingImageData(cdnResult.url);
-      } else {
-        // Fallback to base64
-        const base64 = await fileToBase64(file);
-        setPendingImageData(base64);
+      const newUrls: string[] = [];
+      for (const file of filesToProcess) {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) continue;
+        const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
+        if (cdnResult.success && cdnResult.url) {
+          newUrls.push(cdnResult.url);
+        } else {
+          const base64 = await fileToBase64(file);
+          newUrls.push(base64);
+        }
       }
-      toast({ title: "Ready", description: "Type a question about the image" });
+      setPendingImages(prev => [...prev, ...newUrls]);
+      toast({ title: "Ready", description: `${newUrls.length} gambar siap dikirim` });
     }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     setIsUploadingImage(false);
