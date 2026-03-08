@@ -118,7 +118,7 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto bg-background border-border p-4 sm:p-6" style={{ maxWidth: 'calc(100vw - 24px)' }}>
+      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-background border-border p-4 sm:p-6" style={{ maxWidth: 'calc(100vw - 24px)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Leaf className="w-5 h-5 text-green-500" />
@@ -141,7 +141,7 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
             </motion.button>
           ) : (
             <div className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                 <div className="space-y-2">
                   <label className="text-sm text-muted-foreground">Original</label>
                   <div className="relative rounded-xl overflow-hidden border border-border">
@@ -185,11 +185,11 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} placeholder="Contoh: Ubah background jadi sunset..." className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-green-500" />
-                <button onClick={handleEdit} disabled={isEditing || !prompt.trim()} className="px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} placeholder="Contoh: Ubah background jadi sunset..." className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-green-500 text-sm" />
+                <button onClick={handleEdit} disabled={isEditing || !prompt.trim()} className="px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex items-center justify-center gap-2 shrink-0">
                   {isEditing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Leaf className="w-5 h-5" />}
-                  Edit
+                  <span>Edit</span>
                 </button>
               </div>
             </div>
