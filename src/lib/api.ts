@@ -228,14 +228,17 @@ export const sendChatMessage = async (
       messages.push(msgObj);
     }
 
-    // If multiple images, send them all as separate image parts
-    if (imageDataList && imageDataList.length > 0) {
-      const currentMsg: any = { role: "user", content: textToSend, imageDataList };
+    // Consolidate all images into imageDataList
+    const allImages = imageDataList && imageDataList.length > 0 
+      ? imageDataList 
+      : (imageData ? [imageData] : []);
+
+    if (allImages.length > 0) {
+      const currentMsg: any = { role: "user", content: textToSend, imageDataList: allImages };
       if (fileData) currentMsg.fileData = fileData;
       messages.push(currentMsg);
     } else {
       const currentMsg: any = { role: "user", content: textToSend };
-      if (imageData) currentMsg.imageData = imageData;
       if (fileData) currentMsg.fileData = fileData;
       messages.push(currentMsg);
     }
