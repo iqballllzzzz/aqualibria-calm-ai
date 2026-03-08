@@ -27,6 +27,7 @@ import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
 import TypingAnimation from "@/components/TypingAnimation";
 import SmartThinkingIndicator, { classifyMessageComplexity } from "@/components/SmartThinkingIndicator";
+import ResearchIndicator from "@/components/ResearchIndicator";
 import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
@@ -85,7 +86,7 @@ const Chat: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>(urlSessionId || generateSessionId());
-  const [pendingImageData, setPendingImageData] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
@@ -176,21 +177,26 @@ const Chat: React.FC = () => {
   }, [messages, currentSessionId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) { toast({ title: "Error", description: "Please select an image or video file", variant: "destructive" }); return; }
+    const files = e.target.files; if (!files || files.length === 0) return;
+    const remaining = 10 - pendingImages.length;
+    if (remaining <= 0) { toast({ title: "Maksimal 10 gambar", variant: "destructive" }); return; }
+    const filesToProcess = Array.from(files).slice(0, remaining);
     setIsUploadingImage(true);
     try {
-      // Upload to CDN for persistence
       const { uploadToRyzumiCDN } = await import("@/lib/cdn");
-      const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
-      if (cdnResult.success && cdnResult.url) {
-        setPendingImageData(cdnResult.url);
-      } else {
-        // Fallback to base64
-        const base64 = await fileToBase64(file);
-        setPendingImageData(base64);
+      const newUrls: string[] = [];
+      for (const file of filesToProcess) {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) continue;
+        const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
+        if (cdnResult.success && cdnResult.url) {
+          newUrls.push(cdnResult.url);
+        } else {
+          const base64 = await fileToBase64(file);
+          newUrls.push(base64);
+        }
       }
-      toast({ title: "Ready", description: "Type a question about the image" });
+      setPendingImages(prev => [...prev, ...newUrls]);
+      toast({ title: "Ready", description: `${newUrls.length} gambar siap dikirim` });
     }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     setIsUploadingImage(false);
@@ -260,28 +266,29 @@ const Chat: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    if ((!inputValue.trim() && !pendingImageData && !pendingFileData) || isLoading) return;
+    if ((!inputValue.trim() && pendingImages.length === 0 && !pendingFileData) || isLoading) return;
     const usage = canUseFeature();
     if (!usage.allowed) { toast({ title: "Limit Tercapai", description: "Upgrade plan untuk lebih banyak!", variant: "destructive" }); setShowUpgradeModal(true); return; }
-    const messageText = inputValue.trim() || (pendingImageData ? "Apa yang ada di gambar ini?" : "Analisis file ini");
+    const messageText = inputValue.trim() || (pendingImages.length > 0 ? "Apa yang ada di gambar ini?" : "Analisis file ini");
     setMessageComplexity(classifyMessageComplexity(messageText));
-    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: pendingImageData || undefined, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
+    const firstImage = pendingImages.length > 0 ? pendingImages[0] : undefined;
+    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
-    const imageToAnalyze = pendingImageData;
+    const imagesToAnalyze = [...pendingImages];
     const fileToAnalyze = pendingFileData;
     const youtubeUrl = extractYouTubeUrl(messageText);
-    setPendingImageData(null);
+    setPendingImages([]);
     setPendingFileData(null);
     setIsLoading(true);
     incrementUsage();
-    if (user) { logActivity(user.uid, `chat_${activeMode}`, { model: selectedModel, hasImage: !!imageToAnalyze, hasFile: !!fileToAnalyze, hasYoutube: !!youtubeUrl }, user.email || undefined, user.displayName || undefined); }
+    if (user) { logActivity(user.uid, `chat_${activeMode}`, { model: selectedModel, hasImage: imagesToAnalyze.length > 0, hasFile: !!fileToAnalyze, hasYoutube: !!youtubeUrl }, user.email || undefined, user.displayName || undefined); }
     try {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
-      if (activeMode === "chat" && !imageToAnalyze && !fileToAnalyze && !youtubeUrl) {
+      if (activeMode === "chat" && imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl) {
         const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
         if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
           setMessages((prev) => [...prev, {
@@ -295,12 +302,12 @@ const Chat: React.FC = () => {
       }
       // Auto-detect image generation request
       const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
-      const isImageRequest = activeMode === "image" || (!imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
+      const isImageRequest = activeMode === "image" || (imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
 
       // Auto-detect image editing request via chat - look for edit patterns with a previous generated image
       const imageEditPatterns = /^(edit\s*(gambar|image|foto)|ubah\s*(gambar|image|foto)|modif|change\s*(the\s*)?(image|picture|photo)|make\s*(it|the\s*image)|jadikan|rubah|ganti\s*(background|warna|style))/i;
       const lastGeneratedImage = [...messages].reverse().find(m => m.role === "assistant" && m.imageUrl && m.imageUrl !== "[image]");
-      const isEditRequest = !imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
+      const isEditRequest = imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
 
       if (isEditRequest && lastGeneratedImage?.imageUrl) {
         try {
@@ -349,7 +356,7 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageData: imageToAnalyze || undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+          result = await sendChatMessage(messageText, currentSessionId, { imageData: imagesToAnalyze[0] || undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
       }
       if (result?.success && result?.response) {
@@ -447,7 +454,7 @@ const Chat: React.FC = () => {
         <div className="ambient-orb w-[400px] h-[400px] -bottom-32 -left-32 bg-amber/15" style={{ animationDelay: '3s' }} />
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" capture="environment" />
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" multiple />
       <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={handleDocUpload} className="hidden" />
 
       <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} sessions={chatHistory} currentSessionId={currentSessionId} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} onNewChat={handleNewChat} pinnedSessions={chatManagement.pinnedSessions} archivedSessions={chatManagement.archivedSessions} onPinSession={handlePinSession} onArchiveSession={handleArchiveSession} onRenameSession={handleRenameSession} onShareSession={handleShareSession} />
@@ -726,7 +733,11 @@ const Chat: React.FC = () => {
                 </motion.div>
               ))}
               {/* Smart Loading indicator */}
-              <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
+              {activeMode === "research" ? (
+                <ResearchIndicator isLoading={isLoading} />
+              ) : (
+                <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
+              )}
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -745,12 +756,20 @@ const Chat: React.FC = () => {
           )}
 
           {/* Pending attachments */}
-          {pendingImageData && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
-              <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-border shadow-sm">
-                <img src={pendingImageData} alt="Preview" className="w-full h-full object-cover" />
-                <button onClick={() => setPendingImageData(null)} className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-background"><X className="w-3 h-3" /></button>
-              </div>
+          {pendingImages.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2 flex-wrap">
+              {pendingImages.map((img, i) => (
+                <div key={i} className="relative w-14 h-14 rounded-2xl overflow-hidden border border-border shadow-sm">
+                  <img src={img} alt={`Preview ${i+1}`} className="w-full h-full object-cover" />
+                  <button onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-background"><X className="w-3 h-3" /></button>
+                </div>
+              ))}
+              {pendingImages.length < 10 && (
+                <button onClick={() => fileInputRef.current?.click()} className="w-14 h-14 rounded-2xl border-2 border-dashed border-border flex items-center justify-center hover:bg-accent/50 transition-colors">
+                  <Plus className="w-5 h-5 text-foreground-muted" />
+                </button>
+              )}
+              <span className="text-[10px] text-foreground-muted">{pendingImages.length}/10</span>
             </motion.div>
           )}
           {pendingFileData && (
@@ -858,8 +877,8 @@ const Chat: React.FC = () => {
                 {isListening ? (
                   <button onClick={stopListening} className="p-2.5 rounded-2xl bg-destructive text-destructive-foreground animate-pulse"><MicOff className="w-[18px] h-[18px]" /></button>
                 ) : (
-                  <button onClick={inputValue.trim() || pendingImageData || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2.5 rounded-2xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImageData || pendingFileData ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-accent"}`}>
-                    {inputValue.trim() || pendingImageData || pendingFileData ? <Send className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px] text-foreground-muted" />}
+                  <button onClick={inputValue.trim() || pendingImages.length > 0 || pendingFileData ? handleSendMessage : startListening} disabled={isLoading} className={`p-2.5 rounded-2xl transition-all disabled:opacity-40 ${inputValue.trim() || pendingImages.length > 0 || pendingFileData ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-accent"}`}>
+                    {inputValue.trim() || pendingImages.length > 0 || pendingFileData ? <Send className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px] text-foreground-muted" />}
                   </button>
                 )}
               </div>
