@@ -54,6 +54,8 @@ serve(async (req) => {
     // ===== IMAGE GENERATION =====
     if (action === "generate-image") {
       const prompt = body.prompt || "Generate an image";
+      console.log("Image gen request, prompt:", prompt.slice(0, 100));
+      
       const response = await fetch(GATEWAY_URL, {
         method: "POST",
         headers: {
@@ -69,16 +71,17 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("Image gen error:", response.status, errText);
-        return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
-          status: response.status === 429 ? 429 : response.status === 402 ? 402 : 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        console.error("Image gen error:", response.status, errText.slice(0, 300));
+        return new Response(JSON.stringify({ error: `Image generation failed: ${response.status}`, details: errText.slice(0, 200) }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const data = await response.json();
+      console.log("Image gen response keys:", JSON.stringify(Object.keys(data)));
       const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
       const textResponse = data.choices?.[0]?.message?.content || "";
+      console.log("Image found:", !!imageData, "Text:", textResponse.slice(0, 100));
 
       if (imageData) {
         return new Response(JSON.stringify({ success: true, imageUrl: imageData, response: textResponse }), {
@@ -86,7 +89,8 @@ serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ success: true, response: textResponse || "Image generation completed but no image was returned." }), {
+      // If no image was returned, return with text
+      return new Response(JSON.stringify({ success: true, response: textResponse || "Image could not be generated. Try rephrasing your request." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
