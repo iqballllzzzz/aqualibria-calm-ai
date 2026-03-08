@@ -120,7 +120,6 @@ const Chat: React.FC = () => {
   const { isListening, startListening, stopListening, error: voiceError } = useVoiceChat({ onTranscript: handleVoiceTranscript, selectedVoice });
 
   useEffect(() => { if (voiceError) toast({ title: "Voice Error", description: voiceError, variant: "destructive" }); }, [voiceError, toast]);
-  const { language } = useLanguage();
   useEffect(() => { setRandomGreeting(GREETINGS[language] || GREETINGS.en); }, [language]);
 
   useEffect(() => {
