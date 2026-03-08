@@ -228,10 +228,17 @@ export const sendChatMessage = async (
       messages.push(msgObj);
     }
 
-    const currentMsg: any = { role: "user", content: textToSend };
-    if (imageData) currentMsg.imageData = imageData;
-    if (fileData) currentMsg.fileData = fileData;
-    messages.push(currentMsg);
+    // If multiple images, send them all as separate image parts
+    if (imageDataList && imageDataList.length > 0) {
+      const currentMsg: any = { role: "user", content: textToSend, imageDataList };
+      if (fileData) currentMsg.fileData = fileData;
+      messages.push(currentMsg);
+    } else {
+      const currentMsg: any = { role: "user", content: textToSend };
+      if (imageData) currentMsg.imageData = imageData;
+      if (fileData) currentMsg.fileData = fileData;
+      messages.push(currentMsg);
+    }
 
     const geminiModel = MODEL_MAP[model] || MODEL_MAP.aqualibriav1;
 
