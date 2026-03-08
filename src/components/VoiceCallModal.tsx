@@ -304,6 +304,9 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
+  // Keep processUserInputRef in sync so silence timer uses latest version
+  processUserInputRef.current = processUserInput;
+
   const speakResponse = async (text: string) => {
     setCallState("speaking");
 
