@@ -42,8 +42,7 @@ const Settings: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [selectedDeleteSession, setSelectedDeleteSession] = useState<string | null>(null);
-  const [selectedDeleteMsgIds, setSelectedDeleteMsgIds] = useState<Set<string>>(new Set());
+  const [selectedDeleteSessions, setSelectedDeleteSessions] = useState<Set<string>>(new Set());
 
   const subscription = getSubscription();
   const usage = canUseFeature();
