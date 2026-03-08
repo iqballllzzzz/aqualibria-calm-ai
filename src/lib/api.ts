@@ -388,10 +388,19 @@ export const searchSpotify = async (query: string): Promise<{ success: boolean; 
   }
 };
 
-// TTS using Google AI voices via edge function with browser speech synthesis
+// TTS using Gemini native TTS via edge function, with browser fallback
 export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
-    // Call edge function to get cleaned text and voice config
+    // Clean text for speech
+    const cleanText = text
+      .replace(/\*\*/g, "")
+      .replace(/\*/g, "")
+      .replace(/`{1,3}[^`]*`{1,3}/g, "code block")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/#{1,6}\s*/g, "")
+      .replace(/\n{2,}/g, ". ")
+      .slice(0, 2000);
+
     const response = await fetch(TTS_URL, {
       method: "POST",
       headers: {
@@ -399,24 +408,26 @@ export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"):
         "apikey": SUPABASE_KEY,
         "Authorization": `Bearer ${SUPABASE_KEY}`,
       },
-      body: JSON.stringify({ text, voice }),
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ text: cleanText, voice }),
+      signal: AbortSignal.timeout(30000),
     });
-
-    let cleanedText = text;
-    let voiceConfig: any = null;
 
     if (response.ok) {
       const data = await response.json();
-      if (data.cleanedText) cleanedText = data.cleanedText;
-      if (data.voice) voiceConfig = data.voice;
+      // If we got real audio data back from Gemini TTS
+      if (data.success && data.audioUrl && !data.fallback) {
+        return { success: true, audioUrl: data.audioUrl };
+      }
     }
 
-    // Use enhanced browser TTS with voice matching
-    return enhancedBrowserTTS(cleanedText, voiceConfig || { gender: "female", name: voice });
+    // Fallback to browser TTS
+    console.warn("Gemini TTS unavailable, using browser fallback");
+    const voiceGender = VOICE_OPTIONS_MAP[voice]?.gender || "female";
+    return enhancedBrowserTTS(text, { gender: voiceGender, name: voice });
   } catch (error: any) {
-    console.warn("TTS error, using basic fallback:", error.message);
-    return enhancedBrowserTTS(text, { gender: "female", name: voice });
+    console.warn("TTS error, using browser fallback:", error.message);
+    const voiceGender = VOICE_OPTIONS_MAP[voice]?.gender || "female";
+    return enhancedBrowserTTS(text, { gender: voiceGender, name: voice });
   }
 };
 

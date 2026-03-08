@@ -625,6 +625,12 @@ const Chat: React.FC = () => {
                           <button onClick={() => { docInputRef.current?.click(); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
                             <FileText className="w-4 h-4 text-foreground-muted" /><span>Upload file</span>
                           </button>
+                          <button onClick={() => { setShowVoiceCall(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
+                            <AudioLines className="w-4 h-4 text-foreground-muted" /><span>Voice Call</span>
+                          </button>
+                          <button onClick={() => { setShowLatentLeaf(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-3 hover:bg-accent transition-colors text-foreground text-sm">
+                            <Leaf className="w-4 h-4 text-green-500" /><span>LatentLeaf Edit</span>
+                          </button>
                         </motion.div>
                       </>
                     )}
