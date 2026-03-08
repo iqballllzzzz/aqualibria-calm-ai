@@ -165,7 +165,12 @@ serve(async (req) => {
       for (const msg of messages) {
         const contentParts: any[] = [];
 
-        if (msg.imageData) {
+        // Support multiple images via imageDataList
+        if (msg.imageDataList && Array.isArray(msg.imageDataList)) {
+          for (const imgUrl of msg.imageDataList) {
+            contentParts.push({ type: "image_url", image_url: { url: imgUrl } });
+          }
+        } else if (msg.imageData) {
           contentParts.push({ type: "image_url", image_url: { url: msg.imageData } });
         }
 
