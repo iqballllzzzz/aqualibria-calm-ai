@@ -335,7 +335,7 @@ export const generateImage = async (prompt: string): Promise<{ success: boolean;
   }
 };
 
-export const checkPaymentStatus = async (orderId: string, amount: number): Promise<{ success: boolean; paid?: boolean; error?: string }> => {
+export const checkPaymentStatus = async (orderId: string, amount: number): Promise<{ success: boolean; paid?: boolean; transaction?: any; error?: string }> => {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/pakasir-payment?action=check`, {
       method: "POST",
