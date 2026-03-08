@@ -702,7 +702,6 @@ const Chat: React.FC = () => {
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
-      <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ArchivedChatsModal isOpen={showArchivedChats} onClose={() => setShowArchivedChats(false)} sessions={chatHistory} archivedIds={chatManagement.archivedSessions} onRestoreSession={handleArchiveSession} onDeleteSession={handleDeleteSession} onSelectSession={handleSelectSession} />
 
       {/* Image Viewer */}
