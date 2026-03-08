@@ -137,7 +137,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           if (lastTranscriptRef.current.trim() && callStateRef.current === "listening") {
             console.log("Silence detected, auto-sending:", lastTranscriptRef.current.slice(0, 50));
             recognitionRef.current?.stop();
-            processUserInput(lastTranscriptRef.current);
+            processUserInputRef.current(lastTranscriptRef.current);
           }
         }, SILENCE_TIMEOUT_MS);
       }
