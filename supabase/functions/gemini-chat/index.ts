@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,232 +13,168 @@ serve(async (req) => {
   }
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured" }), {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const body = await req.json();
-    const { action, messages, systemPrompt, model, imageData, fileData, youtubeUrl } = body;
+    const { action, messages, systemPrompt, model } = body;
 
-    // Default model
-    const geminiModel = model || "gemini-2.5-flash-preview-05-20";
+    // Model mapping
+    const modelMap: Record<string, string> = {
+      "gemini-2.5-flash-preview-05-20": "google/gemini-2.5-flash",
+      "gemini-2.5-pro-preview-05-06": "google/gemini-2.5-pro",
+    };
+    const gatewayModel = modelMap[model] || "google/gemini-3-flash-preview";
 
     if (action === "generate-image") {
-      // Use Gemini image generation (gemini-2.0-flash-exp with image output)
-      const imageModel = "gemini-2.0-flash-exp";
-      const url = `${GEMINI_BASE}/models/${imageModel}:generateContent?key=${GEMINI_API_KEY}`;
-      
       const prompt = body.prompt || "Generate an image";
-      
-      const response = await fetch(url, {
+      const response = await fetch(GATEWAY_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-          },
+          model: "google/gemini-2.5-flash-image",
+          messages: [
+            { role: "user", content: prompt },
+          ],
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("Gemini image error:", response.status, errText);
-        return new Response(JSON.stringify({ error: `Gemini API error: ${response.status}` }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        console.error("Image generation error:", response.status, errText);
+        if (response.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (response.status === 402) {
+          return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const data = await response.json();
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      let imageBase64 = null;
-      let textResponse = "";
-
-      for (const part of parts) {
-        if (part.inlineData) {
-          imageBase64 = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-        if (part.text) {
-          textResponse += part.text;
-        }
-      }
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        imageUrl: imageBase64, 
-        text: textResponse 
-      }), {
+      const text = data.choices?.[0]?.message?.content || "Image generation is not supported via this model.";
+      return new Response(JSON.stringify({ success: true, response: text }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (action === "edit-image") {
-      // LatentLeaf: edit image using Gemini vision + image output
-      const imageModel = "gemini-2.0-flash-exp";
-      const url = `${GEMINI_BASE}/models/${imageModel}:generateContent?key=${GEMINI_API_KEY}`;
-      
       const prompt = body.prompt || "Edit this image";
-      const imgData = body.imageBase64; // base64 image data
-      
-      const parts: any[] = [{ text: prompt }];
-      if (imgData) {
-        // Extract mime type and data from data URL
-        const match = imgData.match(/^data:(.*?);base64,(.*)$/);
-        if (match) {
-          parts.unshift({
-            inlineData: {
-              mimeType: match[1],
-              data: match[2],
-            },
-          });
-        }
-      }
+      const imgData = body.imageBase64;
 
-      const response = await fetch(url, {
+      const contentParts: any[] = [];
+      if (imgData) {
+        contentParts.push({ type: "image_url", image_url: { url: imgData } });
+      }
+      contentParts.push({ type: "text", text: prompt });
+
+      const response = await fetch(GATEWAY_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-          },
+          model: "google/gemini-2.5-pro",
+          messages: [
+            { role: "user", content: contentParts },
+          ],
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("Gemini edit error:", response.status, errText);
-        return new Response(JSON.stringify({ error: `Gemini API error: ${response.status}` }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        console.error("Edit image error:", response.status, errText);
+        return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const data = await response.json();
-      const resParts = data.candidates?.[0]?.content?.parts || [];
-      let resultImage = null;
-      let resultText = "";
-
-      for (const part of resParts) {
-        if (part.inlineData) {
-          resultImage = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-        if (part.text) {
-          resultText += part.text;
-        }
-      }
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        imageUrl: resultImage, 
-        text: resultText 
-      }), {
+      const text = data.choices?.[0]?.message?.content || "Could not process the image.";
+      return new Response(JSON.stringify({ success: true, text, response: text }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Chat / Vision / File Analysis / YouTube Analysis
-    const url = `${GEMINI_BASE}/models/${geminiModel}:generateContent?key=${GEMINI_API_KEY}`;
-
-    // Build contents array
-    const contents: any[] = [];
-
-    // Add system instruction
+    // Chat / Vision / File Analysis
     const systemInstruction = systemPrompt || "You are AquaLibriaAI, a calm, intelligent AI assistant created by M Iqbal.S. You help with thinking, coding, learning, and creating. Always respond in the user's language.";
 
-    // Build message history
+    const gatewayMessages: any[] = [
+      { role: "system", content: systemInstruction },
+    ];
+
     if (messages && messages.length > 0) {
       for (const msg of messages) {
-        const parts: any[] = [];
-        
-        if (msg.content) {
-          parts.push({ text: msg.content });
-        }
-        
-        // Add image data if present
+        const contentParts: any[] = [];
+
         if (msg.imageData) {
-          const match = msg.imageData.match(/^data:(.*?);base64,(.*)$/);
-          if (match) {
-            parts.push({
-              inlineData: {
-                mimeType: match[1],
-                data: match[2],
-              },
-            });
-          }
+          contentParts.push({ type: "image_url", image_url: { url: msg.imageData } });
         }
-
-        // Add file data if present
         if (msg.fileData) {
-          const match = msg.fileData.match(/^data:(.*?);base64,(.*)$/);
-          if (match) {
-            parts.push({
-              inlineData: {
-                mimeType: match[1],
-                data: match[2],
-              },
-            });
-          }
+          contentParts.push({ type: "image_url", image_url: { url: msg.fileData } });
+        }
+        if (msg.content) {
+          contentParts.push({ type: "text", text: msg.content });
         }
 
-        contents.push({
-          role: msg.role === "assistant" ? "model" : "user",
-          parts,
+        const useMultipart = contentParts.length > 1 || contentParts.some((p: any) => p.type === "image_url");
+
+        gatewayMessages.push({
+          role: msg.role === "assistant" ? "assistant" : "user",
+          content: useMultipart ? contentParts : (msg.content || ""),
         });
       }
     }
 
-    // Add YouTube URL analysis
-    if (youtubeUrl) {
-      // Use Gemini's ability to analyze YouTube URLs
-      const lastContent = contents[contents.length - 1];
-      if (lastContent && lastContent.role === "user") {
-        lastContent.parts.push({ text: `\n\nPlease analyze this YouTube video: ${youtubeUrl}` });
-      }
-    }
-
-    const requestBody: any = {
-      contents,
-      systemInstruction: {
-        parts: [{ text: systemInstruction }],
-      },
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-        topP: 0.95,
-      },
-    };
-
-    const response = await fetch(url, {
+    const response = await fetch(GATEWAY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: gatewayModel,
+        messages: gatewayMessages,
+      }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Gemini chat error:", response.status, errText);
-      return new Response(JSON.stringify({ error: `Gemini API error: ${response.status}`, details: errText }), {
-        status: response.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("Chat error:", response.status, errText);
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: `API error: ${response.status}`, details: errText }), {
+        status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
-    const responseText = data.candidates?.[0]?.content?.parts
-      ?.map((p: any) => p.text)
-      .filter(Boolean)
-      .join("") || "No response generated.";
+    const responseText = data.choices?.[0]?.message?.content || "No response generated.";
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      response: responseText 
-    }), {
+    return new Response(JSON.stringify({ success: true, response: responseText }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
