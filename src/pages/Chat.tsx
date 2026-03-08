@@ -651,7 +651,7 @@ const Chat: React.FC = () => {
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
-      <UserPanel isOpen={showUserPanel} onClose={() => setShowUserPanel(false)} onOpenUpgrade={() => setShowUpgradeModal(true)} onOpenArchivedChats={() => setShowArchivedChats(true)} />
+      <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ArchivedChatsModal isOpen={showArchivedChats} onClose={() => setShowArchivedChats(false)} sessions={chatHistory} archivedIds={chatManagement.archivedSessions} onRestoreSession={handleArchiveSession} onDeleteSession={handleDeleteSession} onSelectSession={handleSelectSession} />
 
