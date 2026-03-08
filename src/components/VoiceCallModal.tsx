@@ -51,11 +51,17 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const lastTranscriptRef = useRef<string>("");
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const callStateRef = useRef<CallState>("idle");
+  const selectedVoiceRef = useRef<VoiceOption>(selectedVoice);
+  const processUserInputRef = useRef<(input: string) => void>(() => {});
 
-  // Keep callStateRef in sync
+  // Keep refs in sync
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  useEffect(() => {
+    selectedVoiceRef.current = selectedVoice;
+  }, [selectedVoice]);
 
   // Call duration timer
   useEffect(() => {
