@@ -293,14 +293,14 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const speakResponse = async (text: string) => {
     setCallState("speaking");
 
-    // Clean markdown for speech
+    // Clean markdown for speech — keep it short for speed
     const cleanText = text
       .replace(/\*\*/g, "")
       .replace(/\*/g, "")
-      .replace(/`{1,3}[^`]*`{1,3}/g, "code block")
+      .replace(/`{1,3}[^`]*`{1,3}/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/#{1,6}\s*/g, "")
-      .slice(0, 1000);
+      .slice(0, 600); // Shorter for faster TTS in voice call
 
     try {
       const result = await textToSpeech(cleanText, selectedVoice);
@@ -308,7 +308,6 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       if (result.success && result.audioUrl) {
         // Handle browser TTS fallback
         if (result.audioUrl === "__browser_tts__") {
-          // Browser TTS is already playing via speechSynthesis
           const checkInterval = setInterval(() => {
             if (!window.speechSynthesis.speaking) {
               setCallState("idle");
@@ -326,7 +325,22 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           audioRef.current.pause();
         }
 
-        const audio = new Audio(result.audioUrl);
+        // Check if this is PCM data that needs conversion
+        const { isPcm, mimeType, base64 } = parsePcmDataUrl(result.audioUrl);
+        
+        let audioSrc: string;
+        if (isPcm) {
+          // Convert PCM to WAV for playback
+          const wavUrl = pcmToWavUrl(base64, mimeType);
+          if (!wavUrl) {
+            throw new Error("Failed to convert PCM audio");
+          }
+          audioSrc = wavUrl;
+        } else {
+          audioSrc = result.audioUrl;
+        }
+
+        const audio = new Audio(audioSrc);
         audioRef.current = audio;
 
         // Set up audio context for visualization
@@ -348,16 +362,22 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         audio.onended = () => {
           setCallState("idle");
           analyserRef.current = null;
-          // Auto-start listening again for continuous conversation
+          if (isPcm && audioSrc.startsWith("blob:")) {
+            URL.revokeObjectURL(audioSrc);
+          }
           setTimeout(() => {
             if (isOpen) startListening();
           }, 500);
         };
 
-        audio.onerror = () => {
+        audio.onerror = (e) => {
+          console.error("Audio playback error:", e);
           setError("Failed to play audio");
           setCallState("idle");
           analyserRef.current = null;
+          if (isPcm && audioSrc.startsWith("blob:")) {
+            URL.revokeObjectURL(audioSrc);
+          }
         };
 
         await audio.play();
