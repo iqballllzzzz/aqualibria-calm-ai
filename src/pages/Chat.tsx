@@ -266,19 +266,20 @@ const Chat: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    if ((!inputValue.trim() && !pendingImageData && !pendingFileData) || isLoading) return;
+    if ((!inputValue.trim() && pendingImages.length === 0 && !pendingFileData) || isLoading) return;
     const usage = canUseFeature();
     if (!usage.allowed) { toast({ title: "Limit Tercapai", description: "Upgrade plan untuk lebih banyak!", variant: "destructive" }); setShowUpgradeModal(true); return; }
-    const messageText = inputValue.trim() || (pendingImageData ? "Apa yang ada di gambar ini?" : "Analisis file ini");
+    const messageText = inputValue.trim() || (pendingImages.length > 0 ? "Apa yang ada di gambar ini?" : "Analisis file ini");
     setMessageComplexity(classifyMessageComplexity(messageText));
-    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: pendingImageData || undefined, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
+    const firstImage = pendingImages.length > 0 ? pendingImages[0] : undefined;
+    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
-    const imageToAnalyze = pendingImageData;
+    const imagesToAnalyze = [...pendingImages];
     const fileToAnalyze = pendingFileData;
     const youtubeUrl = extractYouTubeUrl(messageText);
-    setPendingImageData(null);
+    setPendingImages([]);
     setPendingFileData(null);
     setIsLoading(true);
     incrementUsage();
