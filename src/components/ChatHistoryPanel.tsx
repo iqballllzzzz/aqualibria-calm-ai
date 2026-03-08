@@ -245,7 +245,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                               <DropdownMenuTrigger asChild>
                                 <button
                                   onClick={(e) => e.stopPropagation()}
-                                  className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent transition-all"
+                                  className="p-2 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-sidebar-accent transition-all"
                                 >
                                   <MoreVertical className="w-4 h-4 text-sidebar-foreground" />
                                 </button>

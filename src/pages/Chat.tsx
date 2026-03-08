@@ -444,7 +444,7 @@ const Chat: React.FC = () => {
                             <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-44 rounded-2xl">
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
