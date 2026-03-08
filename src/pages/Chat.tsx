@@ -178,7 +178,24 @@ const Chat: React.FC = () => {
     if (!allowedTypes.includes(file.type) && !file.name.endsWith(".pdf") && !file.name.endsWith(".doc") && !file.name.endsWith(".docx") && !file.name.endsWith(".txt")) {
       toast({ title: "Error", description: "Please select a PDF, DOC, DOCX, or TXT file", variant: "destructive" }); return;
     }
-    try { const base64 = await fileToBase64(file); setPendingFileData({ data: base64, name: file.name, type: file.type }); toast({ title: "File ready", description: `${file.name} loaded` }); }
+    try {
+      let fileData: string | undefined;
+      let fileTextContent: string | undefined;
+      
+      if (isVisionSupportedFile(file.type)) {
+        // PDF and images can be sent directly as base64
+        fileData = await fileToBase64(file);
+      } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
+        // DOCX: extract text content
+        fileTextContent = await extractTextFromDocx(file);
+      } else {
+        // TXT, CSV: read as text
+        fileTextContent = await extractTextFromFile(file);
+      }
+      
+      setPendingFileData({ data: fileData || "", name: file.name, type: file.type, textContent: fileTextContent });
+      toast({ title: "File ready", description: `${file.name} loaded` });
+    }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     if (docInputRef.current) docInputRef.current.value = "";
   };
