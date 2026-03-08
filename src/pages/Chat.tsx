@@ -525,7 +525,19 @@ const Chat: React.FC = () => {
                       </div>
                     )}
                     {/* Content */}
-                    {message.role === "assistant" ? (
+                    {message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
+                      <DualAgentView
+                        perspectiveA={message.perspectiveA}
+                        perspectiveB={message.perspectiveB}
+                        agentAName={message.agentAName || "Optimist"}
+                        agentBName={message.agentBName || "Realist"}
+                        onSelect={(choice) => {
+                          setMessages(prev => prev.map((m, i) => 
+                            i === index ? { ...m, selectedPerspective: choice, content: choice === "A" ? message.perspectiveA! : message.perspectiveB! } : m
+                          ));
+                        }}
+                      />
+                    ) : message.role === "assistant" ? (
                       <MarkdownRenderer content={message.content} />
                     ) : (
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
@@ -540,19 +552,8 @@ const Chat: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
-              {/* Loading indicator */}
-              {isLoading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start px-1">
-                  <div className="flex items-center gap-2.5 py-2">
-                    <div className="flex items-center gap-1">
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                    <span className="text-foreground-muted text-xs font-medium">Thinking...</span>
-                  </div>
-                </motion.div>
-              )}
+              {/* Smart Loading indicator */}
+              <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
               <div ref={messagesEndRef} />
             </div>
           )}
