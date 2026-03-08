@@ -238,16 +238,24 @@ const Chat: React.FC = () => {
           return;
         }
       }
+      // Auto-detect image generation request
+      const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
+      const isImageRequest = activeMode === "image" || (!imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
+
+      if (isImageRequest) {
+        result = await generateImage(messageText);
+        if (result?.success && result?.imageUrl) {
+          setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: result.imageUrl }]);
+          setIsLoading(false); setActiveMode("chat"); return;
+        }
+      }
+
       switch (activeMode) {
         case "research":
           result = await sendChatMessage(messageText, currentSessionId, { isResearchMode: true, model: selectedModel, memoryContext, conversationHistory });
           break;
         case "image":
-          result = await generateImage(messageText);
-          if (result.success && result.imageUrl) {
-            setMessages((prev) => [...prev, { role: "assistant", content: "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: result.imageUrl }]);
-            setIsLoading(false); setActiveMode("chat"); return;
-          }
+          // Already handled above
           break;
         case "spotify":
           const spotifyResult = await searchSpotify(messageText);
