@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, User, Brain, Download, Upload, Shield, Moon, Sun,
   ChevronRight, Save, LogOut, Globe, Crown, Archive, Search, Check,
-  Edit2, Pin, Share2, Trash2, MessageSquare
+  Edit2, Pin, Share2, Trash2, MessageSquare, AlertTriangle
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
