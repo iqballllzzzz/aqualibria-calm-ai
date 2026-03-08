@@ -756,12 +756,20 @@ const Chat: React.FC = () => {
           )}
 
           {/* Pending attachments */}
-          {pendingImageData && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
-              <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-border shadow-sm">
-                <img src={pendingImageData} alt="Preview" className="w-full h-full object-cover" />
-                <button onClick={() => setPendingImageData(null)} className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-background"><X className="w-3 h-3" /></button>
-              </div>
+          {pendingImages.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2 flex-wrap">
+              {pendingImages.map((img, i) => (
+                <div key={i} className="relative w-14 h-14 rounded-2xl overflow-hidden border border-border shadow-sm">
+                  <img src={img} alt={`Preview ${i+1}`} className="w-full h-full object-cover" />
+                  <button onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-background"><X className="w-3 h-3" /></button>
+                </div>
+              ))}
+              {pendingImages.length < 10 && (
+                <button onClick={() => fileInputRef.current?.click()} className="w-14 h-14 rounded-2xl border-2 border-dashed border-border flex items-center justify-center hover:bg-accent/50 transition-colors">
+                  <Plus className="w-5 h-5 text-foreground-muted" />
+                </button>
+              )}
+              <span className="text-[10px] text-foreground-muted">{pendingImages.length}/10</span>
             </motion.div>
           )}
           {pendingFileData && (
