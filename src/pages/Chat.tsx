@@ -269,6 +269,36 @@ const Chat: React.FC = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } };
+
+  // Edit message: update user message and remove all subsequent messages, then re-send
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    const msgIndex = messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1 || !newText.trim()) return;
+    
+    // Keep messages before this one, update this one
+    const updatedMessages = messages.slice(0, msgIndex);
+    const editedMsg: ChatMessage = { ...messages[msgIndex], content: newText.trim() };
+    updatedMessages.push(editedMsg);
+    setMessages(updatedMessages);
+    setEditingMessageId(null);
+    setEditingMessageText("");
+    
+    // Re-send the edited message
+    setMessageComplexity(classifyMessageComplexity(newText));
+    setIsLoading(true);
+    incrementUsage();
+    try {
+      const memoryContext = buildMemoryContext();
+      const conversationHistory = updatedMessages.slice(0, -1).slice(-20).map(m => ({ role: m.role, content: m.content }));
+      const result = await sendChatMessage(newText.trim(), currentSessionId, { model: selectedModel, memoryContext, conversationHistory });
+      if (result?.success && result?.response) {
+        setMessages(prev => [...prev, { role: "assistant", content: result.response!, timestamp: new Date(), id: generateMessageId() }]);
+      } else {
+        toast({ title: "Error", description: result?.error || "Failed to get response", variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Something went wrong.", variant: "destructive" }); }
+    finally { setIsLoading(false); }
+  };
   const handleNewChat = () => { const newId = generateSessionId(); setMessages([]); setCurrentSessionId(newId); setShowHistory(false); setShowSidebar(false); navigate(`/chat/${newId}`); };
   const handleSelectSession = (session: ChatSession) => { setMessages(session.messages); setCurrentSessionId(session.id); setShowHistory(false); setShowSidebar(false); navigate(`/chat/${session.id}`); };
   const handleDeleteSession = (id: string) => { deleteChatSession(id); setChatHistory(getChatHistory()); setChatManagement(getChatManagement()); if (currentSessionId === id) handleNewChat(); };
