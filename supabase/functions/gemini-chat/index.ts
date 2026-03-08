@@ -31,6 +31,7 @@ serve(async (req) => {
     };
     const gatewayModel = modelMap[model] || "google/gemini-3-flash-preview";
 
+    // ===== IMAGE GENERATION =====
     if (action === "generate-image") {
       const prompt = body.prompt || "Generate an image";
       const response = await fetch(GATEWAY_URL, {
@@ -41,37 +42,37 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash-image",
-          messages: [
-            { role: "user", content: prompt },
-          ],
+          messages: [{ role: "user", content: prompt }],
+          modalities: ["image", "text"],
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
         console.error("Image generation error:", response.status, errText);
-        if (response.status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (response.status === 402) {
-          return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
         return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: response.status === 429 ? 429 : response.status === 402 ? 402 : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const data = await response.json();
-      const text = data.choices?.[0]?.message?.content || "Image generation is not supported via this model.";
-      return new Response(JSON.stringify({ success: true, response: text }), {
+      // Extract image from response
+      const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      const textResponse = data.choices?.[0]?.message?.content || "";
+
+      if (imageData) {
+        return new Response(JSON.stringify({ success: true, imageUrl: imageData, response: textResponse }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, response: textResponse || "Image generation completed but no image was returned." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ===== IMAGE EDITING =====
     if (action === "edit-image") {
       const prompt = body.prompt || "Edit this image";
       const imgData = body.imageBase64;
@@ -89,10 +90,9 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages: [
-            { role: "user", content: contentParts },
-          ],
+          model: "google/gemini-2.5-flash-image",
+          messages: [{ role: "user", content: contentParts }],
+          modalities: ["image", "text"],
         }),
       });
 
@@ -100,18 +100,27 @@ serve(async (req) => {
         const errText = await response.text();
         console.error("Edit image error:", response.status, errText);
         return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: response.status === 429 ? 429 : response.status === 402 ? 402 : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const data = await response.json();
-      const text = data.choices?.[0]?.message?.content || "Could not process the image.";
-      return new Response(JSON.stringify({ success: true, text, response: text }), {
+      const editedImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      const text = data.choices?.[0]?.message?.content || "";
+
+      if (editedImage) {
+        return new Response(JSON.stringify({ success: true, imageUrl: editedImage, response: text }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, response: text || "Could not generate edited image." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Chat / Vision / File Analysis
+    // ===== CHAT / VISION / FILE ANALYSIS =====
     const systemInstruction = systemPrompt || "You are AquaLibriaAI, a calm, intelligent AI assistant created by M Iqbal.S. You help with thinking, coding, learning, and creating. Always respond in the user's language.";
 
     const gatewayMessages: any[] = [
@@ -122,12 +131,22 @@ serve(async (req) => {
       for (const msg of messages) {
         const contentParts: any[] = [];
 
+        // Image data (base64 data URL for images)
         if (msg.imageData) {
           contentParts.push({ type: "image_url", image_url: { url: msg.imageData } });
         }
+
+        // File data - only support images and PDFs as image_url
+        // For other file types, the text content should be sent in msg.content
         if (msg.fileData) {
-          contentParts.push({ type: "image_url", image_url: { url: msg.fileData } });
+          const isImage = msg.fileData.startsWith("data:image/");
+          const isPdf = msg.fileData.startsWith("data:application/pdf");
+          if (isImage || isPdf) {
+            contentParts.push({ type: "image_url", image_url: { url: msg.fileData } });
+          }
+          // For other types (DOCX etc.), fileTextContent should be appended to content by client
         }
+
         if (msg.content) {
           contentParts.push({ type: "text", text: msg.content });
         }

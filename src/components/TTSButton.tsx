@@ -21,6 +21,13 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, voice, className = "" }) =>
       return;
     }
 
+    // If browser TTS is playing, cancel it
+    if (isPlaying) {
+      window.speechSynthesis?.cancel();
+      setIsPlaying(false);
+      return;
+    }
+
     setIsLoading(true);
 
     // Clean markdown for speech
@@ -36,6 +43,20 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, voice, className = "" }) =>
       const result = await textToSpeech(cleanText, voice);
 
       if (result.success && result.audioUrl) {
+        if (result.audioUrl === "__browser_tts__") {
+          // Browser TTS is already playing via speechSynthesis
+          setIsPlaying(true);
+          setIsLoading(false);
+          // Monitor when it ends
+          const checkInterval = setInterval(() => {
+            if (!window.speechSynthesis.speaking) {
+              setIsPlaying(false);
+              clearInterval(checkInterval);
+            }
+          }, 200);
+          return;
+        }
+
         const newAudio = new Audio(result.audioUrl);
         setAudio(newAudio);
 

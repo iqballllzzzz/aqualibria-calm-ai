@@ -10,7 +10,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -76,7 +76,7 @@ const Chat: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>(urlSessionId || generateSessionId());
   const [pendingImageData, setPendingImageData] = useState<string | null>(null);
-  const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string } | null>(null);
+  const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
@@ -178,7 +178,24 @@ const Chat: React.FC = () => {
     if (!allowedTypes.includes(file.type) && !file.name.endsWith(".pdf") && !file.name.endsWith(".doc") && !file.name.endsWith(".docx") && !file.name.endsWith(".txt")) {
       toast({ title: "Error", description: "Please select a PDF, DOC, DOCX, or TXT file", variant: "destructive" }); return;
     }
-    try { const base64 = await fileToBase64(file); setPendingFileData({ data: base64, name: file.name, type: file.type }); toast({ title: "File ready", description: `${file.name} loaded` }); }
+    try {
+      let fileData: string | undefined;
+      let fileTextContent: string | undefined;
+      
+      if (isVisionSupportedFile(file.type)) {
+        // PDF and images can be sent directly as base64
+        fileData = await fileToBase64(file);
+      } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
+        // DOCX: extract text content
+        fileTextContent = await extractTextFromDocx(file);
+      } else {
+        // TXT, CSV: read as text
+        fileTextContent = await extractTextFromFile(file);
+      }
+      
+      setPendingFileData({ data: fileData || "", name: file.name, type: file.type, textContent: fileTextContent });
+      toast({ title: "File ready", description: `${file.name} loaded` });
+    }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     if (docInputRef.current) docInputRef.current.value = "";
   };
@@ -229,7 +246,7 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageData: imageToAnalyze || undefined, fileData: fileToAnalyze?.data, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+          result = await sendChatMessage(messageText, currentSessionId, { imageData: imageToAnalyze || undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
       }
       if (result?.success && result?.response) {

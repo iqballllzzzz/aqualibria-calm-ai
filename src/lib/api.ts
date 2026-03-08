@@ -4,7 +4,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const GEMINI_CHAT_URL = `${SUPABASE_URL}/functions/v1/gemini-chat`;
 
-// TTS endpoint (kept from before)
+// TTS endpoint
 const TTS_ENDPOINT = "https://rynekoo-api.hf.space/tools/tts/qwen";
 
 // Voice Options
@@ -147,6 +147,58 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Extract text from DOCX files (basic XML extraction)
+export const extractTextFromDocx = async (file: File): Promise<string> => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    
+    // DOCX is a ZIP file containing XML. Try to find document.xml content
+    // Simple approach: convert to text and extract readable content
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const rawText = decoder.decode(uint8);
+    
+    // Extract text between XML tags (basic approach)
+    const textContent = rawText
+      .replace(/<[^>]*>/g, ' ')  // Remove XML tags
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#\d+;/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Filter out binary garbage - keep only printable text sections
+    const cleanParts = textContent.split(/\s+/).filter(word => {
+      // Keep words that are mostly printable characters
+      const printable = word.replace(/[^\x20-\x7E\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\uAC00-\uD7AF]/g, '');
+      return printable.length > word.length * 0.5 && word.length > 1;
+    });
+    
+    const extracted = cleanParts.join(' ').slice(0, 15000);
+    return extracted || "Could not extract text from this document.";
+  } catch (e) {
+    console.error("DOCX extraction error:", e);
+    return "Failed to extract document content.";
+  }
+};
+
+// Extract text from TXT files
+export const extractTextFromFile = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).slice(0, 15000));
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+};
+
+// Check if file type is directly supported by the AI vision API
+export const isVisionSupportedFile = (mimeType: string): boolean => {
+  return mimeType.startsWith("image/") || mimeType === "application/pdf";
+};
+
 // Main chat function
 export const sendChatMessage = async (
   message: string,
@@ -154,6 +206,7 @@ export const sendChatMessage = async (
   options: {
     imageData?: string;
     fileData?: string;
+    fileTextContent?: string;
     isCodingMode?: boolean;
     isResearchMode?: boolean;
     model?: string;
@@ -163,7 +216,7 @@ export const sendChatMessage = async (
   } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    const { imageData, fileData, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
+    const { imageData, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
 
     if (!message || message.trim().length === 0) return { success: false, error: "Message cannot be empty" };
     if (message.length > 50000) return { success: false, error: "Message too long (max 50000 characters)" };
@@ -171,6 +224,11 @@ export const sendChatMessage = async (
     let textToSend = message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
     if (isResearchMode) textToSend = `Please research thoroughly and provide detailed findings about: ${textToSend}`;
     
+    // If there's extracted text content from a document, append it
+    if (fileTextContent) {
+      textToSend = `${textToSend}\n\n[Document Content]:\n${fileTextContent}`;
+    }
+
     let systemPrompt = isCodingMode ? SYSTEM_PROMPTS.coding : 
       model === "aqualibriav2" ? SYSTEM_PROMPTS.v2 : 
       model === "aqualibriav3" ? SYSTEM_PROMPTS.v3 : 
@@ -192,6 +250,7 @@ export const sendChatMessage = async (
     // Add current message
     const currentMsg: any = { role: "user", content: textToSend };
     if (imageData) currentMsg.imageData = imageData;
+    // Only send fileData if it's a vision-supported type (image/pdf)
     if (fileData) currentMsg.fileData = fileData;
     messages.push(currentMsg);
 
@@ -231,8 +290,8 @@ export const sendCodingMessage = async (message: string, sessionId: string, imag
 };
 
 // File Analysis (PDF, DOC, etc.)
-export const analyzeFile = async (fileData: string, question: string, sessionId: string): Promise<{ success: boolean; response?: string; error?: string }> => {
-  return sendChatMessage(question, sessionId, { fileData });
+export const analyzeFile = async (fileData: string, question: string, sessionId: string, fileTextContent?: string): Promise<{ success: boolean; response?: string; error?: string }> => {
+  return sendChatMessage(question, sessionId, { fileData, fileTextContent });
 };
 
 // YouTube Analysis
@@ -241,11 +300,14 @@ export const analyzeYouTube = async (url: string, question: string, sessionId: s
 };
 
 // Image Generation
-export const generateImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
+export const generateImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; response?: string; error?: string }> => {
   try {
     const data = await callGemini({ action: "generate-image", prompt });
     if (data.success && data.imageUrl) {
       return { success: true, imageUrl: data.imageUrl };
+    }
+    if (data.success && data.response) {
+      return { success: true, response: data.response };
     }
     return { success: false, error: data.error || "Failed to generate image" };
   } catch (error: any) {
@@ -276,7 +338,7 @@ export const uploadImage = async (file: File): Promise<{ success: boolean; image
   }
 };
 
-// Spotify Search (kept as direct call)
+// Spotify Search
 export const searchSpotify = async (query: string): Promise<{ success: boolean; results?: any[]; error?: string }> => {
   try {
     const response = await fetch(`https://api.ryzumi.vip/api/search/spotify?query=${encodeURIComponent(query)}`, {
@@ -292,21 +354,57 @@ export const searchSpotify = async (query: string): Promise<{ success: boolean; 
   }
 };
 
-// TTS
+// TTS with browser fallback
 export const textToSpeech = async (text: string, voice: VoiceOption = "dylan"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
+    // Try external TTS API first
     const response = await fetch(`${TTS_ENDPOINT}?text=${encodeURIComponent(text)}&voice=${voice.toLowerCase()}`, {
       method: "GET",
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) throw new Error(`TTS API returned ${response.status}`);
     const data = await response.json();
     if (data.success && data.result) return { success: true, audioUrl: data.result };
     throw new Error("No audio URL in response");
   } catch (error: any) {
-    return { success: false, error: error.message || "Failed to generate speech" };
+    console.warn("External TTS failed, using browser fallback:", error.message);
+    // Browser SpeechSynthesis fallback
+    return browserTTS(text);
   }
+};
+
+// Browser-based TTS fallback
+const browserTTS = (text: string): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) {
+      resolve({ success: false, error: "Speech synthesis not supported" });
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text.slice(0, 1000));
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    // Try to find a good voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.startsWith("id")) || 
+                      voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) ||
+                      voices.find(v => v.lang.startsWith("en")) ||
+                      voices[0];
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onend = () => resolve({ success: true, audioUrl: "__browser_tts__" });
+    utterance.onerror = () => resolve({ success: false, error: "Browser TTS failed" });
+
+    window.speechSynthesis.speak(utterance);
+    // Return special marker so callers know it's browser TTS (already playing)
+    resolve({ success: true, audioUrl: "__browser_tts__" });
+  });
 };
 
 export const textToSpeechWithFallback = async (text: string, voice: VoiceOption = "dylan") => textToSpeech(text, voice);

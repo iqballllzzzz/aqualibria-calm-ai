@@ -305,6 +305,22 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       const result = await textToSpeech(cleanText, selectedVoice);
 
       if (result.success && result.audioUrl) {
+        // Handle browser TTS fallback
+        if (result.audioUrl === "__browser_tts__") {
+          // Browser TTS is already playing via speechSynthesis
+          const checkInterval = setInterval(() => {
+            if (!window.speechSynthesis.speaking) {
+              setCallState("idle");
+              analyserRef.current = null;
+              clearInterval(checkInterval);
+              setTimeout(() => {
+                if (isOpen) startListening();
+              }, 500);
+            }
+          }, 200);
+          return;
+        }
+
         if (audioRef.current) {
           audioRef.current.pause();
         }

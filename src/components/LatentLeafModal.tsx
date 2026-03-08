@@ -118,7 +118,7 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-background border-border">
+      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto bg-background border-border mx-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Leaf className="w-5 h-5 text-green-500" />
