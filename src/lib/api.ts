@@ -187,6 +187,7 @@ export const sendChatMessage = async (
   sessionId: string,
   options: {
     imageData?: string;
+    imageDataList?: string[];
     fileData?: string;
     fileTextContent?: string;
     isCodingMode?: boolean;
