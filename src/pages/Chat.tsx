@@ -495,8 +495,9 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`group relative rounded-2xl px-3.5 py-3 cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`} onClick={() => !isEditing && handleSelectSession(session)}>
-                          <div className="pr-7">
+                        <div key={session.id} className={`flex items-center gap-1 rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                          {/* Chat title area */}
+                          <div className="flex-1 min-w-0 px-3.5 py-3" onClick={() => !isEditing && handleSelectSession(session)}>
                             {isEditing ? (
                               <div className="flex items-center gap-1.5">
                                 <input type="text" value={editSidebarTitle} onChange={(e) => setEditSidebarTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleConfirmSidebarRename()} onClick={(e) => e.stopPropagation()} className="flex-1 text-xs text-foreground bg-background border border-border rounded-xl px-2.5 py-1.5 focus:outline-none" autoFocus />
@@ -509,13 +510,17 @@ const Chat: React.FC = () => {
                               </div>
                             )}
                           </div>
-                         {!isEditing && (
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                          
+                          {/* Three-dot menu - always visible, separate from title */}
+                          {!isEditing && (
+                            <div className="shrink-0 pr-1.5">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-xl opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-accent/80 transition-all"><MoreVertical className="w-4 h-4 text-foreground-muted" /></button>
+                                  <button onClick={(e) => e.stopPropagation()} className="p-2 rounded-xl hover:bg-accent/80 transition-all">
+                                    <MoreVertical className="w-4 h-4 text-foreground-muted" />
+                                  </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44 rounded-2xl">
+                                <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
