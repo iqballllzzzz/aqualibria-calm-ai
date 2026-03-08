@@ -526,27 +526,15 @@ const Chat: React.FC = () => {
                             )}
                           </div>
                           
-                          {/* Three-dot menu - ALWAYS visible, high contrast */}
+                          {/* Delete shortcut */}
                           {!isEditing && (
-                            <DropdownMenu modal={false}>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                  className="shrink-0 mr-1.5 flex items-center justify-center w-8 h-8 rounded-full bg-primary/15 hover:bg-primary/30 transition-all"
-                                  aria-label="Chat options"
-                                  style={{ minWidth: '32px', minHeight: '32px' }}
-                                >
-                                  <MoreVertical className="w-4 h-4 text-primary" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartSidebarRename(session); }} className="cursor-pointer text-xs rounded-xl"><Edit2 className="w-3.5 h-3.5 mr-2" />Rename</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePinSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Pin className="w-3.5 h-3.5 mr-2" />{isPinned ? "Unpin" : "Pin"}</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleArchiveSession(session.id); }} className="cursor-pointer text-xs rounded-xl"><Archive className="w-3.5 h-3.5 mr-2" />Archive</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareSession(session); }} className="cursor-pointer text-xs rounded-xl"><Share2 className="w-3.5 h-3.5 mr-2" />Share</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="cursor-pointer text-xs text-destructive rounded-xl"><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                              className="shrink-0 mr-1.5 opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full hover:bg-destructive/15 transition-all"
+                              aria-label="Delete chat"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </button>
                           )}
                         </div>
                       );

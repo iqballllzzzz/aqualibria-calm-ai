@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, User, Brain, Download, Upload, Shield, Moon, Sun,
-  ChevronRight, Save, LogOut, Globe, Crown, Archive, Search, Check
+  ChevronRight, Save, LogOut, Globe, Crown, Archive, Search, Check,
+  Edit2, Pin, Share2, Trash2, MessageSquare
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +15,8 @@ import {
   getAIMemory, saveAIMemory, AIMemory,
   exportChatHistory, importChatHistory,
   getSubscription, canUseFeature, canUseModel, getModelUsage,
+  getChatHistory, deleteChatSession, getChatManagement,
+  togglePinSession, toggleArchiveSession, renameSession, ChatSession,
 } from "@/lib/storage";
 import { SUBSCRIPTION_PLANS } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +35,12 @@ const Settings: React.FC = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [languageSearch, setLanguageSearch] = useState("");
+  const [showEditPesan, setShowEditPesan] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
+  const [chatManagement, setChatManagement] = useState(getChatManagement());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
 
   const subscription = getSubscription();
   const usage = canUseFeature();
@@ -40,6 +49,8 @@ const Settings: React.FC = () => {
   const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === subscription.plan);
 
   useEffect(() => { setPreferences(getPreferences()); setMemory(getAIMemory()); }, []);
+
+  const refreshChats = () => { setChatHistory(getChatHistory()); setChatManagement(getChatManagement()); };
 
   const handlePreferenceChange = (key: keyof UserPreferences, value: any) => { setPreferences(prev => ({ ...prev, [key]: value })); setHasChanges(true); };
   const handleMemoryChange = (key: keyof AIMemory, value: any) => { setMemory(prev => ({ ...prev, [key]: value })); setHasChanges(true); };
@@ -73,9 +84,65 @@ const Settings: React.FC = () => {
     toast({ title: "Language changed", description: `${languages.find(l => l.code === code)?.name}` });
   };
 
+  const handleOpenEditPesan = () => {
+    refreshChats();
+    setShowEditPesan(true);
+  };
+
+  const handleDeleteChat = (id: string) => {
+    deleteChatSession(id);
+    refreshChats();
+    toast({ title: "Chat deleted" });
+  };
+
+  const handlePinChat = (id: string) => {
+    togglePinSession(id);
+    refreshChats();
+  };
+
+  const handleArchiveChat = (id: string) => {
+    toggleArchiveSession(id);
+    refreshChats();
+    toast({ title: "Chat archived" });
+  };
+
+  const handleRenameChat = (id: string) => {
+    if (editTitle.trim()) {
+      renameSession(id, editTitle.trim());
+      refreshChats();
+      setEditingId(null);
+      setEditTitle("");
+      toast({ title: "Renamed" });
+    }
+  };
+
+  const handleShareChat = async (session: ChatSession) => {
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/share-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ action: "create", sessionId: session.id, title: session.title, messages: session.messages, sharedByName: user?.displayName || "Anonymous" }),
+      });
+      const data = await response.json();
+      if (data.success && data.shareId) {
+        const shareUrl = `${window.location.origin}/shared/${data.shareId}`;
+        try { await navigator.clipboard.writeText(shareUrl); toast({ title: "Link disalin!" }); } catch { toast({ title: "Gagal menyalin", variant: "destructive" }); }
+      } else {
+        toast({ title: "Gagal membagikan", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", variant: "destructive" });
+    }
+  };
+
   const filteredLanguages = languages.filter(lang =>
     lang.name.toLowerCase().includes(languageSearch.toLowerCase()) ||
     lang.nativeName.toLowerCase().includes(languageSearch.toLowerCase())
+  );
+
+  const filteredChats = chatHistory.filter(s =>
+    s.title.toLowerCase().includes(chatSearchQuery.toLowerCase())
   );
 
   const personalities = [
@@ -250,9 +317,9 @@ const Settings: React.FC = () => {
 
             {/* Chat Management */}
             <Section title={t("settings.chat")} delay={0.2}>
+              <SettingRow icon={MessageSquare} label="Edit Pesan" onClick={handleOpenEditPesan} />
               <SettingRow icon={Download} label={t("settings.export")} onClick={handleExportChat} />
               <SettingRow icon={Upload} label={t("settings.import")} onClick={handleImportChat} />
-              <SettingRow icon={Archive} label="Archived Chats" onClick={() => navigate("/chat")} />
             </Section>
 
             {/* Privacy */}
@@ -297,6 +364,83 @@ const Settings: React.FC = () => {
                 </button>
               ))}
             </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Pesan Modal — Full chat management */}
+      <Dialog open={showEditPesan} onOpenChange={setShowEditPesan}>
+        <DialogContent className="max-w-lg max-h-[85vh] bg-background border-border p-0">
+          <DialogHeader className="p-5 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <MessageSquare className="w-5 h-5 text-primary" />
+              Edit Pesan
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Search */}
+          <div className="px-5 pt-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input type="text" value={chatSearchQuery} onChange={(e) => setChatSearchQuery(e.target.value)} placeholder="Cari chat..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+            </div>
+          </div>
+
+          <ScrollArea className="h-[calc(85vh-140px)] px-5 pb-5">
+            {filteredChats.length === 0 ? (
+              <p className="text-center text-muted-foreground py-12 text-sm">Belum ada chat</p>
+            ) : (
+              <div className="space-y-2 pt-3">
+                {filteredChats.map((session) => {
+                  const isPinned = chatManagement.pinnedSessions.includes(session.id);
+                  const isArchived = chatManagement.archivedSessions.includes(session.id);
+                  const isEditing = editingId === session.id;
+
+                  return (
+                    <div key={session.id} className={`rounded-2xl border transition-all ${isPinned ? "border-primary/30 bg-primary/5" : isArchived ? "border-border bg-muted/50 opacity-60" : "border-border bg-card"}`}>
+                      {/* Title */}
+                      <div className="px-4 py-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleRenameChat(session.id)} className="flex-1 text-sm text-foreground bg-background border border-border rounded-xl px-3 py-1.5 focus:outline-none focus:border-primary/40" autoFocus />
+                            <button onClick={() => handleRenameChat(session.id)} className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20"><Check className="w-4 h-4 text-primary" /></button>
+                            <button onClick={() => { setEditingId(null); setEditTitle(""); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground text-xs">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {isPinned && <Pin className="w-3.5 h-3.5 text-primary shrink-0" />}
+                            {isArchived && <Archive className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                            <span className="text-sm text-foreground font-medium truncate flex-1">{session.title}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{new Date(session.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions row */}
+                      {!isEditing && (
+                        <div className="flex items-center gap-1 px-3 pb-3">
+                          <button onClick={() => { setEditingId(session.id); setEditTitle(session.title); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-foreground-muted hover:bg-accent hover:text-foreground transition-colors">
+                            <Edit2 className="w-3.5 h-3.5" /> Rename
+                          </button>
+                          <button onClick={() => handlePinChat(session.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-colors ${isPinned ? "text-primary bg-primary/10" : "text-foreground-muted hover:bg-accent hover:text-foreground"}`}>
+                            <Pin className="w-3.5 h-3.5" /> {isPinned ? "Unpin" : "Pin"}
+                          </button>
+                          <button onClick={() => handleArchiveChat(session.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-foreground-muted hover:bg-accent hover:text-foreground transition-colors">
+                            <Archive className="w-3.5 h-3.5" /> {isArchived ? "Restore" : "Archive"}
+                          </button>
+                          <button onClick={() => handleShareChat(session)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-foreground-muted hover:bg-accent hover:text-foreground transition-colors">
+                            <Share2 className="w-3.5 h-3.5" /> Share
+                          </button>
+                          <button onClick={() => handleDeleteChat(session.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-destructive hover:bg-destructive/10 transition-colors ml-auto">
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </ScrollArea>
         </DialogContent>
       </Dialog>
