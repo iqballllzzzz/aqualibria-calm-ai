@@ -214,6 +214,10 @@ const Chat: React.FC = () => {
     const usage = canUseFeature();
     if (!usage.allowed) { toast({ title: "Limit Tercapai", description: "Upgrade plan untuk lebih banyak!", variant: "destructive" }); setShowUpgradeModal(true); return; }
     const messageText = inputValue.trim() || (pendingImageData ? "Apa yang ada di gambar ini?" : "Analisis file ini");
+    
+    // Classify complexity for smart thinking indicator
+    setMessageComplexity(classifyMessageComplexity(messageText));
+    
     const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: pendingImageData || undefined, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
@@ -230,6 +234,27 @@ const Chat: React.FC = () => {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
+      
+      // Check for dual-agent mode (only for default chat without attachments)
+      if (activeMode === "chat" && !imageToAnalyze && !fileToAnalyze && !youtubeUrl) {
+        const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
+        if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
+          setMessages((prev) => [...prev, {
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            id: generateMessageId(),
+            isDualAgent: true,
+            perspectiveA: dualResult.perspectiveA,
+            perspectiveB: dualResult.perspectiveB,
+            agentAName: dualResult.agentAName || "Optimist",
+            agentBName: dualResult.agentBName || "Realist",
+          }]);
+          setIsLoading(false);
+          return;
+        }
+      }
+      
       switch (activeMode) {
         case "research":
           result = await sendChatMessage(messageText, currentSessionId, { isResearchMode: true, model: selectedModel, memoryContext, conversationHistory });
