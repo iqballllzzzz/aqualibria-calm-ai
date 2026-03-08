@@ -41,7 +41,7 @@ const SharedChat: React.FC = () => {
         if (fetchError || !data) {
           setError("Shared chat not found or has expired");
         } else {
-          setChat(data as SharedChatData);
+          setChat(data as unknown as SharedChatData);
         }
       } catch {
         setError("Failed to load shared chat");
