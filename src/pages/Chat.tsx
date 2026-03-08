@@ -88,7 +88,7 @@ const Chat: React.FC = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showLatentLeaf, setShowLatentLeaf] = useState(false);
   const [showMusea, setShowMusea] = useState(false);
-  const [showUserPanel, setShowUserPanel] = useState(false);
+  const [showImageGallery, setShowImageGallery] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
