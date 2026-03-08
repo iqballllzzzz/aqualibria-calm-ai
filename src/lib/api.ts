@@ -3,27 +3,25 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const GEMINI_CHAT_URL = `${SUPABASE_URL}/functions/v1/gemini-chat`;
+const TTS_URL = `${SUPABASE_URL}/functions/v1/tts-google`;
+const DUAL_AGENT_URL = `${SUPABASE_URL}/functions/v1/dual-agent`;
 
-// TTS endpoint
-const TTS_ENDPOINT = "https://rynekoo-api.hf.space/tools/tts/qwen";
+// Voice Options - 8 AI voices
+export const VOICE_OPTIONS_LIST = ["aurora", "river", "luna", "ember", "atlas", "iris", "nova", "onyx"] as const;
+export type VoiceOption = typeof VOICE_OPTIONS_LIST[number];
 
-// Voice Options
-export const TTS_VOICE_OPTIONS = ["dylan", "sunny", "jada", "cherry", "ethan", "serena", "chelsie"] as const;
-export type TTSVoiceOption = typeof TTS_VOICE_OPTIONS[number];
-
-export const TTS_VOICE_INFO: Record<TTSVoiceOption, { displayName: string; gender: "male" | "female"; description: string }> = {
-  dylan: { displayName: "Dylan", gender: "male", description: "Natural & friendly" },
-  sunny: { displayName: "Sunny", gender: "female", description: "Bright & cheerful" },
-  jada: { displayName: "Jada", gender: "female", description: "Smooth & elegant" },
-  cherry: { displayName: "Cherry", gender: "female", description: "Sweet & lively" },
-  ethan: { displayName: "Ethan", gender: "male", description: "Deep & confident" },
-  serena: { displayName: "Serena", gender: "female", description: "Calm & soothing" },
-  chelsie: { displayName: "Chelsie", gender: "female", description: "Warm & expressive" },
+export const VOICE_OPTIONS_MAP: Record<VoiceOption, { displayName: string; gender: "male" | "female"; description: string }> = {
+  aurora: { displayName: "Aurora", gender: "female", description: "Warm & natural" },
+  river: { displayName: "River", gender: "male", description: "Deep & calm" },
+  luna: { displayName: "Luna", gender: "female", description: "Soft & elegant" },
+  ember: { displayName: "Ember", gender: "female", description: "Bold & energetic" },
+  atlas: { displayName: "Atlas", gender: "male", description: "Strong & confident" },
+  iris: { displayName: "Iris", gender: "female", description: "Bright & friendly" },
+  nova: { displayName: "Nova", gender: "female", description: "Modern & expressive" },
+  onyx: { displayName: "Onyx", gender: "male", description: "Rich & smooth" },
 };
 
-export const VOICE_OPTIONS_MAP: Record<string, { displayName: string; gender: "male" | "female"; description: string }> = { ...TTS_VOICE_INFO };
 export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as VoiceOption[];
-export type VoiceOption = keyof typeof VOICE_OPTIONS_MAP;
 
 export const getVoiceDisplayName = (voice: VoiceOption): string => VOICE_OPTIONS_MAP[voice]?.displayName || voice;
 export const getVoiceInfo = (voice: VoiceOption) => VOICE_OPTIONS_MAP[voice];
@@ -53,6 +51,12 @@ export interface ChatMessage {
   fileData?: string;
   fileName?: string;
   fileType?: string;
+  isDualAgent?: boolean;
+  perspectiveA?: string;
+  perspectiveB?: string;
+  agentAName?: string;
+  agentBName?: string;
+  selectedPerspective?: "A" | "B";
 }
 
 export interface APIStatus {
@@ -152,15 +156,10 @@ export const extractTextFromDocx = async (file: File): Promise<string> => {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const uint8 = new Uint8Array(arrayBuffer);
-    
-    // DOCX is a ZIP file containing XML. Try to find document.xml content
-    // Simple approach: convert to text and extract readable content
     const decoder = new TextDecoder('utf-8', { fatal: false });
     const rawText = decoder.decode(uint8);
-    
-    // Extract text between XML tags (basic approach)
     const textContent = rawText
-      .replace(/<[^>]*>/g, ' ')  // Remove XML tags
+      .replace(/<[^>]*>/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
@@ -168,14 +167,10 @@ export const extractTextFromDocx = async (file: File): Promise<string> => {
       .replace(/&#\d+;/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-    
-    // Filter out binary garbage - keep only printable text sections
     const cleanParts = textContent.split(/\s+/).filter(word => {
-      // Keep words that are mostly printable characters
       const printable = word.replace(/[^\x20-\x7E\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\uAC00-\uD7AF]/g, '');
       return printable.length > word.length * 0.5 && word.length > 1;
     });
-    
     const extracted = cleanParts.join(' ').slice(0, 15000);
     return extracted || "Could not extract text from this document.";
   } catch (e) {
@@ -224,7 +219,6 @@ export const sendChatMessage = async (
     let textToSend = message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
     if (isResearchMode) textToSend = `Please research thoroughly and provide detailed findings about: ${textToSend}`;
     
-    // If there's extracted text content from a document, append it
     if (fileTextContent) {
       textToSend = `${textToSend}\n\n[Document Content]:\n${fileTextContent}`;
     }
@@ -238,7 +232,6 @@ export const sendChatMessage = async (
       systemPrompt += `\n\n[User Context & Memory]: ${memoryContext}`;
     }
 
-    // Build messages array with conversation history
     const messages: any[] = [];
     for (const msg of conversationHistory) {
       const msgObj: any = { role: msg.role, content: msg.content };
@@ -247,10 +240,8 @@ export const sendChatMessage = async (
       messages.push(msgObj);
     }
 
-    // Add current message
     const currentMsg: any = { role: "user", content: textToSend };
     if (imageData) currentMsg.imageData = imageData;
-    // Only send fileData if it's a vision-supported type (image/pdf)
     if (fileData) currentMsg.fileData = fileData;
     messages.push(currentMsg);
 
@@ -271,6 +262,35 @@ export const sendChatMessage = async (
   } catch (error: any) {
     console.error("API Error:", error);
     return { success: false, error: error.message || "Failed to get response" };
+  }
+};
+
+// Dual Agent - check and get two perspectives
+export const getDualAgentPerspectives = async (
+  message: string,
+  conversationHistory: { role: string; content: string }[] = [],
+  memoryContext: string = ""
+): Promise<{ needsDual: boolean; perspectiveA?: string; perspectiveB?: string; agentAName?: string; agentBName?: string; error?: string }> => {
+  try {
+    const response = await fetch(DUAL_AGENT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ message, conversationHistory, memoryContext }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      return { needsDual: false };
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    console.error("Dual agent error:", error);
+    return { needsDual: false };
   }
 };
 
@@ -328,7 +348,7 @@ export const editImageLatentLeaf = async (prompt: string, imageBase64: string): 
   }
 };
 
-// Upload image - now converts to base64 (no external upload needed)
+// Upload image
 export const uploadImage = async (file: File): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
   try {
     const base64 = await fileToBase64(file);
@@ -354,60 +374,80 @@ export const searchSpotify = async (query: string): Promise<{ success: boolean; 
   }
 };
 
-// TTS with browser fallback
-export const textToSpeech = async (text: string, voice: VoiceOption = "dylan"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+// TTS using Google AI voices via edge function with browser speech synthesis
+export const textToSpeech = async (text: string, voice: VoiceOption = "aurora"): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   try {
-    // Try external TTS API first
-    const response = await fetch(`${TTS_ENDPOINT}?text=${encodeURIComponent(text)}&voice=${voice.toLowerCase()}`, {
-      method: "GET",
-      headers: { accept: "application/json" },
+    // Call edge function to get cleaned text and voice config
+    const response = await fetch(TTS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ text, voice }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) throw new Error(`TTS API returned ${response.status}`);
-    const data = await response.json();
-    if (data.success && data.result) return { success: true, audioUrl: data.result };
-    throw new Error("No audio URL in response");
+
+    let cleanedText = text;
+    let voiceConfig: any = null;
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.cleanedText) cleanedText = data.cleanedText;
+      if (data.voice) voiceConfig = data.voice;
+    }
+
+    // Use enhanced browser TTS with voice matching
+    return enhancedBrowserTTS(cleanedText, voiceConfig || { gender: "female", name: voice });
   } catch (error: any) {
-    console.warn("External TTS failed, using browser fallback:", error.message);
-    // Browser SpeechSynthesis fallback
-    return browserTTS(text);
+    console.warn("TTS error, using basic fallback:", error.message);
+    return enhancedBrowserTTS(text, { gender: "female", name: voice });
   }
 };
 
-// Browser-based TTS fallback
-const browserTTS = (text: string): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
+// Enhanced browser TTS with better voice selection
+const enhancedBrowserTTS = (text: string, voiceConfig: { gender: string; name: string }): Promise<{ success: boolean; audioUrl?: string; error?: string }> => {
   return new Promise((resolve) => {
     if (!window.speechSynthesis) {
       resolve({ success: false, error: "Speech synthesis not supported" });
       return;
     }
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text.slice(0, 1000));
-    utterance.rate = 1;
-    utterance.pitch = 1;
+    const utterance = new SpeechSynthesisUtterance(text.slice(0, 2000));
+    utterance.rate = 0.95;
+    utterance.pitch = voiceConfig.gender === "female" ? 1.1 : 0.9;
     utterance.volume = 1;
 
-    // Try to find a good voice
+    // Find the best matching voice
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.lang.startsWith("id")) || 
-                      voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) ||
-                      voices.find(v => v.lang.startsWith("en")) ||
-                      voices[0];
-    if (preferred) utterance.voice = preferred;
+    let selectedSynthVoice = null;
+
+    // Priority: Google voices > Microsoft voices > Apple voices > default
+    const genderFilter = voiceConfig.gender === "male" 
+      ? (v: SpeechSynthesisVoice) => v.name.toLowerCase().includes("male") || v.name.includes("David") || v.name.includes("James") || v.name.includes("Guy") || v.name.includes("Mark")
+      : (v: SpeechSynthesisVoice) => v.name.toLowerCase().includes("female") || v.name.includes("Samantha") || v.name.includes("Zira") || v.name.includes("Google") || v.name.includes("Sara");
+
+    selectedSynthVoice = voices.find(v => v.lang.startsWith("en") && v.name.includes("Google") && genderFilter(v)) ||
+      voices.find(v => v.lang.startsWith("en") && genderFilter(v)) ||
+      voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) ||
+      voices.find(v => v.lang.startsWith("en")) ||
+      voices.find(v => v.lang.startsWith("id")) ||
+      voices[0];
+
+    if (selectedSynthVoice) utterance.voice = selectedSynthVoice;
 
     utterance.onend = () => resolve({ success: true, audioUrl: "__browser_tts__" });
     utterance.onerror = () => resolve({ success: false, error: "Browser TTS failed" });
 
     window.speechSynthesis.speak(utterance);
-    // Return special marker so callers know it's browser TTS (already playing)
     resolve({ success: true, audioUrl: "__browser_tts__" });
   });
 };
 
-export const textToSpeechWithFallback = async (text: string, voice: VoiceOption = "dylan") => textToSpeech(text, voice);
+export const textToSpeechWithFallback = async (text: string, voice: VoiceOption = "aurora") => textToSpeech(text, voice);
 
 // Payment
 const PAKASIR_SLUG = "aqualibria";
@@ -427,27 +467,14 @@ export const createPaymentTransaction = async (amount: number, orderId: string):
       body: JSON.stringify({ order_id: orderId, amount }),
     });
     const contentType = response.headers.get("content-type");
-    if (!contentType?.includes("application/json")) throw new Error("Server returned invalid response");
+    if (!contentType?.includes("application/json")) {
+      const text = await response.text();
+      console.error("Non-JSON response:", text.slice(0, 200));
+      return { success: false, error: "Invalid server response" };
+    }
     const data = await response.json();
-    if (!data.success || !data.payment) return { success: false, error: data.error || "Gagal membuat pembayaran" };
-    return { success: true, payment: data.payment };
+    return data;
   } catch (error: any) {
-    return { success: false, error: error.message || "Failed to create payment" };
+    return { success: false, error: error.message || "Payment creation failed" };
   }
-};
-
-export const checkPaymentStatus = async (orderId: string, amount?: number): Promise<{ success: boolean; transaction?: any; error?: string }> => {
-  try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/pakasir-payment?action=status&order_id=${orderId}&amount=${amount || 0}`, {
-      headers: { "apikey": SUPABASE_KEY },
-    });
-    const data = await response.json();
-    return { success: true, transaction: { status: data.transaction?.status || "pending" } };
-  } catch {
-    return { success: true, transaction: { status: "pending" } };
-  }
-};
-
-export const checkAPIStatus = async (): Promise<APIStatus> => {
-  return { chat: true, imageAnalysis: true, research: true, spotify: true, imageGeneration: true };
 };
