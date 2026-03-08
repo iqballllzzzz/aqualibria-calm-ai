@@ -170,7 +170,19 @@ const Chat: React.FC = () => {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) { toast({ title: "Error", description: "Please select an image or video file", variant: "destructive" }); return; }
     setIsUploadingImage(true);
-    try { const base64 = await fileToBase64(file); setPendingImageData(base64); toast({ title: "Ready", description: "Type a question about the image" }); }
+    try {
+      // Upload to CDN for persistence
+      const { uploadToRyzumiCDN } = await import("@/lib/cdn");
+      const cdnResult = await uploadToRyzumiCDN(file as Blob, file.name);
+      if (cdnResult.success && cdnResult.url) {
+        setPendingImageData(cdnResult.url);
+      } else {
+        // Fallback to base64
+        const base64 = await fileToBase64(file);
+        setPendingImageData(base64);
+      }
+      toast({ title: "Ready", description: "Type a question about the image" });
+    }
     catch { toast({ title: "Error", description: "Failed to process file", variant: "destructive" }); }
     setIsUploadingImage(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
