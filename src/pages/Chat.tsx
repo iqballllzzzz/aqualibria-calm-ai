@@ -95,6 +95,8 @@ const Chat: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [editingSidebarId, setEditingSidebarId] = useState<string | null>(null);
   const [editSidebarTitle, setEditSidebarTitle] = useState("");
+  const [messageComplexity, setMessageComplexity] = useState<"simple" | "medium" | "complex">("medium");
+  const [editSidebarTitle, setEditSidebarTitle] = useState("");
 
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
