@@ -307,7 +307,7 @@ const Chat: React.FC = () => {
       // Auto-detect image editing request via chat - look for edit patterns with a previous generated image
       const imageEditPatterns = /^(edit\s*(gambar|image|foto)|ubah\s*(gambar|image|foto)|modif|change\s*(the\s*)?(image|picture|photo)|make\s*(it|the\s*image)|jadikan|rubah|ganti\s*(background|warna|style))/i;
       const lastGeneratedImage = [...messages].reverse().find(m => m.role === "assistant" && m.imageUrl && m.imageUrl !== "[image]");
-      const isEditRequest = !imageToAnalyze && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
+      const isEditRequest = imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
 
       if (isEditRequest && lastGeneratedImage?.imageUrl) {
         try {
