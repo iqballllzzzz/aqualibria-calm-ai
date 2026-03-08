@@ -68,7 +68,7 @@ const QUICK_ACTIONS = [
 
 const Chat: React.FC = () => {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { sessionId: urlSessionId } = useParams();
