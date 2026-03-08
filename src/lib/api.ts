@@ -199,7 +199,7 @@ export const sendChatMessage = async (
   } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    const { imageData, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
+    const { imageData, imageDataList, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
 
     if (!message || message.trim().length === 0) return { success: false, error: "Message cannot be empty" };
     if (message.length > 50000) return { success: false, error: "Message too long (max 50000 characters)" };
