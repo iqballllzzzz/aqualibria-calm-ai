@@ -166,14 +166,38 @@ export const saveChatSession = (session: ChatSession): void => {
   const history = getChatHistory();
   const existingIndex = history.findIndex((s) => s.id === session.id);
   
+  // Strip large binary data (fileData, imageUrl base64) to prevent localStorage overflow
+  const cleanSession = {
+    ...session,
+    updatedAt: new Date(),
+    messages: session.messages.map(m => ({
+      ...m,
+      // Keep image URLs only if they're short (not base64 blobs)
+      imageUrl: m.imageUrl && m.imageUrl.length > 5000 ? "[image]" : m.imageUrl,
+      // Never store raw file data in localStorage
+      fileData: undefined,
+    })),
+  };
+  
   if (existingIndex >= 0) {
-    history[existingIndex] = { ...session, updatedAt: new Date() };
+    history[existingIndex] = cleanSession;
   } else {
-    history.unshift(session);
+    history.unshift(cleanSession);
   }
   
   const trimmed = history.slice(0, 100);
-  localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(trimmed));
+  try {
+    localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(trimmed));
+  } catch (e) {
+    // If still too large, trim more aggressively
+    console.warn("localStorage quota exceeded, trimming history");
+    const minimal = trimmed.slice(0, 30);
+    try {
+      localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(minimal));
+    } catch {
+      localStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
+    }
+  }
 };
 
 export const getChatHistory = (): ChatSession[] => {

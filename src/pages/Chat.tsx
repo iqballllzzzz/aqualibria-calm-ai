@@ -542,9 +542,15 @@ const Chat: React.FC = () => {
                       : "px-1 py-1"
                   }`}>
                     {/* User attached image */}
-                    {message.imageUrl && message.role === "user" && (
+                    {message.imageUrl && message.role === "user" && message.imageUrl !== "[image]" && (
                       <div className="mb-2.5">
                         <img src={message.imageUrl} alt="Uploaded" className="rounded-2xl max-w-full max-h-48 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} />
+                      </div>
+                    )}
+                    {message.imageUrl === "[image]" && message.role === "user" && (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/80 border border-border">
+                        <LucideImage className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs text-foreground-muted">Image attached</span>
                       </div>
                     )}
                     {/* User attached file */}
@@ -554,8 +560,22 @@ const Chat: React.FC = () => {
                         <span className="text-xs text-foreground-muted truncate">{message.fileName}</span>
                       </div>
                     )}
-                    {/* Content */}
-                    {message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
+                    {/* Content - with edit support for user messages */}
+                    {editingMessageId === message.id && message.role === "user" ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingMessageText}
+                          onChange={(e) => setEditingMessageText(e.target.value)}
+                          className="w-full bg-background border border-border rounded-2xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/40 resize-none"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="px-3 py-1.5 rounded-xl text-xs text-foreground-muted hover:bg-accent transition-colors">Cancel</button>
+                          <button onClick={() => handleEditMessage(message.id!, editingMessageText)} className="px-3 py-1.5 rounded-xl text-xs bg-primary text-primary-foreground font-semibold hover:shadow-md transition-all">Save & Resend</button>
+                        </div>
+                      </div>
+                    ) : message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
                       <DualAgentView
                         perspectiveA={message.perspectiveA}
                         perspectiveB={message.perspectiveB}
@@ -573,11 +593,18 @@ const Chat: React.FC = () => {
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
                     {/* AI generated image */}
-                    {message.imageUrl && message.role === "assistant" && (
+                    {message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" && (
                       <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-2xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
                     )}
                     <div className="mt-2 flex justify-end">
-                      <MessageControls messageId={message.id || `${index}`} sessionId={currentSessionId} content={message.content} isAssistant={message.role === "assistant"} selectedVoice={selectedVoice} />
+                      <MessageControls 
+                        messageId={message.id || `${index}`} 
+                        sessionId={currentSessionId} 
+                        content={message.content} 
+                        isAssistant={message.role === "assistant"} 
+                        selectedVoice={selectedVoice}
+                        onEdit={message.role === "user" && !editingMessageId ? () => { setEditingMessageId(message.id!); setEditingMessageText(message.content); } : undefined}
+                      />
                     </div>
                   </div>
                 </motion.div>

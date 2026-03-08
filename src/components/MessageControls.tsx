@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Copy, Check, ThumbsUp, ThumbsDown, Pencil } from "lucide-react";
 import { setMessageReaction, getMessageReaction } from "@/lib/storage";
 import { VoiceOption } from "@/lib/api";
 import TTSButton from "./TTSButton";
@@ -11,6 +11,7 @@ interface MessageControlsProps {
   className?: string;
   isAssistant?: boolean;
   selectedVoice?: VoiceOption;
+  onEdit?: () => void;
 }
 
 const MessageControls: React.FC<MessageControlsProps> = ({
@@ -20,6 +21,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
   className = "",
   isAssistant = false,
   selectedVoice = "aurora",
+  onEdit,
 }) => {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"like" | "dislike" | null>(
@@ -40,6 +42,16 @@ const MessageControls: React.FC<MessageControlsProps> = ({
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
+      {/* Edit button for user messages */}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-accent/50 transition-colors"
+          title="Edit message"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
       <button
         onClick={handleCopy}
         className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-accent/50 transition-colors"
