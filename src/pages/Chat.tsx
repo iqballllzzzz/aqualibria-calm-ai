@@ -853,14 +853,12 @@ const Chat: React.FC = () => {
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />
       <ArchivedChatsModal isOpen={showArchivedChats} onClose={() => setShowArchivedChats(false)} sessions={chatHistory} archivedIds={chatManagement.archivedSessions} onRestoreSession={handleArchiveSession} onDeleteSession={handleDeleteSession} onSelectSession={handleSelectSession} />
 
-      {/* Image Viewer */}
-      <AnimatePresence>
-        {showImageViewer && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background/95 backdrop-blur-xl z-50 flex items-center justify-center p-4" onClick={() => setShowImageViewer(null)}>
-            <img src={showImageViewer} alt="View" className="max-w-full max-h-[85vh] rounded-3xl shadow-elevated" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Image Viewer with full actions */}
+      <GeneratedImageViewer
+        imageUrl={showImageViewer}
+        onClose={() => setShowImageViewer(null)}
+        onEditImage={handleEditImageFromViewer}
+      />
     </div>
   );
 };
