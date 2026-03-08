@@ -41,14 +41,23 @@ const setVH = () => {
   document.documentElement.style.setProperty('--vh', `${vh}px`);
 };
 
-const GREETINGS = [
-  "What's on your mind?",
-  "Ada yang bisa dibantu?",
-  "무엇을 도와드릴까요?",
-  "何をお手伝いしましょうか？",
-  "Comment puis-je aider ?",
-  "¿En qué puedo ayudarte?",
-];
+const GREETINGS: Record<string, string> = {
+  en: "What's on your mind?",
+  id: "Ada yang bisa dibantu?",
+  ko: "무엇을 도와드릴까요?",
+  ja: "何をお手伝いしましょうか？",
+  fr: "Comment puis-je aider ?",
+  es: "¿En qué puedo ayudarte?",
+  de: "Wie kann ich Ihnen helfen?",
+  zh: "有什么我可以帮您的？",
+  ar: "كيف يمكنني مساعدتك؟",
+  hi: "मैं आपकी कैसे मदद कर सकता हूं?",
+  ru: "Чем я могу помочь?",
+  pt: "Como posso ajudar?",
+  tr: "Size nasıl yardımcı olabilirim?",
+  vi: "Tôi có thể giúp gì?",
+  th: "ฉันช่วยอะไรได้บ้าง?",
+};
 
 const QUICK_ACTIONS = [
   { emoji: "🍃", label: "Edit Image", action: "latentleaf", color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20" },
