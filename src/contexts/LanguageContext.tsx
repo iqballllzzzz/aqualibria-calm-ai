@@ -403,20 +403,31 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<string>(() => {
-    const stored = localStorage.getItem("aqua-language");
-    if (stored) return stored;
+    try {
+      const stored = localStorage.getItem("aqua-language");
+      if (stored && languages.some(l => l.code === stored)) return stored;
+    } catch {}
     
-    const browserLang = navigator.language.split("-")[0];
-    const supported = languages.find((l) => l.code === browserLang);
-    return supported ? browserLang : "en";
+    try {
+      const browserLang = navigator.language.split("-")[0];
+      const supported = languages.find((l) => l.code === browserLang);
+      if (supported) return browserLang;
+    } catch {}
+    return "en";
   });
 
   useEffect(() => {
-    localStorage.setItem("aqua-language", language);
+    try {
+      localStorage.setItem("aqua-language", language);
+    } catch {}
   }, [language]);
 
   const setLanguage = (code: string) => {
-    setLanguageState(code);
+    // Validate the code exists in our supported languages
+    if (languages.some(l => l.code === code)) {
+      setLanguageState(code);
+      try { localStorage.setItem("aqua-language", code); } catch {}
+    }
   };
 
   const t = (key: string): string => {

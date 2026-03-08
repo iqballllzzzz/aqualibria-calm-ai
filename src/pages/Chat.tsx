@@ -510,7 +510,7 @@ const Chat: React.FC = () => {
                       const isPinned = chatManagement.pinnedSessions.includes(session.id);
                       const isEditing = editingSidebarId === session.id;
                       return (
-                        <div key={session.id} className={`group relative flex items-center rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                        <div key={session.id} className={`group flex items-center gap-1 rounded-2xl cursor-pointer transition-all ${currentSessionId === session.id ? "bg-accent" : "hover:bg-accent/50"}`}>
                           {/* Chat title area */}
                           <div className="flex-1 min-w-0 px-3.5 py-3" onClick={() => !isEditing && handleSelectSession(session)}>
                             {isEditing ? (
@@ -526,16 +526,17 @@ const Chat: React.FC = () => {
                             )}
                           </div>
                           
-                          {/* Three-dot menu - ALWAYS visible */}
+                          {/* Three-dot menu - ALWAYS visible, high contrast */}
                           {!isEditing && (
                             <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
                                 <button
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="shrink-0 mr-2 p-2.5 rounded-xl bg-accent hover:bg-primary/20 transition-all border border-border/50"
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                  className="shrink-0 mr-1.5 flex items-center justify-center w-8 h-8 rounded-full bg-primary/15 hover:bg-primary/30 transition-all"
                                   aria-label="Chat options"
+                                  style={{ minWidth: '32px', minHeight: '32px' }}
                                 >
-                                  <MoreVertical className="w-4 h-4 text-foreground" />
+                                  <MoreVertical className="w-4 h-4 text-primary" />
                                 </button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" side="right" className="w-44 rounded-2xl z-[100]">
@@ -580,13 +581,26 @@ const Chat: React.FC = () => {
           <Logo size="sm" />
           <span className="font-display font-bold text-foreground tracking-tight">AquaLibria</span>
         </div>
-        <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
-          {userPhotoURL ? (
-            <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
-          ) : (
-            <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Upgrade Plan button */}
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="p-2 rounded-2xl hover:bg-accent/80 transition-colors relative"
+            title="Upgrade Plan"
+          >
+            <Crown className="w-5 h-5 text-amber-500" />
+            {subscription.plan === "junior" && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            )}
+          </button>
+          <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
+            {userPhotoURL ? (
+              <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Messages area */}
