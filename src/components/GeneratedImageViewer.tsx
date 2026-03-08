@@ -25,39 +25,75 @@ const GeneratedImageViewer: React.FC<GeneratedImageViewerProps> = ({ imageUrl, o
         const res = await fetch(imageUrl);
         blob = await res.blob();
       } else {
-        const res = await fetch(imageUrl);
-        blob = await res.blob();
+        // Use no-cors proxy approach for cross-origin images
+        try {
+          const res = await fetch(imageUrl, { mode: "cors" });
+          blob = await res.blob();
+        } catch {
+          // Fallback: create an image element and draw to canvas
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Failed to load image"));
+            img.src = imageUrl;
+          });
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          blob = await new Promise<Blob>((resolve) =>
+            canvas.toBlob((b) => resolve(b!), "image/png")
+          );
+        }
       }
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `aqua-image-${Date.now()}.png`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
       toast({ title: "Downloaded!", description: "Image saved successfully" });
     } catch {
-      toast({ title: "Error", description: "Failed to download image", variant: "destructive" });
+      // Final fallback: open in new tab
+      window.open(imageUrl, "_blank");
+      toast({ title: "Download", description: "Image opened in new tab. Long-press to save." });
     }
   };
 
   const handleShare = async () => {
     try {
       if (navigator.share) {
+        // Try sharing the URL directly first (more reliable)
+        if (!imageUrl.startsWith("data:")) {
+          try {
+            await navigator.share({ url: imageUrl, title: "AquaLibria Generated Image" });
+            return;
+          } catch {}
+        }
+        // Fallback: share as file
         let blob: Blob;
         if (imageUrl.startsWith("data:")) {
           const res = await fetch(imageUrl);
           blob = await res.blob();
         } else {
-          const res = await fetch(imageUrl);
+          const res = await fetch(imageUrl, { mode: "cors" }).catch(() => fetch(imageUrl));
           blob = await res.blob();
         }
         const file = new File([blob], "aqua-image.png", { type: "image/png" });
         await navigator.share({ files: [file], title: "AquaLibria Generated Image" });
       } else {
-        await navigator.clipboard.writeText(imageUrl.startsWith("data:") ? "Image (base64 - too large to share via clipboard)" : imageUrl);
-        toast({ title: "Copied!", description: "Image link copied to clipboard" });
+        if (!imageUrl.startsWith("data:")) {
+          await navigator.clipboard.writeText(imageUrl);
+          toast({ title: "Copied!", description: "Image link copied to clipboard" });
+        } else {
+          toast({ title: "Info", description: "Image is too large to share via clipboard" });
+        }
       }
     } catch {
-      toast({ title: "Share cancelled", variant: "destructive" });
+      // User cancelled share - not an error
     }
   };
 

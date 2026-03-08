@@ -550,6 +550,13 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
+  const getBetaMessage = () => {
+    if (callState === "processing" || callState === "speaking") {
+      return "Mohon sabar menunggu ai berbicara karena ini merupakan project beta test dan belum memiliki sistem yang baik.";
+    }
+    return null;
+  };
+
   const getStatusColor = () => {
     switch (callState) {
       case "listening":
@@ -707,6 +714,15 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
               <p className="text-foreground-muted text-center max-w-sm text-sm leading-relaxed min-h-[3rem] break-words-safe">
                 {getStatusText()}
               </p>
+              {getBetaMessage() && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-amber-500/80 text-center max-w-sm text-xs mt-2 italic"
+                >
+                  {getBetaMessage()}
+                </motion.p>
+              )}
             </motion.div>
 
             {/* Error Display */}
