@@ -126,8 +126,10 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
         }
         
         // Start silence detection timer - auto-send after 4s silence
+        // Use callStateRef to avoid stale closure
         silenceTimerRef.current = setTimeout(() => {
-          if (lastTranscriptRef.current.trim() && callState === "listening") {
+          if (lastTranscriptRef.current.trim() && callStateRef.current === "listening") {
+            console.log("Silence detected, auto-sending:", lastTranscriptRef.current.slice(0, 50));
             recognitionRef.current?.stop();
             processUserInput(lastTranscriptRef.current);
           }
