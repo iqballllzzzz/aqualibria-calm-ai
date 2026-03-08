@@ -554,6 +554,7 @@ export const extractMemoryFromMessage = (message: string, isAIResponse: boolean 
 };
 
 // Build ENHANCED memory context for API (much richer context for smarter AI)
+// Now includes cross-session memory from ALL past conversations
 export const buildMemoryContext = (): string => {
   const memory = getAIMemory();
   const parts: string[] = [];
@@ -617,6 +618,34 @@ export const buildMemoryContext = (): string => {
   // Total interactions for relationship context
   if (memory.totalInteractions > 10) {
     parts.push(`This is interaction #${memory.totalInteractions} with this user`);
+  }
+
+  // ===== CROSS-SESSION MEMORY =====
+  // Summarize key points from past chat sessions so AI knows everything
+  try {
+    const allSessions = getChatHistory();
+    if (allSessions.length > 1) {
+      const sessionSummaries: string[] = [];
+      // Get last 15 sessions (excluding current one which is already in conversationHistory)
+      const pastSessions = allSessions.slice(0, 15);
+      for (const session of pastSessions) {
+        // Extract key user messages from each session (first & last substantive ones)
+        const userMsgs = session.messages
+          .filter(m => m.role === "user" && m.content.length > 10)
+          .map(m => m.content.slice(0, 80));
+        if (userMsgs.length > 0) {
+          const summary = userMsgs.length <= 2
+            ? userMsgs.join("; ")
+            : `${userMsgs[0]}; ... ${userMsgs[userMsgs.length - 1]}`;
+          sessionSummaries.push(`[${session.title.slice(0, 30)}]: ${summary}`);
+        }
+      }
+      if (sessionSummaries.length > 0) {
+        parts.push(`Past conversation summaries (user asked about): ${sessionSummaries.slice(0, 8).join(" | ").slice(0, 800)}`);
+      }
+    }
+  } catch (e) {
+    // Ignore errors in cross-session memory
   }
   
   return parts.join(". ") + (parts.length > 0 ? "." : "");

@@ -50,6 +50,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef<string>("");
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const callStateRef = useRef<CallState>("idle");
 
   // Call duration timer
   useEffect(() => {
