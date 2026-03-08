@@ -272,7 +272,8 @@ const Chat: React.FC = () => {
     const messageText = inputValue.trim() || (pendingImages.length > 0 ? "Apa yang ada di gambar ini?" : "Analisis file ini");
     setMessageComplexity(classifyMessageComplexity(messageText));
     const firstImage = pendingImages.length > 0 ? pendingImages[0] : undefined;
-    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
+    const allImageUrls = pendingImages.length > 0 ? [...pendingImages] : undefined;
+    const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: firstImage, imageUrls: allImageUrls, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
