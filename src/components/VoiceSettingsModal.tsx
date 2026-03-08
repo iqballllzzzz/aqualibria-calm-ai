@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2 } from "lucide-react";
-import { VoiceOption, VOICE_OPTIONS } from "@/lib/api";
+import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceInfo } from "@/lib/api";
 
 interface VoiceSettingsModalProps {
   isOpen: boolean;
@@ -47,22 +47,31 @@ const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {VOICE_OPTIONS.map((voice) => (
-                <button
-                  key={voice}
-                  onClick={() => {
-                    onSelectVoice(voice);
-                    onClose();
-                  }}
-                  className={`px-4 py-3 rounded-xl text-sm font-medium capitalize transition-all ${
-                    selectedVoice === voice
-                      ? "bg-foreground text-background"
-                      : "bg-accent text-foreground hover:bg-accent/80"
-                  }`}
-                >
-                  {voice}
-                </button>
-              ))}
+              {VOICE_OPTIONS.map((voice) => {
+                const info = getVoiceInfo(voice);
+                return (
+                  <button
+                    key={voice}
+                    onClick={() => {
+                      onSelectVoice(voice);
+                      onClose();
+                    }}
+                    className={`px-3 py-2.5 rounded-xl text-left transition-all ${
+                      selectedVoice === voice
+                        ? "bg-foreground text-background"
+                        : "bg-accent text-foreground hover:bg-accent/80"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">{info.displayName}</span>
+                      <span className={`text-[10px] ${info.gender === "male" ? "text-blue-400" : "text-pink-400"}`}>
+                        {info.gender === "male" ? "♂" : "♀"}
+                      </span>
+                    </div>
+                    <p className={`text-[10px] mt-0.5 ${selectedVoice === voice ? "text-background/70" : "text-foreground-muted"}`}>{info.description}</p>
+                  </button>
+                );
+              })}
             </div>
           </motion.div>
         </>

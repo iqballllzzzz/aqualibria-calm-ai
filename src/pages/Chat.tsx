@@ -10,7 +10,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,8 @@ import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
 import TypingAnimation from "@/components/TypingAnimation";
+import SmartThinkingIndicator, { classifyMessageComplexity } from "@/components/SmartThinkingIndicator";
+import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import { Input } from "@/components/ui/input";
@@ -78,7 +80,7 @@ const Chat: React.FC = () => {
   const [pendingImageData, setPendingImageData] = useState<string | null>(null);
   const [pendingFileData, setPendingFileData] = useState<{ data: string; name: string; type: string; textContent?: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -93,6 +95,7 @@ const Chat: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [editingSidebarId, setEditingSidebarId] = useState<string | null>(null);
   const [editSidebarTitle, setEditSidebarTitle] = useState("");
+  const [messageComplexity, setMessageComplexity] = useState<"simple" | "medium" | "complex">("medium");
 
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
@@ -211,6 +214,10 @@ const Chat: React.FC = () => {
     const usage = canUseFeature();
     if (!usage.allowed) { toast({ title: "Limit Tercapai", description: "Upgrade plan untuk lebih banyak!", variant: "destructive" }); setShowUpgradeModal(true); return; }
     const messageText = inputValue.trim() || (pendingImageData ? "Apa yang ada di gambar ini?" : "Analisis file ini");
+    
+    // Classify complexity for smart thinking indicator
+    setMessageComplexity(classifyMessageComplexity(messageText));
+    
     const userMessage: ChatMessage = { role: "user", content: messageText, timestamp: new Date(), id: generateMessageId(), imageUrl: pendingImageData || undefined, fileData: pendingFileData?.data, fileName: pendingFileData?.name, fileType: pendingFileData?.type };
     extractMemoryFromMessage(messageText);
     setMessages((prev) => [...prev, userMessage]);
@@ -227,6 +234,27 @@ const Chat: React.FC = () => {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
+      
+      // Check for dual-agent mode (only for default chat without attachments)
+      if (activeMode === "chat" && !imageToAnalyze && !fileToAnalyze && !youtubeUrl) {
+        const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
+        if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
+          setMessages((prev) => [...prev, {
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            id: generateMessageId(),
+            isDualAgent: true,
+            perspectiveA: dualResult.perspectiveA,
+            perspectiveB: dualResult.perspectiveB,
+            agentAName: dualResult.agentAName || "Optimist",
+            agentBName: dualResult.agentBName || "Realist",
+          }]);
+          setIsLoading(false);
+          return;
+        }
+      }
+      
       switch (activeMode) {
         case "research":
           result = await sendChatMessage(messageText, currentSessionId, { isResearchMode: true, model: selectedModel, memoryContext, conversationHistory });
@@ -497,7 +525,19 @@ const Chat: React.FC = () => {
                       </div>
                     )}
                     {/* Content */}
-                    {message.role === "assistant" ? (
+                    {message.isDualAgent && message.perspectiveA && message.perspectiveB ? (
+                      <DualAgentView
+                        perspectiveA={message.perspectiveA}
+                        perspectiveB={message.perspectiveB}
+                        agentAName={message.agentAName || "Optimist"}
+                        agentBName={message.agentBName || "Realist"}
+                        onSelect={(choice) => {
+                          setMessages(prev => prev.map((m, i) => 
+                            i === index ? { ...m, selectedPerspective: choice, content: choice === "A" ? message.perspectiveA! : message.perspectiveB! } : m
+                          ));
+                        }}
+                      />
+                    ) : message.role === "assistant" ? (
                       <MarkdownRenderer content={message.content} />
                     ) : (
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
@@ -512,19 +552,8 @@ const Chat: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
-              {/* Loading indicator */}
-              {isLoading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start px-1">
-                  <div className="flex items-center gap-2.5 py-2">
-                    <div className="flex items-center gap-1">
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="loading-dot animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                    <span className="text-foreground-muted text-xs font-medium">Thinking...</span>
-                  </div>
-                </motion.div>
-              )}
+              {/* Smart Loading indicator */}
+              <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
               <div ref={messagesEndRef} />
             </div>
           )}

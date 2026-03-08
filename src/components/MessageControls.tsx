@@ -19,7 +19,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
   content,
   className = "",
   isAssistant = false,
-  selectedVoice = "Fenrir",
+  selectedVoice = "aurora",
 }) => {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"like" | "dislike" | null>(
