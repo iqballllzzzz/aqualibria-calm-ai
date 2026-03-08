@@ -46,6 +46,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  imageUrls?: string[];
   id?: string;
   isVoiceChat?: boolean;
   fileData?: string;
