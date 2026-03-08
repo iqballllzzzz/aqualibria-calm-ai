@@ -317,7 +317,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
       .slice(0, 600); // Shorter for faster TTS in voice call
 
     try {
-      const result = await textToSpeech(cleanText, selectedVoice);
+      const result = await textToSpeech(cleanText, selectedVoiceRef.current);
 
       if (result.success && result.audioUrl) {
         // Handle browser TTS fallback
