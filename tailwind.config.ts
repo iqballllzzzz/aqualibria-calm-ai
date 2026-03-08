@@ -14,7 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "-apple-system", "sans-serif"],
+        display: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Menlo", "Monaco", "monospace"],
       },
       colors: {
@@ -64,6 +65,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        aqua: {
+          DEFAULT: "hsl(var(--aqua))",
+          light: "hsl(var(--aqua-light))",
+          glow: "hsl(var(--aqua-glow))",
+        },
         chat: {
           user: "hsl(var(--chat-user-bg))",
           ai: "hsl(var(--chat-ai-bg))",
@@ -81,6 +87,7 @@ export default {
         },
       },
       borderRadius: {
+        "3xl": "1.5rem",
         lg: "var(--radius-lg)",
         md: "var(--radius)",
         sm: "var(--radius-sm)",
@@ -131,10 +138,6 @@ export default {
         88: "22rem",
         112: "28rem",
         128: "32rem",
-      },
-      transitionDuration: {
-        250: "250ms",
-        350: "350ms",
       },
     },
   },
