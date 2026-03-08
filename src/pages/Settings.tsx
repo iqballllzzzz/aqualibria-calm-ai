@@ -320,6 +320,7 @@ const Settings: React.FC = () => {
 
             {/* Chat Management */}
             <Section title={t("settings.chat")} delay={0.2}>
+              <SettingRow icon={Trash2} label="Hapus Pesan" onClick={() => { refreshChats(); setShowHapusPesan(true); }} />
               <SettingRow icon={MessageSquare} label="Edit Pesan" onClick={handleOpenEditPesan} />
               <SettingRow icon={Download} label={t("settings.export")} onClick={handleExportChat} />
               <SettingRow icon={Upload} label={t("settings.import")} onClick={handleImportChat} />
