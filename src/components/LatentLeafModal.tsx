@@ -141,7 +141,7 @@ const LatentLeafModal: React.FC<LatentLeafModalProps> = ({ isOpen, onClose }) =>
             </motion.button>
           ) : (
             <div className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                 <div className="space-y-2">
                   <label className="text-sm text-muted-foreground">Original</label>
                   <div className="relative rounded-xl overflow-hidden border border-border">
