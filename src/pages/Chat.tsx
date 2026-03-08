@@ -24,7 +24,7 @@ import VoiceCallModal from "@/components/VoiceCallModal";
 import UpgradePlanModal from "@/components/UpgradePlanModal";
 import LatentLeafModal from "@/components/LatentLeafModal";
 import MuseaModal from "@/components/MuseaModal";
-import UserPanel from "@/components/UserPanel";
+import TypingAnimation from "@/components/TypingAnimation";
 import TypingAnimation from "@/components/TypingAnimation";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
