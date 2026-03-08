@@ -28,7 +28,7 @@ const CodingPartner: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [sessionId] = useState(generateSessionId());
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("dylan");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
 
   // Handle voice transcript

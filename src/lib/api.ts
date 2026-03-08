@@ -335,6 +335,20 @@ export const generateImage = async (prompt: string): Promise<{ success: boolean;
   }
 };
 
+export const checkPaymentStatus = async (orderId: string, amount: number): Promise<{ success: boolean; paid?: boolean; error?: string }> => {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/pakasir-payment?action=check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+      body: JSON.stringify({ order_id: orderId, amount }),
+    });
+    const data = await response.json();
+    return data;
+  } catch (error: any) {
+    return { success: false, error: error.message || "Payment check failed" };
+  }
+};
+
 // LatentLeaf Image Edit
 export const editImageLatentLeaf = async (prompt: string, imageBase64: string): Promise<{ success: boolean; editedImageUrl?: string; error?: string }> => {
   try {
