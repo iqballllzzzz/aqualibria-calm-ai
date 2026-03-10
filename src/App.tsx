@@ -18,6 +18,8 @@ import NotFound from "./pages/NotFound";
 import SharedChat from "./pages/SharedChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import StudyOnboarding from "./pages/StudyOnboarding";
+import StudyDashboard from "./pages/StudyDashboard";
 import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
