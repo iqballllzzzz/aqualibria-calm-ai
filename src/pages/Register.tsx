@@ -44,7 +44,13 @@ const Register: React.FC = () => {
             <CheckCircle className="w-8 h-8 text-success" />
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-2">{t("register.verify")}</h1>
-          <p className="text-foreground-muted text-sm mb-8 leading-relaxed">{t("register.verifyMessage")}</p>
+          <p className="text-foreground-muted text-sm mb-4 leading-relaxed">{t("register.verifyMessage")}</p>
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 mb-8">
+            <p className="text-amber-600 dark:text-amber-400 text-xs leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Link verifikasi telah dikirim ke email kamu. Pastikan untuk memeriksa <strong>seluruh folder email</strong> termasuk folder <strong>Spam</strong>, <strong>Junk</strong>, atau <strong>Promosi</strong>.</span>
+            </p>
+          </div>
           <Link to="/login" className="btn-primary inline-block">Go to Login</Link>
         </motion.div>
       </div>
