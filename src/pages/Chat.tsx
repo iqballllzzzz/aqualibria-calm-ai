@@ -833,6 +833,10 @@ const Chat: React.FC = () => {
                           <button onClick={() => { setShowLatentLeaf(true); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
                             <Leaf className="w-4 h-4 text-primary" /><span>LatentLeaf Edit</span>
                           </button>
+                          <button onClick={() => { navigate("/study/chat"); setShowPlusMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground text-sm">
+                            <GraduationCap className="w-4 h-4 text-amber-500" /><span>Pembelajaran</span>
+                            <span className="ml-auto text-[9px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">NEW</span>
+                          </button>
                         </motion.div>
                       </>
                     )}

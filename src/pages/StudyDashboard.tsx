@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   FileText, Youtube, Image as LucideImage, Upload, ArrowLeft,
   BookOpen, Brain, HelpCircle, Layers, RefreshCw, X, Loader2, 
-  ChevronDown, Globe
+  ChevronDown, Globe, Sparkles
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";

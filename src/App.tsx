@@ -108,6 +108,8 @@ const AppRoutes = () => {
       <Route path="/chat/:sessionId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/coding" element={<ProtectedRoute><CodingPartner /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/study/chat" element={<ProtectedRoute><StudyOnboarding /></ProtectedRoute>} />
+      <Route path="/study/dashboard" element={<ProtectedRoute><StudyDashboard /></ProtectedRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/shared/:shareId" element={<SharedChat />} />
       <Route path="/qwertyuiop/adminpanel/yoyoyo/loginuser" element={<AdminLogin />} />
