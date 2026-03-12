@@ -51,9 +51,9 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTranscriptRef = useRef<string>("");
-  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callStateRef = useRef<CallState>("idle");
   const selectedVoiceRef = useRef<VoiceOption>(selectedVoice);
   const processUserInputRef = useRef<(input: string) => void>(() => {});
