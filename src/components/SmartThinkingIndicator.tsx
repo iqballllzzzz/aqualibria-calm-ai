@@ -47,7 +47,7 @@ const SmartThinkingIndicator: React.FC<SmartThinkingIndicatorProps> = ({
       }
     };
 
-    const timers: NodeJS.Timeout[] = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
     let accumulated = 0;
     for (let i = 0; i < stages.length - 1; i++) {
       accumulated += stages[i].duration;
