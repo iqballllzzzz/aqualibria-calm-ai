@@ -25,7 +25,7 @@ const ResearchIndicator: React.FC<ResearchIndicatorProps> = ({ isLoading }) => {
     let stageIndex = 0;
     setCurrentStage(0);
 
-    const timers: NodeJS.Timeout[] = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
     let accumulated = 0;
     for (let i = 0; i < RESEARCH_STAGES.length - 1; i++) {
       accumulated += RESEARCH_STAGES[i].duration;
