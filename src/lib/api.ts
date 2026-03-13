@@ -52,6 +52,9 @@ export interface ChatMessage {
   fileData?: string;
   fileName?: string;
   fileType?: string;
+  fileUrl?: string;
+  fileMimeType?: string;
+  videoUrl?: string;
   isDualAgent?: boolean;
   perspectiveA?: string;
   perspectiveB?: string;
@@ -190,32 +193,60 @@ export const sendChatMessage = async (
     imageDataList?: string[];
     fileData?: string;
     fileTextContent?: string;
+    fileUrl?: string;
+    fileMimeType?: string;
+    videoUrl?: string;
     isCodingMode?: boolean;
     isResearchMode?: boolean;
     model?: string;
     memoryContext?: string;
     youtubeUrl?: string;
-    conversationHistory?: { role: string; content: string; imageData?: string; fileData?: string }[];
+    conversationHistory?: {
+      role: string;
+      content: string;
+      imageData?: string;
+      fileData?: string;
+      fileUrl?: string;
+      fileMimeType?: string;
+      videoUrl?: string;
+    }[];
   } = {}
 ): Promise<{ success: boolean; response?: string; error?: string }> => {
   try {
-    const { imageData, imageDataList, fileData, fileTextContent, isCodingMode = false, isResearchMode = false, model = "aqualibriav1", memoryContext = "", youtubeUrl, conversationHistory = [] } = options;
+    const {
+      imageData,
+      imageDataList,
+      fileData,
+      fileTextContent,
+      fileUrl,
+      fileMimeType,
+      videoUrl,
+      isCodingMode = false,
+      isResearchMode = false,
+      model = "aqualibriav1",
+      memoryContext = "",
+      youtubeUrl,
+      conversationHistory = [],
+    } = options;
 
     if (!message || message.trim().length === 0) return { success: false, error: "Message cannot be empty" };
     if (message.length > 50000) return { success: false, error: "Message too long (max 50000 characters)" };
 
     let textToSend = message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
     if (isResearchMode) textToSend = `Please research thoroughly and provide detailed findings about: ${textToSend}`;
-    
+
     if (fileTextContent) {
       textToSend = `${textToSend}\n\n[Document Content]:\n${fileTextContent}`;
     }
 
-    let systemPrompt = isCodingMode ? SYSTEM_PROMPTS.coding : 
-      model === "aqualibriav2" ? SYSTEM_PROMPTS.v2 : 
-      model === "aqualibriav3" ? SYSTEM_PROMPTS.v3 : 
-      SYSTEM_PROMPTS.default;
-    
+    let systemPrompt = isCodingMode
+      ? SYSTEM_PROMPTS.coding
+      : model === "aqualibriav2"
+        ? SYSTEM_PROMPTS.v2
+        : model === "aqualibriav3"
+          ? SYSTEM_PROMPTS.v3
+          : SYSTEM_PROMPTS.default;
+
     if (memoryContext) {
       systemPrompt += `\n\n[User Context & Memory]: ${memoryContext}`;
     }
@@ -225,23 +256,26 @@ export const sendChatMessage = async (
       const msgObj: any = { role: msg.role, content: msg.content };
       if (msg.imageData) msgObj.imageData = msg.imageData;
       if (msg.fileData) msgObj.fileData = msg.fileData;
+      if (msg.fileUrl) msgObj.fileUrl = msg.fileUrl;
+      if (msg.fileMimeType) msgObj.fileMimeType = msg.fileMimeType;
+      if (msg.videoUrl) msgObj.videoUrl = msg.videoUrl;
       messages.push(msgObj);
     }
 
-    // Consolidate all images into imageDataList
-    const allImages = imageDataList && imageDataList.length > 0 
-      ? imageDataList 
-      : (imageData ? [imageData] : []);
+    const allImages = imageDataList && imageDataList.length > 0 ? imageDataList : imageData ? [imageData] : [];
 
-    if (allImages.length > 0) {
-      const currentMsg: any = { role: "user", content: textToSend, imageDataList: allImages };
-      if (fileData) currentMsg.fileData = fileData;
-      messages.push(currentMsg);
-    } else {
-      const currentMsg: any = { role: "user", content: textToSend };
-      if (fileData) currentMsg.fileData = fileData;
-      messages.push(currentMsg);
-    }
+    const currentMsg: any = {
+      role: "user",
+      content: textToSend,
+    };
+
+    if (allImages.length > 0) currentMsg.imageDataList = allImages;
+    if (fileData) currentMsg.fileData = fileData;
+    if (fileUrl) currentMsg.fileUrl = fileUrl;
+    if (fileMimeType) currentMsg.fileMimeType = fileMimeType;
+    if (videoUrl) currentMsg.videoUrl = videoUrl;
+
+    messages.push(currentMsg);
 
     const geminiModel = MODEL_MAP[model] || MODEL_MAP.aqualibriav1;
 
@@ -251,6 +285,7 @@ export const sendChatMessage = async (
       systemPrompt,
       model: geminiModel,
       youtubeUrl,
+      sessionId,
     });
 
     if (data.success && data.response) {
