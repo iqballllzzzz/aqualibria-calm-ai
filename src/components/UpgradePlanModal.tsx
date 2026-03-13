@@ -64,7 +64,7 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
 
   // Check payment status periodically
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     
     if (paymentData && selectedPlan) {
       interval = setInterval(async () => {
