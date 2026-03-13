@@ -208,6 +208,81 @@ export type Database = {
         }
         Relationships: []
       }
+      study_histories: {
+        Row: {
+          created_at: string
+          encrypted_payload: string
+          firebase_uid: string
+          id: string
+          iv: string
+          mindmap_layout: string | null
+          source_name: string | null
+          source_type: string
+          source_url: string | null
+          study_mode: string
+          title: string
+          tone_style: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_payload: string
+          firebase_uid: string
+          id?: string
+          iv: string
+          mindmap_layout?: string | null
+          source_name?: string | null
+          source_type: string
+          source_url?: string | null
+          study_mode: string
+          title?: string
+          tone_style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_payload?: string
+          firebase_uid?: string
+          id?: string
+          iv?: string
+          mindmap_layout?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_url?: string | null
+          study_mode?: string
+          title?: string
+          tone_style?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      study_profiles: {
+        Row: {
+          age_group: string
+          created_at: string
+          education_level: string
+          firebase_uid: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          age_group: string
+          created_at?: string
+          education_level: string
+          firebase_uid: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          age_group?: string
+          created_at?: string
+          education_level?: string
+          firebase_uid?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string
