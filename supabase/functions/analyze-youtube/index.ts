@@ -1,11 +1,13 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-Deno.serve(async (req) => {
+const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -20,23 +22,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: 'Missing API key' }), {
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // Extract video ID from URL
-    const videoIdMatch = videoUrl.match(/(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    const videoIdMatch = videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
     const videoId = videoIdMatch?.[1] || '';
+
+    if (!videoId) {
+      return new Response(JSON.stringify({ error: 'Invalid YouTube URL' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Fetch video metadata from noembed
     let videoTitle = '';
     let channelName = '';
     try {
-      const metaRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+      const metaRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {
+        signal: AbortSignal.timeout(5000),
+      });
       if (metaRes.ok) {
         const meta = await metaRes.json();
         videoTitle = meta.title || '';
@@ -46,46 +57,95 @@ Deno.serve(async (req) => {
       console.warn('Failed to fetch video metadata:', e);
     }
 
+    // Try to get transcript via a public transcript API
+    let transcript = '';
+    try {
+      // Try youtubetranscript.com API
+      const transcriptRes = await fetch(`https://yt.lemnoslife.com/noKey/captions?part=snippet&videoId=${videoId}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (transcriptRes.ok) {
+        const transcriptData = await transcriptRes.json();
+        const items = transcriptData?.items;
+        if (items && items.length > 0) {
+          // Find auto-generated or manual caption
+          const caption = items.find((i: any) => i.snippet?.language === 'id' || i.snippet?.language === 'en') || items[0];
+          if (caption?.snippet?.baseUrl || caption?.id) {
+            // Try to fetch the actual captions text
+            const captionUrl = caption.snippet?.baseUrl;
+            if (captionUrl) {
+              const captionRes = await fetch(captionUrl, { signal: AbortSignal.timeout(8000) });
+              if (captionRes.ok) {
+                const captionText = await captionRes.text();
+                // Parse XML transcript
+                const textMatches = captionText.match(/<text[^>]*>([^<]*)<\/text>/g);
+                if (textMatches) {
+                  transcript = textMatches
+                    .map((t: string) => t.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"'))
+                    .join(' ')
+                    .slice(0, 12000);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Transcript fetch failed (expected):', e);
+    }
+
     const userPrompt = prompt || 'Apa poin utama dari video ini?';
 
-    const systemPrompt = `You are AquaLibriaAI, a helpful AI assistant created by M Iqbal.S. You are analyzing a YouTube video. Answer in the user's language.
-
-Video Information:
+    let contextInfo = `Video Information:
 - URL: ${videoUrl}
-- Title: ${videoTitle}
-- Channel: ${channelName}
-- Video ID: ${videoId}
+- Title: ${videoTitle || 'Unknown'}
+- Channel: ${channelName || 'Unknown'}
+- Video ID: ${videoId}`;
 
-Based on this video information, answer the user's question as best you can. If you can identify the topic from the title and channel, provide a thorough analysis.`;
+    if (transcript) {
+      contextInfo += `\n\nVideo Transcript:\n${transcript}`;
+    }
 
-    const model = 'gemini-2.5-flash-preview-05-20';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const systemPrompt = `You are AquaLibriaAI, a helpful AI assistant created by M Iqbal.S. You are analyzing a YouTube video. Answer in the user's language (Indonesian if the content is Indonesian).
 
-    const geminiResponse = await fetch(geminiUrl, {
+${contextInfo}
+
+${transcript 
+  ? 'You have the full transcript of this video. Analyze it thoroughly - extract key points, main topics, important details, and provide a comprehensive summary.'
+  : 'You have the video title and channel info but no transcript. Analyze what you can infer from the title, channel name, and topic. Be upfront that your analysis is based on metadata, not the actual video content.'
+}`;
+
+    const response = await fetch(GATEWAY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        contents: [
-          { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser question: ${userPrompt}` }] },
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
         ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4096,
-        },
       }),
     });
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      console.error('Gemini error:', errText);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('AI Gateway error:', response.status, errText);
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded, please try again later.' }), {
+          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       return new Response(JSON.stringify({ error: 'AI analysis failed' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const geminiData = await geminiResponse.json();
-    const analysis = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis generated';
+    const data = await response.json();
+    const analysis = data.choices?.[0]?.message?.content || 'No analysis generated';
 
     return new Response(JSON.stringify({
       success: true,
@@ -93,6 +153,7 @@ Based on this video information, answer the user's question as best you can. If 
       videoTitle,
       channelName,
       videoId,
+      hasTranscript: !!transcript,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
