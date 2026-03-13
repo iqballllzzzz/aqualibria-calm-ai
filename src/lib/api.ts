@@ -52,6 +52,9 @@ export interface ChatMessage {
   fileData?: string;
   fileName?: string;
   fileType?: string;
+  fileUrl?: string;
+  fileMimeType?: string;
+  videoUrl?: string;
   isDualAgent?: boolean;
   perspectiveA?: string;
   perspectiveB?: string;
