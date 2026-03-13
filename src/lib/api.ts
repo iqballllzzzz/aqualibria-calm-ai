@@ -109,8 +109,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "superior",
     name: "Superior",
-    price: 3000,
-    priceDisplay: "Rp 3.000",
+    price: 18000,
+    priceDisplay: "Rp 18.000",
     dailyLimit: "unlimited",
     model: "aqualibriav3",
     modelDisplay: "AqualibriaV3",
