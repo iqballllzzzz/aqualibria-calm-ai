@@ -14,13 +14,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set a timeout to prevent infinite loading
     const timeout = setTimeout(() => {
       if (loading) {
         console.log("Auth timeout - setting loading to false");
         setLoading(false);
       }
-    }, 3000); // 3 second timeout
+    }, 3000);
 
     const unsubscribe = onAuthChange((user) => {
       console.log("Auth state changed:", user ? "User logged in" : "User logged out");
@@ -35,12 +34,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Log current state for debugging
-  useEffect(() => {
-    console.log("Auth state:", { loading, user: user?.email || null, isAuthenticated: !!user });
-  }, [loading, user]);
-
-  const isAuthenticated = !!user && (user.emailVerified || user.providerData[0]?.providerId === "google.com");
+  // With Supabase, authenticated = has a session (auto-confirm enabled)
+  const isAuthenticated = !!user;
 
   return (
     <AuthContext.Provider value={{ user, loading, isAuthenticated }}>
