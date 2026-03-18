@@ -1,17 +1,23 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
-import { signInWithEmail, signInWithGoogle } from "@/lib/firebase";
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Phone } from "lucide-react";
+import { signInWithEmail, signInWithGoogle, signInWithPhone, verifyPhoneOtp } from "@/lib/firebase";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { logActivity } from "@/lib/activity";
 import Logo from "@/components/Logo";
 
+type AuthMode = "email" | "phone";
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const [authMode, setAuthMode] = useState<AuthMode>("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +32,34 @@ const Login: React.FC = () => {
       setLoading(false);
     } else if (result.user) {
       logActivity(result.user.uid, "login_email", { method: "email" }, result.user.email || undefined);
-      navigate("/welcome");
+      navigate("/chat");
+    }
+  };
+
+  const handlePhoneSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const result = await signInWithPhone(phone);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setOtpSent(true);
+    }
+    setLoading(false);
+  };
+
+  const handlePhoneVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const result = await verifyPhoneOtp(phone, otp);
+    if (result.error) {
+      setError(result.error);
+      setLoading(false);
+    } else if (result.user) {
+      logActivity(result.user.uid, "login_phone", { method: "phone" }, result.user.email || undefined);
+      navigate("/chat");
     }
   };
 
@@ -37,17 +70,14 @@ const Login: React.FC = () => {
     if (result.error) {
       setError(result.error);
       setLoading(false);
-    } else if (result.user) {
-      logActivity(result.user.uid, "login_google", { method: "google" }, result.user.email || undefined, result.user.displayName || undefined);
-      navigate("/welcome");
     }
+    // Google OAuth will redirect, so no need to navigate manually
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute top-[-30%] left-[-10%] w-[60vw] h-[60vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(217, 91%, 55%)' }} />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full opacity-[0.04] blur-[80px] pointer-events-none" style={{ background: 'hsl(217, 91%, 55%)' }} />
+      <div className="absolute top-[-30%] left-[-10%] w-[60vw] h-[60vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full opacity-[0.04] blur-[80px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -55,94 +85,72 @@ const Login: React.FC = () => {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-sm relative z-10"
       >
-        {/* Logo & heading */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <Logo size="lg" className="mx-auto mb-5" />
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            {t("login.title")}
-          </h1>
-          <p className="text-foreground-muted text-sm mt-1.5">
-            {t("login.subtitle")}
-          </p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("login.title")}</h1>
+          <p className="text-muted-foreground text-sm mt-1.5">{t("login.subtitle")}</p>
         </div>
 
-        {/* Error */}
+        {/* Auth mode tabs */}
+        <div className="flex bg-muted rounded-xl p-1 mb-5">
+          <button onClick={() => { setAuthMode("email"); setError(""); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${authMode === "email" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
+            <Mail className="w-4 h-4" />Email
+          </button>
+          <button onClick={() => { setAuthMode("phone"); setError(""); setOtpSent(false); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${authMode === "phone" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
+            <Phone className="w-4 h-4" />Phone
+          </button>
+        </div>
+
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-5 p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-2.5"
-          >
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5 p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <p className="text-sm text-destructive">{error}</p>
           </motion.div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleEmailLogin} className="space-y-3">
-          <div className="relative group">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-foreground-muted group-focus-within:text-primary transition-colors" />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t("login.email")}
-              className="w-full pl-11 pr-4 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-              required
-            />
-          </div>
-
-          <div className="relative group">
-            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-foreground-muted group-focus-within:text-primary transition-colors" />
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t("login.password")}
-              className="w-full pl-11 pr-11 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground transition-colors"
-            >
-              {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+        {authMode === "email" ? (
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <div className="relative group">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email")} className="w-full pl-11 pr-4 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm" required />
+            </div>
+            <div className="relative group">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("login.password")} className="w-full pl-11 pr-11 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm" required />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+              </button>
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+              {loading ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Signing in...</span>) : t("login.signin")}
             </button>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all btn-press"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                Signing in...
-              </span>
-            ) : (
-              t("login.signin")
+          </form>
+        ) : (
+          <form onSubmit={otpSent ? handlePhoneVerify : handlePhoneSendOtp} className="space-y-3">
+            <div className="relative group">
+              <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+62812345678" className="w-full pl-11 pr-4 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm" required disabled={otpSent} />
+            </div>
+            {otpSent && (
+              <div className="relative group">
+                <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP code" className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm text-center tracking-widest" required maxLength={6} />
+              </div>
             )}
-          </button>
-        </form>
+            <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+              {loading ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /></span>) : otpSent ? "Verify OTP" : "Send OTP"}
+            </button>
+            {otpSent && (
+              <button type="button" onClick={() => setOtpSent(false)} className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors">Change number</button>
+            )}
+          </form>
+        )}
 
-        {/* Divider */}
         <div className="relative my-7">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="px-3 bg-background text-foreground-muted">or</span>
-          </div>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-xs"><span className="px-3 bg-background text-muted-foreground">or</span></div>
         </div>
 
-        {/* Google */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full py-3 rounded-xl bg-card border border-border text-foreground font-medium text-sm hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all btn-press flex items-center justify-center gap-2.5"
-        >
+        <button onClick={handleGoogleLogin} disabled={loading} className="w-full py-3 rounded-xl bg-card border border-border text-foreground font-medium text-sm hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2.5">
           <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -152,12 +160,9 @@ const Login: React.FC = () => {
           {t("login.google")}
         </button>
 
-        {/* Register link */}
-        <p className="mt-7 text-center text-sm text-foreground-muted">
+        <p className="mt-7 text-center text-sm text-muted-foreground">
           {t("login.noAccount")}{" "}
-          <Link to="/register" className="text-primary font-semibold hover:underline">
-            {t("login.register")}
-          </Link>
+          <Link to="/register" className="text-primary font-semibold hover:underline">{t("login.register")}</Link>
         </p>
       </motion.div>
     </div>

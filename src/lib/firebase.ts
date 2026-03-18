@@ -1,109 +1,137 @@
-import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  signOut,
-  onAuthStateChanged,
-  User,
-} from "firebase/auth";
+// Auth module - Using Supabase Auth (migrated from Firebase)
+import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// Firebase configuration - Replace with your own config
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abc123",
+// Compatibility layer - map Supabase User to a Firebase-like interface
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  providerData: { providerId: string }[];
+}
+
+const mapUser = (supaUser: SupabaseUser | null): User | null => {
+  if (!supaUser) return null;
+  return {
+    uid: supaUser.id,
+    email: supaUser.email || null,
+    displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split("@")[0] || null,
+    photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+    emailVerified: !!supaUser.email_confirmed_at,
+    providerData: supaUser.app_metadata?.providers?.map((p: string) => ({ providerId: p })) || [{ providerId: "email" }],
+  };
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-
-// Auth functions
-export const signInWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return { user: result.user, error: null };
-  } catch (error: any) {
-    return { user: null, error: error.message };
-  }
-};
-
+// Sign in with email
 export const signInWithEmail = async (email: string, password: string) => {
   try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    if (!result.user.emailVerified) {
-      return { user: null, error: "Please verify your email before logging in. Check your inbox or spam folder." };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      let msg = "Failed to sign in";
+      if (error.message.includes("Invalid login")) msg = "Email or password incorrect";
+      else if (error.message.includes("Email not confirmed")) msg = "Please verify your email first";
+      else msg = error.message;
+      return { user: null, error: msg };
     }
-    return { user: result.user, error: null };
+    return { user: mapUser(data.user), error: null };
   } catch (error: any) {
-    let errorMessage = "Failed to sign in";
-    if (error.code === "auth/user-not-found") {
-      errorMessage = "No account found with this email";
-    } else if (error.code === "auth/wrong-password") {
-      errorMessage = "Incorrect password";
-    } else if (error.code === "auth/invalid-email") {
-      errorMessage = "Invalid email address";
-    } else if (error.code === "auth/too-many-requests") {
-      errorMessage = "Too many attempts. Please try again later.";
-    }
-    return { user: null, error: errorMessage };
+    return { user: null, error: error.message || "Failed to sign in" };
   }
 };
 
+// Sign in with Google (via Lovable Cloud managed OAuth)
+export const signInWithGoogle = async () => {
+  try {
+    const { lovable } = await import("@/integrations/lovable/index");
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      return { user: null, error: result.error instanceof Error ? result.error.message : String(result.error) };
+    }
+    // After redirect, session will be set automatically
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    return { user: mapUser(currentUser), error: null };
+  } catch (error: any) {
+    return { user: null, error: error.message || "Google sign-in failed" };
+  }
+};
+
+// Register with email
 export const registerWithEmail = async (email: string, password: string) => {
   try {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(result.user);
-    return { 
-      user: result.user, 
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      let msg = "Failed to create account";
+      if (error.message.includes("already registered")) msg = "An account with this email already exists";
+      else msg = error.message;
+      return { user: null, error: msg, message: null };
+    }
+    return {
+      user: mapUser(data.user),
       error: null,
-      message: "Verification email sent. Please check your inbox (and spam folder)."
+      message: "Account created successfully! You can now sign in.",
     };
   } catch (error: any) {
-    let errorMessage = "Failed to create account";
-    if (error.code === "auth/email-already-in-use") {
-      errorMessage = "An account with this email already exists";
-    } else if (error.code === "auth/weak-password") {
-      errorMessage = "Password should be at least 6 characters";
-    } else if (error.code === "auth/invalid-email") {
-      errorMessage = "Invalid email address";
-    }
-    return { user: null, error: errorMessage, message: null };
+    return { user: null, error: error.message || "Failed to create account", message: null };
   }
 };
 
+// Sign in with phone (OTP)
+export const signInWithPhone = async (phone: string) => {
+  try {
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: null };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to send OTP" };
+  }
+};
+
+// Verify phone OTP
+export const verifyPhoneOtp = async (phone: string, token: string) => {
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
+    if (error) return { user: null, error: error.message };
+    return { user: mapUser(data.user), error: null };
+  } catch (error: any) {
+    return { user: null, error: error.message || "OTP verification failed" };
+  }
+};
+
+// Resend verification (not needed with auto-confirm, but kept for compatibility)
 export const resendVerificationEmail = async () => {
-  const user = auth.currentUser;
-  if (user && !user.emailVerified) {
-    try {
-      await sendEmailVerification(user);
-      return { success: true, error: null };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: "No user to verify" };
+  return { success: false, error: "Auto-confirm is enabled" };
 };
 
+// Logout
 export const logOut = async () => {
   try {
-    await signOut(auth);
+    await supabase.auth.signOut();
     return { error: null };
   } catch (error: any) {
     return { error: error.message };
   }
 };
 
+// Auth state change listener
 export const onAuthChange = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, callback);
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    callback(mapUser(session?.user || null));
+  });
+  // Also check current session immediately
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    callback(mapUser(session?.user || null));
+  });
+  return () => subscription.unsubscribe();
 };
 
-export type { User };
+export { supabase };
