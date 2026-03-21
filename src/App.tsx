@@ -109,6 +109,7 @@ const App = () => {
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <AntiDevtools />
               <BrowserRouter>
                 <AppRoutes />
               </BrowserRouter>
