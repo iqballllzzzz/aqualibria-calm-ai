@@ -20,6 +20,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import StudyOnboarding from "./pages/StudyOnboarding";
 import StudyDashboard from "./pages/StudyDashboard";
+import AntiDevtools from "@/components/AntiDevtools";
 import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
