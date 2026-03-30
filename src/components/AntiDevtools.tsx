@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const REDIRECT_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSSMuPMqBAbrIWVyxgoKMUXVDxP21AJSE_2kFmmIOYeH8gPrONYK6ccL-I&s=10';
+const REDIRECT_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkBxtR5NbbL8PWj3gcLfdOpuoAWoXAyDWivbqCxIve0g&s=10';
 
 export default function AntiDevtools() {
   useEffect(() => {
