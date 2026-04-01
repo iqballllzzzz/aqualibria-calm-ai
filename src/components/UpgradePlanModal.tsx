@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Sparkles, Crown, Star, Loader2, ExternalLink, Copy, RefreshCw, AlertCircle } from "lucide-react";
-import { SUBSCRIPTION_PLANS, PlanType, createPaymentTransaction, checkPaymentStatus, getPaymentUrl } from "@/lib/api";
+import { SUBSCRIPTION_PLANS, PlanType, checkPaymentStatus } from "@/lib/api";
 import { getSubscription, upgradePlan } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";

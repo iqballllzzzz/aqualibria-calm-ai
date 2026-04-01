@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { textToSpeechWithFallback, VoiceOption } from "@/lib/api";
+import { textToSpeech as textToSpeechWithFallback, VoiceOption } from "@/lib/api";
 
 // TypeScript declarations for Web Speech API
 interface SpeechRecognitionEvent extends Event {
