@@ -153,7 +153,8 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
 
   const openPaymentPage = () => {
     if (paymentData) {
-      window.open(getPaymentUrl(paymentData.amount, paymentData.order_id), "_blank");
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      window.open(`${SUPABASE_URL}/functions/v1/pakasir-payment?action=pay&amount=${paymentData.amount}&order_id=${paymentData.order_id}`, "_blank");
     }
   };
 
