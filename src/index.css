@@ -10,49 +10,49 @@
   :root {
     --vh: 1vh;
 
-    /* Light Mode — Warm Ivory & Teal */
-    --background: 40 30% 97%;
-    --background-secondary: 40 20% 94%;
+    /* Light Mode — Clean Monochrome with Blue-Black tint */
+    --background: 220 10% 96%;
+    --background-secondary: 220 8% 93%;
     --background-elevated: 0 0% 100%;
 
-    --foreground: 220 25% 12%;
-    --foreground-secondary: 220 15% 35%;
-    --foreground-muted: 220 10% 55%;
+    --foreground: 222 20% 10%;
+    --foreground-secondary: 220 12% 35%;
+    --foreground-muted: 220 8% 52%;
 
-    --card: 40 20% 99%;
-    --card-foreground: 220 25% 12%;
+    --card: 220 8% 98%;
+    --card-foreground: 222 20% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 12%;
+    --popover-foreground: 222 20% 10%;
 
-    --primary: 172 66% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 40 15% 92%;
-    --secondary-foreground: 220 20% 12%;
+    --primary: 222 20% 18%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 220 8% 92%;
+    --secondary-foreground: 222 20% 10%;
 
-    --muted: 40 12% 92%;
-    --muted-foreground: 220 8% 50%;
-    --accent: 172 30% 92%;
-    --accent-foreground: 172 66% 25%;
+    --muted: 220 8% 92%;
+    --muted-foreground: 220 8% 48%;
+    --accent: 220 10% 90%;
+    --accent-foreground: 222 20% 12%;
 
-    --aqua: 172 66% 40%;
-    --aqua-light: 172 60% 50%;
-    --aqua-glow: 172 66% 45%;
-    --amber: 36 95% 55%;
-    --amber-light: 36 90% 65%;
+    --aqua: 222 20% 18%;
+    --aqua-light: 222 18% 28%;
+    --aqua-glow: 222 20% 22%;
+    --amber: 220 10% 40%;
+    --amber-light: 220 8% 50%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 69% 38%;
+    --success: 152 50% 38%;
     --success-foreground: 0 0% 100%;
 
-    --border: 40 10% 88%;
-    --border-subtle: 40 10% 92%;
-    --input: 40 10% 88%;
-    --ring: 172 66% 40%;
+    --border: 220 8% 88%;
+    --border-subtle: 220 6% 92%;
+    --input: 220 8% 88%;
+    --ring: 222 20% 18%;
 
-    --chat-user-bg: 172 40% 94%;
-    --chat-ai-bg: 40 20% 99%;
-    --chat-input-bg: 40 15% 95%;
+    --chat-user-bg: 220 10% 94%;
+    --chat-ai-bg: 220 8% 98%;
+    --chat-input-bg: 220 8% 94%;
 
     --radius: 0.75rem;
     --radius-sm: 0.5rem;
@@ -61,19 +61,19 @@
     --radius-2xl: 1.5rem;
     --radius-full: 9999px;
 
-    --shadow-sm: 0 1px 3px 0 hsl(220 20% 20% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(220 20% 20% / 0.06);
-    --shadow-lg: 0 12px 32px -6px hsl(220 20% 20% / 0.08);
-    --shadow-elevated: 0 24px 48px -12px hsl(220 20% 20% / 0.12);
+    --shadow-sm: 0 1px 3px 0 hsl(222 20% 10% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(222 20% 10% / 0.06);
+    --shadow-lg: 0 12px 32px -6px hsl(222 20% 10% / 0.08);
+    --shadow-elevated: 0 24px 48px -12px hsl(222 20% 10% / 0.12);
 
-    --sidebar-background: 40 20% 96%;
-    --sidebar-foreground: 220 15% 30%;
-    --sidebar-primary: 172 66% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 172 30% 93%;
-    --sidebar-accent-foreground: 172 66% 25%;
-    --sidebar-border: 40 10% 89%;
-    --sidebar-ring: 172 66% 40%;
+    --sidebar-background: 220 8% 96%;
+    --sidebar-foreground: 220 12% 30%;
+    --sidebar-primary: 222 20% 18%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 10% 92%;
+    --sidebar-accent-foreground: 222 20% 12%;
+    --sidebar-border: 220 8% 89%;
+    --sidebar-ring: 222 20% 18%;
   }
 
   .dark {
