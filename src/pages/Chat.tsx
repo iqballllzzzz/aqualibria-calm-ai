@@ -626,7 +626,7 @@ const Chat: React.FC = () => {
                     onClick={() => handleQuickAction(qa.action)}
                     className={`flex items-center gap-3 px-4 py-4 rounded-3xl border bg-gradient-to-br ${qa.color} hover:shadow-md transition-all hover:-translate-y-0.5`}
                   >
-                    <span className="text-xl">{qa.emoji}</span>
+                    <span className="text-sm text-muted-foreground">{qa.icon === "edit" ? "✎" : qa.icon === "pen" ? "⌘" : qa.icon === "book" ? "◈" : "◆"}</span>
                     <span className="text-sm font-semibold text-foreground">{qa.label}</span>
                   </motion.button>
                 ))}
