@@ -319,7 +319,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
             await audio.play();
           }
         }
-      } else throw new Error(result.error || "Failed to generate speech");
+      } else throw new Error((result as any).error || "Failed to generate speech");
     } catch (err: any) { console.error("TTS Error:", err); setError(err.message || "Failed to speak"); setCallState("idle"); }
   };
 

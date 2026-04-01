@@ -175,7 +175,7 @@ export const useVoiceChat = ({
 
           await audio.play();
         } else {
-          throw new Error(result.error || "Failed to generate speech");
+          throw new Error((result as any).error || "Failed to generate speech");
         }
       } catch (err: any) {
         console.error("TTS Error:", err);
