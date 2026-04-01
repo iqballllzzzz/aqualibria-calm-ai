@@ -61,10 +61,10 @@ const GREETINGS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-  { emoji: "🍃", label: "Edit Image", action: "latentleaf", color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20" },
-  { emoji: "✍️", label: "Write", action: "write", color: "from-primary/10 to-aqua-light/10 border-primary/20" },
-  { emoji: "📚", label: "Learn", action: "learn", color: "from-amber/10 to-amber-light/10 border-amber/20" },
-  { emoji: "💡", label: "Ideas", action: "boost", color: "from-violet-500/10 to-purple-500/10 border-violet-500/20" },
+  { icon: "edit", label: "Edit Image", action: "latentleaf", color: "from-foreground/5 to-foreground/10 border-border" },
+  { icon: "pen", label: "Write", action: "write", color: "from-foreground/5 to-foreground/10 border-border" },
+  { icon: "book", label: "Learn", action: "learn", color: "from-foreground/5 to-foreground/10 border-border" },
+  { icon: "lightbulb", label: "Ideas", action: "boost", color: "from-foreground/5 to-foreground/10 border-border" },
 ];
 
 const Chat: React.FC = () => {

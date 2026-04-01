@@ -51,7 +51,11 @@ export const signInWithGoogle = async () => {
     if (result.error) {
       return { user: null, error: result.error instanceof Error ? result.error.message : String(result.error) };
     }
-    // After redirect, session will be set automatically
+    if ((result as any).redirected) {
+      // Browser will redirect to Google — just return, session set on return
+      return { user: null, error: null };
+    }
+    // Tokens received and session set automatically
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     return { user: mapUser(currentUser), error: null };
   } catch (error: any) {

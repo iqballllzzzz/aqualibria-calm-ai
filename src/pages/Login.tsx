@@ -66,12 +66,17 @@ const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError("");
-    const result = await signInWithGoogle();
-    if (result.error) {
-      setError(result.error);
+    try {
+      const result = await signInWithGoogle();
+      if (result.error) {
+        setError(result.error);
+        setLoading(false);
+      }
+      // If redirected, page will reload and AuthContext picks up session
+    } catch (err: any) {
+      setError(err.message || "Google sign-in failed");
       setLoading(false);
     }
-    // Google OAuth will redirect, so no need to navigate manually
   };
 
   return (
