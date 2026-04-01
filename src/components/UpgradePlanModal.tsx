@@ -114,16 +114,19 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
     const orderId = `AQ${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
     
     try {
-      // Create payment transaction via Pakasir API
-      const result = await createPaymentTransaction(plan.price, orderId);
+      // Create payment via Pakasir API
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/pakasir-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({ action: "create", amount: plan.price, orderId }),
+      });
+      const result = await response.json();
       setIsProcessing(false);
       
       if (result.success && result.payment) {
-        setPaymentData({
-          ...result.payment,
-          order_id: orderId,
-          amount: plan.price,
-        });
+        setPaymentData({ ...result.payment, order_id: orderId, amount: plan.price });
       } else {
         setError(result.error || "Gagal membuat pembayaran. Silakan coba lagi.");
         setSelectedPlan(null);
