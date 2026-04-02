@@ -751,7 +751,23 @@ const Chat: React.FC = () => {
                         }}
                       />
                     ) : message.role === "assistant" ? (
-                      <MarkdownRenderer content={message.content} />
+                      <>
+                        {/* Collapsible reasoning/thinking */}
+                        {message.reasoning && (
+                          <details className="mb-2 text-xs">
+                            <summary className="cursor-pointer text-foreground-muted hover:text-foreground transition-colors font-medium py-1">
+                              {message.isStreaming ? "⟳ Thinking..." : "◆ Thought Process"}
+                            </summary>
+                            <div className="mt-1 pl-3 border-l-2 border-border text-foreground-muted whitespace-pre-wrap text-[11px] leading-relaxed">
+                              {message.reasoning}
+                            </div>
+                          </details>
+                        )}
+                        <MarkdownRenderer content={message.content} />
+                        {message.isStreaming && !message.content && (
+                          <span className="inline-block w-2 h-4 bg-foreground/40 animate-pulse rounded-sm" />
+                        )}
+                      </>
                     ) : (
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
