@@ -856,6 +856,23 @@ const Chat: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-0.5">
+                {/* Agent button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAgentPanel(!showAgentPanel)}
+                    className={`flex items-center gap-1 px-2.5 py-2 rounded-2xl transition-colors ${agentMode ? "bg-primary/10 text-primary" : "hover:bg-accent"}`}
+                  >
+                    <Bot className={`w-4 h-4 ${agentMode ? "text-primary" : "text-foreground-muted"}`} />
+                    {agentMode && <span className="text-[10px] font-bold text-primary">{agentMode === "slides" ? "Slides" : agentMode === "fullstack" ? "Code" : "Design"}</span>}
+                  </button>
+                  <AgentPanel
+                    isOpen={showAgentPanel}
+                    onClose={() => setShowAgentPanel(false)}
+                    onSelectMode={(mode) => setAgentMode(agentMode === mode ? null : mode)}
+                    activeMode={agentMode}
+                  />
+                </div>
+
                 {/* Model selector */}
                 <div className="relative">
                   <button onClick={() => setShowModelSelector(!showModelSelector)} className="flex items-center gap-1 px-3 py-2 rounded-2xl hover:bg-accent transition-colors">
