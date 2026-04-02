@@ -47,18 +47,22 @@ export const signInWithGoogle = async () => {
     const { lovable } = await import("@/integrations/lovable/index");
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
+      extraParams: { prompt: "select_account" },
     });
+
     if (result.error) {
       return { user: null, error: result.error instanceof Error ? result.error.message : String(result.error) };
     }
+
     if ((result as any).redirected) {
-      // Browser will redirect to Google — just return, session set on return
       return { user: null, error: null };
     }
-    // Tokens received and session set automatically
+
+    // Session was set by lovable auth - get user
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     return { user: mapUser(currentUser), error: null };
   } catch (error: any) {
+    console.error("Google sign-in error:", error);
     return { user: null, error: error.message || "Google sign-in failed" };
   }
 };
