@@ -365,14 +365,37 @@ const Chat: React.FC = () => {
             result = { success: true, response: `**Spotify search results:**\n\n${resultText}` };
           } else result = spotifyResult;
           break;
-        default:
-          result = await sendChatMessage(messageText, currentSessionId, { imageDataList: imagesToAnalyze.length > 0 ? imagesToAnalyze : undefined, fileData: fileToAnalyze?.data || undefined, fileTextContent: fileToAnalyze?.textContent, model: selectedModel, memoryContext, youtubeUrl: youtubeUrl || undefined, conversationHistory });
+        default: {
+          // Use streaming for default chat
+          const promptType = agentMode || "default";
+          const assistantId = generateMessageId();
+          setStreamingContent("");
+          setStreamingReasoning("");
+          setMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date(), id: assistantId, isStreaming: true, reasoning: "" }]);
+          
+          await streamChatMessage({
+            messages: [...conversationHistory, { role: "user", content: messageText, ...(imagesToAnalyze.length > 0 ? { imageData: imagesToAnalyze[0] } : {}), ...(fileToAnalyze?.data ? { fileData: fileToAnalyze.data } : {}) }],
+            promptType,
+            model: selectedModel,
+            memoryContext,
+            youtubeUrl: youtubeUrl || undefined,
+            onDelta: (text) => {
+              setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: m.content + text } : m));
+            },
+            onReasoning: (text) => {
+              setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, reasoning: (m.reasoning || "") + text } : m));
+            },
+            onDone: () => {
+              setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, isStreaming: false } : m));
+            },
+            onError: (error) => {
+              toast({ title: "Error", description: error, variant: "destructive" });
+              setMessages((prev) => prev.filter(m => m.id !== assistantId));
+            },
+          });
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
-      }
-      if (result?.success && result?.response) {
-        extractMemoryFromMessage(result.response, true);
-        setMessages((prev) => [...prev, { role: "assistant", content: result.response!, timestamp: new Date(), id: generateMessageId() }]);
-      } else { toast({ title: "Error", description: result?.error || "Failed to get response", variant: "destructive" }); }
+          setIsLoading(false); setActiveMode("chat"); return;
+        }
     } catch { toast({ title: "Error", description: "Something went wrong.", variant: "destructive" }); }
     finally { setIsLoading(false); setActiveMode("chat"); }
   };
