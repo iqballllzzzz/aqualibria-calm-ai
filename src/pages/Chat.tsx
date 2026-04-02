@@ -810,6 +810,15 @@ const Chat: React.FC = () => {
               <button onClick={() => setActiveMode("chat")} className="text-[10px] text-foreground-muted hover:text-foreground transition-colors">Cancel</button>
             </motion.div>
           )}
+          {agentMode && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] text-primary font-bold px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-1">
+                <Bot className="w-3 h-3" />
+                Agent: {agentMode === "slides" ? "AI Slides" : agentMode === "fullstack" ? "Full-Stack" : "Design"}
+              </span>
+              <button onClick={() => setAgentMode(null)} className="text-[10px] text-foreground-muted hover:text-foreground transition-colors">Deactivate</button>
+            </motion.div>
+          )}
 
           {/* Pending attachments */}
           {pendingImages.length > 0 && (
