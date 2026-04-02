@@ -396,6 +396,7 @@ const Chat: React.FC = () => {
           if (subscription.plan === "junior" && selectedModel !== "aqualibriav1") incrementModelUsage(selectedModel);
           setIsLoading(false); setActiveMode("chat"); return;
         }
+      }
     } catch { toast({ title: "Error", description: "Something went wrong.", variant: "destructive" }); }
     finally { setIsLoading(false); setActiveMode("chat"); }
   };
