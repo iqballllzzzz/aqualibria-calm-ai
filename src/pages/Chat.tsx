@@ -112,6 +112,10 @@ const Chat: React.FC = () => {
   const [messageComplexity, setMessageComplexity] = useState<"simple" | "medium" | "complex">("medium");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
+  const [showAgentPanel, setShowAgentPanel] = useState(false);
+  const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingReasoning, setStreamingReasoning] = useState("");
 
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
