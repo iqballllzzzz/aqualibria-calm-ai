@@ -120,7 +120,8 @@ const Chat: React.FC = () => {
   const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
-
+  const [openWorkspaces, setOpenWorkspaces] = useState<Record<string, boolean>>({});
+  const [savingProject, setSavingProject] = useState<string | null>(null);
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
   const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === subscription.plan);
