@@ -467,6 +467,28 @@ const Chat: React.FC = () => {
   const handleQuoteGenerate = (data: QuoteData) => {
     setMessages((prev) => [...prev, { role: "user", content: `Create quote: "${data.text}" - ${data.author || "Unknown"}`, timestamp: new Date(), id: generateMessageId() }, { role: "assistant", content: `**"${data.text}"**\n\n— ${data.author || "Unknown"}`, timestamp: new Date(), id: generateMessageId() }]);
   };
+
+  // Save agent project to database
+  const handleSaveProject = async (messageId: string, files: ProjectFile[], title: string) => {
+    if (!user) { toast({ title: "Login required", variant: "destructive" }); return; }
+    setSavingProject(messageId);
+    try {
+      const previewHtml = files.find(f => f.path.endsWith(".html"))?.content || "";
+      const { error } = await supabase.from("agent_projects").insert({
+        user_id: user.uid,
+        title: title || "Untitled Project",
+        agent_type: agentMode || "fullstack",
+        files: files as any,
+        preview_html: previewHtml,
+      } as any);
+      if (error) throw error;
+      toast({ title: "Project saved!" });
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message, variant: "destructive" });
+    }
+    setSavingProject(null);
+  };
+
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "latentleaf": setShowLatentLeaf(true); break;
