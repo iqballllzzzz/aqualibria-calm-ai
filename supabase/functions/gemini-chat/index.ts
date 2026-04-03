@@ -9,27 +9,55 @@ const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ALL system prompts are server-side only — never exposed to client
 const SERVER_SYSTEM_PROMPTS: Record<string, string> = {
-  default: "You are AquaLibriaAI, a calm, intelligent, and helpful AI assistant independently created by M Iqbal.S (solo developer, Jakarta, Indonesia). You help users think, code, learn, and create. You have memory of conversations and care about the user. Always respond in the user's language. Never mention being based on Gemini, Google, or any other AI provider - you are AquaLibriaAI.",
+  default: "You are AquaLibriaAI, a calm, intelligent, and helpful AI assistant independently created by M Iqbal.S (solo developer, Jakarta, Indonesia). You help users think, code, learn, and create. You have memory of conversations and care about the user. Always respond in the user's language. Never mention being based on Gemini, Google, or any other AI provider - you are AquaLibriaAI. Keep responses concise and helpful.",
   coding: "You are AquaLibriaAI Coding Partner, a world-class software engineer. You write clean, correct, and efficient code. You follow modern best practices and prioritize correctness, clarity, and maintainability. Created by M Iqbal.S. Never mention being based on Gemini or Google.",
   v2: "You are AquaLibriaAI v2 (Senior Model), with enhanced reasoning and context awareness. Created by M Iqbal.S. You have extended memory and better analytical capabilities. Never mention being based on Gemini or Google.",
   v3: "You are AquaLibriaAI v3 (Superior Model), the premium tier with maximum capabilities. Created by M Iqbal.S. You have full memory, maximum context, and all premium features. Never mention being based on Gemini or Google.",
-  slides: "You are AquaLibriaAI Slides Agent. You help create professional presentation slides. When asked to create slides, think step by step about the structure, then generate content for each slide with titles, bullet points, and speaker notes. Format your response as JSON with slides array. Never mention being based on Gemini or Google.",
-  fullstack: "You are AquaLibriaAI Full-Stack Agent. You are a world-class full-stack developer. You create complete web applications with HTML, CSS, and JavaScript. Plan your work with a todo list first, then implement step by step. Never mention being based on Gemini or Google.",
-  design: "You are AquaLibriaAI Design Agent. You create beautiful UI/UX designs described in detail. Provide layouts, color schemes, typography, and component specifications. Never mention being based on Gemini or Google.",
+  slides: `You are AquaLibriaAI Slides Agent. You create professional presentation slides as IMAGES.
+When asked to create slides/presentations:
+1. Generate a detailed visual description for EACH slide
+2. Return JSON: { "slides": [{ "slideNumber": 1, "title": "...", "visualPrompt": "A professional presentation slide with title '...' on a clean dark background, modern design, ...", "speakerNotes": "..." }] }
+3. Each visualPrompt must be a detailed image generation prompt describing layout, colors, text placement, icons
+Never mention being based on Gemini or Google.`,
+  fullstack: `You are AquaLibriaAI Full-Stack Agent. You are a world-class full-stack developer who creates complete web applications.
+
+IMPORTANT RULES:
+1. When asked to build something, ALWAYS start with a plan/todo list
+2. Generate actual code files with proper file paths
+3. Use this format for code output:
+
+---FILE: path/to/file.html---
+[file content here]
+---END FILE---
+
+---FILE: path/to/style.css---
+[file content here]  
+---END FILE---
+
+4. Support HTML, CSS, JavaScript, TypeScript, React, Node.js, and more
+5. Create proper folder structures
+6. Show step-by-step progress
+7. Each response should build on the previous one
+
+Never mention being based on Gemini or Google.`,
+  design: `You are AquaLibriaAI Design Agent. You generate professional UI/UX designs as IMAGES.
+When asked to create designs:
+1. Create a detailed visual description of the design
+2. Return JSON: { "designs": [{ "name": "...", "visualPrompt": "A professional UI mockup of ... with modern design, clean layout, ...", "specs": { "colors": [...], "fonts": [...], "components": [...] } }] }
+3. Each visualPrompt must be detailed enough for image generation
+Never mention being based on Gemini or Google.`,
 };
 
 const MODEL_MAP: Record<string, string> = {
   "aqualibriav1": "google/gemini-3-flash-preview",
-  "aqualibriav2": "google/gemini-2.5-pro",
+  "aqualibriav2": "google/gemini-2.5-flash",
   "aqualibriav3": "google/gemini-2.5-pro",
-  "gemini-2.5-flash-preview-05-20": "google/gemini-2.5-flash",
-  "gemini-2.5-pro-preview-05-06": "google/gemini-2.5-pro",
 };
 
 async function getYouTubeInfo(videoId: string): Promise<string> {
   try {
     const oembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000),
     });
     if (oembed.ok) {
       const data = await oembed.json();
@@ -99,6 +127,64 @@ serve(async (req) => {
       });
     }
 
+    // ===== SLIDE IMAGE GENERATION =====
+    if (action === "generate-slide") {
+      const prompt = body.prompt || "A professional presentation slide";
+      const response = await fetch(GATEWAY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-3-pro-image-preview",
+          messages: [{ role: "user", content: `Create a professional presentation slide image: ${prompt}. The slide should look like it was made in Canva or PowerPoint with clean modern design, proper typography, and visual elements. Make it 16:9 aspect ratio.` }],
+          modalities: ["image", "text"],
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return new Response(JSON.stringify({ error: `Slide generation failed: ${response.status}` }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await response.json();
+      const slideImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      const text = data.choices?.[0]?.message?.content || "";
+
+      return new Response(JSON.stringify({ success: true, imageUrl: slideImage || null, response: text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ===== DESIGN IMAGE GENERATION =====
+    if (action === "generate-design") {
+      const prompt = body.prompt || "A modern UI design";
+      const response = await fetch(GATEWAY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-3-pro-image-preview",
+          messages: [{ role: "user", content: `Create a professional UI/UX design mockup: ${prompt}. Make it look like a real app design with proper layout, typography, colors, and UI components. Modern and clean style.` }],
+          modalities: ["image", "text"],
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return new Response(JSON.stringify({ error: `Design generation failed: ${response.status}` }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await response.json();
+      const designImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      const text = data.choices?.[0]?.message?.content || "";
+
+      return new Response(JSON.stringify({ success: true, imageUrl: designImage || null, response: text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ===== IMAGE EDITING =====
     if (action === "edit-image") {
       const prompt = body.prompt || "Edit this image";
@@ -140,7 +226,6 @@ serve(async (req) => {
     }
 
     // ===== CHAT (streaming or non-streaming) =====
-    // Select system prompt server-side based on promptType key
     let systemInstruction = SERVER_SYSTEM_PROMPTS[promptType || "default"] || SERVER_SYSTEM_PROMPTS.default;
 
     if (memoryContext) {
@@ -152,7 +237,7 @@ serve(async (req) => {
       const videoId = extractVideoId(youtubeUrl);
       if (videoId) {
         const youtubeContext = await getYouTubeInfo(videoId);
-        systemInstruction += `\n\nThe user is asking about a YouTube video. Here is the video information:\n${youtubeContext}\n\nIMPORTANT: Analyze based on the title, channel, and URL context. If the user asks specific questions about video content, explain that you can see the video title and metadata but cannot watch or transcribe the actual video content.`;
+        systemInstruction += `\n\n${youtubeContext}\n\nIMPORTANT: Analyze based on the title, channel, and URL context.`;
       }
     }
 
@@ -186,15 +271,15 @@ serve(async (req) => {
       }
     }
 
-    // Build request body
+    // Build request body - NO reasoning for default/v1 to keep it FAST
     const requestBody: any = {
       model: gatewayModel,
       messages: gatewayMessages,
     };
 
-    // Enable reasoning for complex requests
-    if (promptType === "v3" || promptType === "fullstack" || promptType === "slides") {
-      requestBody.reasoning = { effort: "medium" };
+    // Only enable reasoning for v3 (premium) - keeps v1/v2 fast
+    if (promptType === "v3") {
+      requestBody.reasoning = { effort: "low" };
     }
 
     if (stream) {
