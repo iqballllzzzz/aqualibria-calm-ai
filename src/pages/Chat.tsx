@@ -33,6 +33,10 @@ import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import AgentPanel, { AgentMode } from "@/components/AgentPanel";
+import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/AgentWorkspace";
+import ThinkingBlock from "@/components/agent/ThinkingBlock";
+import { ProjectFile } from "@/components/agent/FileExplorer";
+import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
