@@ -298,39 +298,47 @@ const Chat: React.FC = () => {
       let result;
       const memoryContext = buildMemoryContext();
       const conversationHistory = messages.slice(-20).map(m => ({ role: m.role, content: m.content, ...(m.imageUrl && m.role === "user" ? { imageData: m.imageUrl } : {}), ...(m.fileData && m.role === "user" ? { fileData: m.fileData } : {}) }));
-      if (activeMode === "chat" && imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl) {
-        const dualResult = await getDualAgentPerspectives(messageText, conversationHistory.map(m => ({ role: m.role, content: m.content })), memoryContext);
-        if (dualResult.needsDual && dualResult.perspectiveA && dualResult.perspectiveB) {
-          setMessages((prev) => [...prev, {
-            role: "assistant", content: "", timestamp: new Date(), id: generateMessageId(),
-            isDualAgent: true, perspectiveA: dualResult.perspectiveA, perspectiveB: dualResult.perspectiveB,
-            agentAName: dualResult.agentAName || "Optimist", agentBName: dualResult.agentBName || "Realist",
-          }]);
-          setIsLoading(false);
-          return;
+
+      // ===== AGENT MODE: SLIDES (generate slide images) =====
+      if (agentMode === "slides") {
+        const slideResult = await generateSlideImage(messageText);
+        if (slideResult?.success && slideResult?.imageUrl) {
+          const persistedUrl = await persistImageToStorage(slideResult.imageUrl);
+          setMessages((prev) => [...prev, { role: "assistant", content: slideResult.response || "Here's your slide:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: slideResult?.response || slideResult?.error || "Failed to generate slide", timestamp: new Date(), id: generateMessageId() }]);
         }
+        setIsLoading(false); return;
       }
+
+      // ===== AGENT MODE: DESIGN (generate design images) =====
+      if (agentMode === "design") {
+        const designResult = await generateDesignImage(messageText);
+        if (designResult?.success && designResult?.imageUrl) {
+          const persistedUrl = await persistImageToStorage(designResult.imageUrl);
+          setMessages((prev) => [...prev, { role: "assistant", content: designResult.response || "Here's your design:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: designResult?.response || designResult?.error || "Failed to generate design", timestamp: new Date(), id: generateMessageId() }]);
+        }
+        setIsLoading(false); return;
+      }
+
       // Auto-detect image generation request
       const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
       const isImageRequest = activeMode === "image" || (imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
 
-      // Auto-detect image editing request via chat - look for edit patterns with a previous generated image
+      // Auto-detect image editing request
       const imageEditPatterns = /^(edit\s*(gambar|image|foto)|ubah\s*(gambar|image|foto)|modif|change\s*(the\s*)?(image|picture|photo)|make\s*(it|the\s*image)|jadikan|rubah|ganti\s*(background|warna|style))/i;
       const lastGeneratedImage = [...messages].reverse().find(m => m.role === "assistant" && m.imageUrl && m.imageUrl !== "[image]");
       const isEditRequest = imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageEditPatterns.test(messageText) && lastGeneratedImage?.imageUrl;
 
       if (isEditRequest && lastGeneratedImage?.imageUrl) {
-        try {
-          const editResult = await editImageLatentLeaf(messageText, lastGeneratedImage.imageUrl);
-          if (editResult.success && editResult.editedImageUrl) {
-            // Persist edited image to storage
-            const persistedUrl = await persistImageToStorage(editResult.editedImageUrl);
-            setMessages((prev) => [...prev, { role: "assistant", content: "Here's the edited image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
-          } else {
-            setMessages((prev) => [...prev, { role: "assistant", content: editResult.error || "Failed to edit image. Please try again.", timestamp: new Date(), id: generateMessageId() }]);
-          }
-        } catch {
-          toast({ title: "Edit Error", description: "Failed to edit image", variant: "destructive" });
+        const editResult = await editImageLatentLeaf(messageText, lastGeneratedImage.imageUrl);
+        if (editResult.success && editResult.editedImageUrl) {
+          const persistedUrl = await persistImageToStorage(editResult.editedImageUrl);
+          setMessages((prev) => [...prev, { role: "assistant", content: "Here's the edited image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: editResult.error || "Failed to edit image.", timestamp: new Date(), id: generateMessageId() }]);
         }
         setIsLoading(false); setActiveMode("chat"); return;
       }
@@ -338,15 +346,11 @@ const Chat: React.FC = () => {
       if (isImageRequest) {
         result = await generateImage(messageText);
         if (result?.success && result?.imageUrl) {
-          // Persist generated image to storage
           const persistedUrl = await persistImageToStorage(result.imageUrl);
           setMessages((prev) => [...prev, { role: "assistant", content: result.response || "Here's your generated image:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
           setIsLoading(false); setActiveMode("chat"); return;
         } else if (result?.success && result?.response) {
           setMessages((prev) => [...prev, { role: "assistant", content: result.response, timestamp: new Date(), id: generateMessageId() }]);
-          setIsLoading(false); setActiveMode("chat"); return;
-        } else if (result?.error) {
-          toast({ title: "Image Error", description: result.error, variant: "destructive" });
           setIsLoading(false); setActiveMode("chat"); return;
         }
       }
@@ -354,9 +358,6 @@ const Chat: React.FC = () => {
       switch (activeMode) {
         case "research":
           result = await sendChatMessage(messageText, currentSessionId, { isResearchMode: true, model: selectedModel, memoryContext, conversationHistory });
-          break;
-        case "image":
-          // Already handled above
           break;
         case "spotify":
           const spotifyResult = await searchSpotify(messageText);
@@ -366,11 +367,9 @@ const Chat: React.FC = () => {
           } else result = spotifyResult;
           break;
         default: {
-          // Use streaming for default chat
-          const promptType = agentMode || "default";
+          // Use streaming for default chat & fullstack agent
+          const promptType = agentMode === "fullstack" ? "fullstack" : "default";
           const assistantId = generateMessageId();
-          setStreamingContent("");
-          setStreamingReasoning("");
           setMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date(), id: assistantId, isStreaming: true, reasoning: "" }]);
           
           await streamChatMessage({
