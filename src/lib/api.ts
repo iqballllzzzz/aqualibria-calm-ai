@@ -408,6 +408,30 @@ export const generateImage = async (prompt: string): Promise<{ success: boolean;
   }
 };
 
+// Slide Image Generation (AI Slides agent)
+export const generateSlideImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; response?: string; error?: string }> => {
+  try {
+    const data = await callGemini({ action: "generate-slide", prompt });
+    if (data.success && data.imageUrl) return { success: true, imageUrl: data.imageUrl, response: data.response };
+    if (data.success && data.response) return { success: true, response: data.response };
+    return { success: false, error: data.error || "Failed to generate slide" };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to generate slide" };
+  }
+};
+
+// Design Image Generation (AI Design agent)
+export const generateDesignImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; response?: string; error?: string }> => {
+  try {
+    const data = await callGemini({ action: "generate-design", prompt });
+    if (data.success && data.imageUrl) return { success: true, imageUrl: data.imageUrl, response: data.response };
+    if (data.success && data.response) return { success: true, response: data.response };
+    return { success: false, error: data.error || "Failed to generate design" };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to generate design" };
+  }
+};
+
 export const editImageLatentLeaf = async (prompt: string, imageBase64: string) => {
   try {
     const data = await callGemini({ action: "edit-image", prompt, imageBase64 });
