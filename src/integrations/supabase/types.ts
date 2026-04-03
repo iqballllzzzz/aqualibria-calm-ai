@@ -50,6 +50,45 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_projects: {
+        Row: {
+          agent_type: string
+          created_at: string
+          description: string | null
+          files: Json
+          id: string
+          is_published: boolean
+          preview_html: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_type?: string
+          created_at?: string
+          description?: string | null
+          files?: Json
+          id?: string
+          is_published?: boolean
+          preview_html?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_type?: string
+          created_at?: string
+          description?: string | null
+          files?: Json
+          id?: string
+          is_published?: boolean
+          preview_html?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_memory: {
         Row: {
           communication_style: string | null

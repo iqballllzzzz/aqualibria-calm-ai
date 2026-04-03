@@ -33,6 +33,10 @@ import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import AgentPanel, { AgentMode } from "@/components/AgentPanel";
+import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/AgentWorkspace";
+import ThinkingBlock from "@/components/agent/ThinkingBlock";
+import { ProjectFile } from "@/components/agent/FileExplorer";
+import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -116,7 +120,8 @@ const Chat: React.FC = () => {
   const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
-
+  const [openWorkspaces, setOpenWorkspaces] = useState<Record<string, boolean>>({});
+  const [savingProject, setSavingProject] = useState<string | null>(null);
   const [chatManagement, setChatManagement] = useState(getChatManagement());
   const subscription = getSubscription();
   const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === subscription.plan);
@@ -462,6 +467,28 @@ const Chat: React.FC = () => {
   const handleQuoteGenerate = (data: QuoteData) => {
     setMessages((prev) => [...prev, { role: "user", content: `Create quote: "${data.text}" - ${data.author || "Unknown"}`, timestamp: new Date(), id: generateMessageId() }, { role: "assistant", content: `**"${data.text}"**\n\n— ${data.author || "Unknown"}`, timestamp: new Date(), id: generateMessageId() }]);
   };
+
+  // Save agent project to database
+  const handleSaveProject = async (messageId: string, files: ProjectFile[], title: string) => {
+    if (!user) { toast({ title: "Login required", variant: "destructive" }); return; }
+    setSavingProject(messageId);
+    try {
+      const previewHtml = files.find(f => f.path.endsWith(".html"))?.content || "";
+      const { error } = await supabase.from("agent_projects").insert({
+        user_id: user.uid,
+        title: title || "Untitled Project",
+        agent_type: agentMode || "fullstack",
+        files: files as any,
+        preview_html: previewHtml,
+      } as any);
+      if (error) throw error;
+      toast({ title: "Project saved!" });
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message, variant: "destructive" });
+    }
+    setSavingProject(null);
+  };
+
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "latentleaf": setShowLatentLeaf(true); break;
@@ -750,23 +777,53 @@ const Chat: React.FC = () => {
                         }}
                       />
                     ) : message.role === "assistant" ? (
-                      <>
-                        {/* Collapsible reasoning/thinking */}
-                        {message.reasoning && (
-                          <details className="mb-2 text-xs">
-                            <summary className="cursor-pointer text-foreground-muted hover:text-foreground transition-colors font-medium py-1">
-                              {message.isStreaming ? "⟳ Thinking..." : "◆ Thought Process"}
-                            </summary>
-                            <div className="mt-1 pl-3 border-l-2 border-border text-foreground-muted whitespace-pre-wrap text-[11px] leading-relaxed">
-                              {message.reasoning}
-                            </div>
-                          </details>
-                        )}
-                        <MarkdownRenderer content={message.content} />
-                        {message.isStreaming && !message.content && (
-                          <span className="inline-block w-2 h-4 bg-foreground/40 animate-pulse rounded-sm" />
-                        )}
-                      </>
+                      (() => {
+                        const agentFiles = parseFilesFromResponse(message.content);
+                        const hasFiles = agentFiles.length > 0;
+                        const cleanContent = hasFiles ? message.content.replace(/---FILE:\s*.+?---\n[\s\S]*?---END FILE---/g, "").trim() : message.content;
+                        const isWsOpen = openWorkspaces[message.id || ""];
+                        return (
+                          <>
+                            {/* Collapsible reasoning/thinking */}
+                            {message.reasoning && (
+                              <details className="mb-2 text-xs">
+                                <summary className="cursor-pointer text-foreground-muted hover:text-foreground transition-colors font-medium py-1">
+                                  {message.isStreaming ? "⟳ Thinking..." : "◆ Thought Process"}
+                                </summary>
+                                <div className="mt-1 pl-3 border-l-2 border-border text-foreground-muted whitespace-pre-wrap text-[11px] leading-relaxed">
+                                  {message.reasoning}
+                                </div>
+                              </details>
+                            )}
+                            {cleanContent && <MarkdownRenderer content={cleanContent} />}
+                            {message.isStreaming && !message.content && (
+                              <span className="inline-block w-2 h-4 bg-foreground/40 animate-pulse rounded-sm" />
+                            )}
+                            {/* Agent workspace for fullstack files */}
+                            {hasFiles && !message.isStreaming && (
+                              <>
+                                {!isWsOpen ? (
+                                  <button
+                                    onClick={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: true }))}
+                                    className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold hover:bg-primary/15 transition-colors"
+                                  >
+                                    <Code className="w-3.5 h-3.5" />
+                                    View Project ({agentFiles.length} files)
+                                  </button>
+                                ) : (
+                                  <AgentWorkspace
+                                    files={agentFiles}
+                                    projectTitle={messages.find(m => m.role === "user")?.content.slice(0, 40) || "Project"}
+                                    onClose={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: false }))}
+                                    onSave={() => handleSaveProject(message.id || "", agentFiles, messages.find(m => m.role === "user")?.content.slice(0, 40) || "Project")}
+                                    isSaving={savingProject === message.id}
+                                  />
+                                )}
+                              </>
+                            )}
+                          </>
+                        );
+                      })()
                     ) : (
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
