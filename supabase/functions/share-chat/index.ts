@@ -16,7 +16,8 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { action, sessionId, title, messages, sharedByName, shareId } = await req.json();
+    const body = await req.json();
+    const { action, sessionId, title, messages, sharedByName, shareId } = body;
 
     if (action === "create") {
       // Create a shared chat
