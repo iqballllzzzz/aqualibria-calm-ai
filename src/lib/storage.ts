@@ -757,7 +757,7 @@ export const incrementUsage = (): number => {
 export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited"; waitTime?: number } => {
   const subscription = getSubscription();
   
-  if (subscription.plan === "superior") {
+  if (subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: "unlimited" };
   }
   
