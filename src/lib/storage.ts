@@ -872,8 +872,8 @@ export const incrementLatentLeafUsage = (): void => {
 export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; unlimited?: boolean } => {
   const subscription = getSubscription();
   
-  // Senior and Superior have unlimited LatentLeaf
-  if (subscription.plan === "senior" || subscription.plan === "superior") {
+  // Senior, Superior, Nigown have unlimited LatentLeaf
+  if (subscription.plan === "senior" || subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: 999, unlimited: true };
   }
   

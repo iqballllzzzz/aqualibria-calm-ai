@@ -28,7 +28,7 @@ export const getVoiceDisplayName = (voice: VoiceOption): string => VOICE_OPTIONS
 export const getVoiceInfo = (voice: VoiceOption) => VOICE_OPTIONS_MAP[voice];
 
 // Subscription Plans
-export type PlanType = "junior" | "senior" | "superior";
+export type PlanType = "junior" | "senior" | "superior" | "nigown";
 
 export interface SubscriptionPlan {
   id: PlanType;
