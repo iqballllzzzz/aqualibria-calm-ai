@@ -37,6 +37,7 @@ import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/Agent
 import ThinkingBlock from "@/components/agent/ThinkingBlock";
 import { ProjectFile } from "@/components/agent/FileExplorer";
 import { supabase } from "@/integrations/supabase/client";
+import { useCloudSync } from "@/hooks/useCloudSync";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
