@@ -134,6 +134,7 @@ const Chat: React.FC = () => {
 
   const handleVoiceTranscript = useCallback((text: string) => setInputValue(text), []);
   const { isListening, startListening, stopListening, error: voiceError } = useVoiceChat({ onTranscript: handleVoiceTranscript, selectedVoice });
+  useCloudSync(user);
 
   useEffect(() => { if (voiceError) toast({ title: "Voice Error", description: voiceError, variant: "destructive" }); }, [voiceError, toast]);
   useEffect(() => { setRandomGreeting(GREETINGS[language] || GREETINGS.en); }, [language]);
