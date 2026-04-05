@@ -18,6 +18,8 @@ import NotFound from "./pages/NotFound";
 import SharedChat from "./pages/SharedChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import Projects from "./pages/Projects";
+import PublishedApp from "./pages/PublishedApp";
 import StudyOnboarding from "./pages/StudyOnboarding";
 import StudyDashboard from "./pages/StudyDashboard";
 import AntiDevtools from "@/components/AntiDevtools";
