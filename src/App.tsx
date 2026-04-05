@@ -18,6 +18,8 @@ import NotFound from "./pages/NotFound";
 import SharedChat from "./pages/SharedChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import Projects from "./pages/Projects";
+import PublishedApp from "./pages/PublishedApp";
 import StudyOnboarding from "./pages/StudyOnboarding";
 import StudyDashboard from "./pages/StudyDashboard";
 import AntiDevtools from "@/components/AntiDevtools";
@@ -89,6 +91,8 @@ const AppRoutes = () => {
       <Route path="/study/dashboard" element={<ProtectedRoute><StudyDashboard /></ProtectedRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/shared/:shareId" element={<SharedChat />} />
+      <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+      <Route path="/app/:slug" element={<PublishedApp />} />
       {/* Admin routes - role-based access */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
       <Route path="/admin/login" element={<AdminLogin />} />

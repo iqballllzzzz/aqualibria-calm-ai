@@ -26,6 +26,7 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
     junior: <Star className="w-6 h-6" />,
     senior: <Sparkles className="w-6 h-6" />,
     superior: <Crown className="w-6 h-6" />,
+    nigown: <Crown className="w-6 h-6" />,
   };
 
   // Reset state when modal opens/closes

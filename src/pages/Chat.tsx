@@ -6,7 +6,7 @@ import {
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Leaf, Crown, User, ImageIcon,
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone, GraduationCap,
-  Bot, Layout, Palette, Presentation, ChevronRight, Wand2,
+  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree,
 } from "lucide-react";
 import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -37,6 +37,7 @@ import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/Agent
 import ThinkingBlock from "@/components/agent/ThinkingBlock";
 import { ProjectFile } from "@/components/agent/FileExplorer";
 import { supabase } from "@/integrations/supabase/client";
+import { useCloudSync } from "@/hooks/useCloudSync";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -133,6 +134,7 @@ const Chat: React.FC = () => {
 
   const handleVoiceTranscript = useCallback((text: string) => setInputValue(text), []);
   const { isListening, startListening, stopListening, error: voiceError } = useVoiceChat({ onTranscript: handleVoiceTranscript, selectedVoice });
+  useCloudSync(user);
 
   useEffect(() => { if (voiceError) toast({ title: "Voice Error", description: voiceError, variant: "destructive" }); }, [voiceError, toast]);
   useEffect(() => { setRandomGreeting(GREETINGS[language] || GREETINGS.en); }, [language]);
@@ -554,6 +556,9 @@ const Chat: React.FC = () => {
                 </button>
                 <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
                   <Code className="w-4 h-4" /><span>Coding Partner</span>
+                </button>
+                <button onClick={() => { navigate("/projects"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
+                  <FolderTree className="w-4 h-4" /><span>My Projects</span>
                 </button>
               </div>
 

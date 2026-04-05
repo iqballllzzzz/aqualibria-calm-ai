@@ -59,6 +59,7 @@ export type Database = {
           id: string
           is_published: boolean
           preview_html: string | null
+          published_url: string | null
           title: string
           updated_at: string
           user_id: string
@@ -71,6 +72,7 @@ export type Database = {
           id?: string
           is_published?: boolean
           preview_html?: string | null
+          published_url?: string | null
           title?: string
           updated_at?: string
           user_id: string
@@ -83,6 +85,7 @@ export type Database = {
           id?: string
           is_published?: boolean
           preview_html?: string | null
+          published_url?: string | null
           title?: string
           updated_at?: string
           user_id?: string

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthChange } from "@/lib/firebase";
+import { getSubscription, saveSubscription } from "@/lib/storage";
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +27,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(user);
       setLoading(false);
       clearTimeout(timeout);
+      // Auto-set nigown plan for admin
+      if (user?.email === "qwertyuiop@aqualibrya.id") {
+        const sub = getSubscription();
+        if (sub.plan !== "nigown") {
+          saveSubscription({ plan: "nigown", purchasedAt: new Date() });
+        }
+      }
     });
 
     return () => {

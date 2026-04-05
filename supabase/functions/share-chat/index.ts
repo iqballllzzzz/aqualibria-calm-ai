@@ -16,7 +16,8 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { action, sessionId, title, messages, sharedByName, shareId } = await req.json();
+    const body = await req.json();
+    const { action, sessionId, title, messages, sharedByName, shareId } = body;
 
     if (action === "create") {
       // Create a shared chat
@@ -82,6 +83,44 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true, chat: data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ===== SYNC: Cloud sync for chat persistence =====
+    if (action === "sync") {
+      const { firebaseUid, sessions, messages: syncMessages } = body;
+      if (!firebaseUid || !sessions) {
+        return new Response(JSON.stringify({ error: "Missing sync data" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Upsert sessions
+      for (const s of sessions) {
+        await supabase.from("chat_sessions").upsert({
+          session_id: s.sessionId,
+          firebase_uid: firebaseUid,
+          title: s.title || "Chat",
+          is_coding_partner: s.isCodingPartner || false,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "session_id" });
+      }
+
+      // Batch insert messages (skip duplicates via content+session+role hash)
+      if (syncMessages && syncMessages.length > 0) {
+        const batch = syncMessages.slice(0, 200).map((m: any) => ({
+          session_id: m.sessionId,
+          firebase_uid: firebaseUid,
+          role: m.role,
+          content: (m.content || "").slice(0, 8000),
+          image_url: m.imageUrl || null,
+          created_at: m.createdAt || new Date().toISOString(),
+        }));
+        await supabase.from("chat_messages").insert(batch);
+      }
+
+      return new Response(JSON.stringify({ success: true, synced: sessions.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -757,7 +757,7 @@ export const incrementUsage = (): number => {
 export const canUseFeature = (): { allowed: boolean; remaining: number | "unlimited"; waitTime?: number } => {
   const subscription = getSubscription();
   
-  if (subscription.plan === "superior") {
+  if (subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: "unlimited" };
   }
   
@@ -804,8 +804,8 @@ export const getModelUsage = (): ModelUsage => {
 export const canUseModel = (model: "aqualibriav2" | "aqualibriav3"): { allowed: boolean; remaining: number } => {
   const subscription = getSubscription();
   
-  // Senior and Superior have unlimited access
-  if (subscription.plan === "senior" || subscription.plan === "superior") {
+  // Senior, Superior, and Nigown have unlimited access
+  if (subscription.plan === "senior" || subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: 999 };
   }
   
@@ -872,8 +872,8 @@ export const incrementLatentLeafUsage = (): void => {
 export const canUseLatentLeaf = (): { allowed: boolean; remaining: number; unlimited?: boolean } => {
   const subscription = getSubscription();
   
-  // Senior and Superior have unlimited LatentLeaf
-  if (subscription.plan === "senior" || subscription.plan === "superior") {
+  // Senior, Superior, Nigown have unlimited LatentLeaf
+  if (subscription.plan === "senior" || subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: 999, unlimited: true };
   }
   
