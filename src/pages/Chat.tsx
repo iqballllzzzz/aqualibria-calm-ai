@@ -557,6 +557,9 @@ const Chat: React.FC = () => {
                 <button onClick={() => { navigate("/coding"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
                   <Code className="w-4 h-4" /><span>Coding Partner</span>
                 </button>
+                <button onClick={() => { navigate("/projects"); setShowSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-accent transition-colors text-foreground-secondary text-sm font-medium">
+                  <FolderTree className="w-4 h-4" /><span>My Projects</span>
+                </button>
               </div>
 
               {/* Search */}
