@@ -6,7 +6,7 @@ import {
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Leaf, Crown, User, ImageIcon,
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone, GraduationCap,
-  Bot, Layout, Palette, Presentation, ChevronRight, Wand2,
+  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree,
 } from "lucide-react";
 import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
