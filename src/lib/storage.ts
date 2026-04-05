@@ -804,8 +804,8 @@ export const getModelUsage = (): ModelUsage => {
 export const canUseModel = (model: "aqualibriav2" | "aqualibriav3"): { allowed: boolean; remaining: number } => {
   const subscription = getSubscription();
   
-  // Senior and Superior have unlimited access
-  if (subscription.plan === "senior" || subscription.plan === "superior") {
+  // Senior, Superior, and Nigown have unlimited access
+  if (subscription.plan === "senior" || subscription.plan === "superior" || subscription.plan === "nigown") {
     return { allowed: true, remaining: 999 };
   }
   
