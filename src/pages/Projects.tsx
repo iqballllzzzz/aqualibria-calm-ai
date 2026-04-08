@@ -87,7 +87,7 @@ const Projects: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-y-auto">
       {/* Header */}
       <header className="h-14 flex items-center justify-between px-4 border-b border-border">
         <button onClick={() => navigate("/chat")} className="p-2 rounded-2xl hover:bg-accent transition-colors">

@@ -76,6 +76,17 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     features: ["Unlimited requests", "Premium AI model", "All Senior features", "LatentLeaf Unlimited", "Maximum context", "Full memory system", "Agent: 45 poin/hari", "Priority support"],
     color: "from-foreground/10 to-foreground/20",
   },
+  {
+    id: "nigown",
+    name: "Nigown",
+    price: 0,
+    priceDisplay: "∞",
+    dailyLimit: "unlimited",
+    model: "aqualibriav3",
+    modelDisplay: "AqualibriaV3 MAX",
+    features: ["Unlimited everything", "All models unlocked", "All agents unlimited", "Maximum context & memory", "Priority processing", "No restrictions"],
+    color: "from-primary to-primary/80",
+  },
 ];
 
 export interface ChatMessage {
