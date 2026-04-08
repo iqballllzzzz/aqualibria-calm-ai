@@ -17,77 +17,58 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const body = await req.json();
-    const { action, sessionId, title, messages, sharedByName, shareId } = body;
+    const { action } = body;
 
+    // ===== CREATE: Share a chat =====
     if (action === "create") {
-      // Create a shared chat
+      const { sessionId, title, messages, sharedByName } = body;
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return new Response(JSON.stringify({ error: "Messages are required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      // Clean messages - strip large binary data
       const cleanMessages = messages.map((m: any) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-        fileName: m.fileName,
-        isDualAgent: m.isDualAgent,
-        perspectiveA: m.perspectiveA,
-        perspectiveB: m.perspectiveB,
-        agentAName: m.agentAName,
-        agentBName: m.agentBName,
+        role: m.role, content: m.content, timestamp: m.timestamp,
+        fileName: m.fileName, isDualAgent: m.isDualAgent,
+        perspectiveA: m.perspectiveA, perspectiveB: m.perspectiveB,
+        agentAName: m.agentAName, agentBName: m.agentBName,
       }));
-
       const { data, error } = await supabase.from("shared_chats").insert({
         session_id: sessionId || "unknown",
         title: title || "Shared Chat",
         messages: cleanMessages,
         shared_by_name: sharedByName || "Anonymous",
       }).select("id").single();
-
       if (error) {
-        console.error("Share error:", error);
         return new Response(JSON.stringify({ error: "Failed to share chat" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ success: true, shareId: data.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ===== GET: Retrieve shared chat =====
     if (action === "get") {
+      const { shareId } = body;
       if (!shareId) {
         return new Response(JSON.stringify({ error: "Share ID required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      const { data, error } = await supabase
-        .from("shared_chats")
-        .select("*")
-        .eq("id", shareId)
-        .single();
-
+      const { data, error } = await supabase.from("shared_chats").select("*").eq("id", shareId).single();
       if (error || !data) {
         return new Response(JSON.stringify({ error: "Shared chat not found" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ success: true, chat: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ===== SYNC: Cloud sync for chat persistence =====
+    // ===== SYNC: Upload local data to cloud =====
     if (action === "sync") {
       const { firebaseUid, sessions, messages: syncMessages } = body;
       if (!firebaseUid || !sessions) {
@@ -95,8 +76,6 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      // Upsert sessions
       for (const s of sessions) {
         await supabase.from("chat_sessions").upsert({
           session_id: s.sessionId,
@@ -106,10 +85,13 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: "session_id" });
       }
-
-      // Batch insert messages (skip duplicates via content+session+role hash)
       if (syncMessages && syncMessages.length > 0) {
-        const batch = syncMessages.slice(0, 200).map((m: any) => ({
+        // Delete old messages first to avoid duplicates, then insert fresh
+        const sessionIds = [...new Set(syncMessages.map((m: any) => m.sessionId))];
+        for (const sid of sessionIds) {
+          await supabase.from("chat_messages").delete().eq("session_id", sid).eq("firebase_uid", firebaseUid);
+        }
+        const batch = syncMessages.slice(0, 500).map((m: any) => ({
           session_id: m.sessionId,
           firebase_uid: firebaseUid,
           role: m.role,
@@ -119,22 +101,68 @@ serve(async (req) => {
         }));
         await supabase.from("chat_messages").insert(batch);
       }
-
       return new Response(JSON.stringify({ success: true, synced: sessions.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ===== RESTORE: Download cloud data to local =====
+    if (action === "restore") {
+      const { firebaseUid } = body;
+      if (!firebaseUid) {
+        return new Response(JSON.stringify({ error: "Missing firebaseUid" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get sessions
+      const { data: sessions } = await supabase
+        .from("chat_sessions")
+        .select("*")
+        .eq("firebase_uid", firebaseUid)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+
+      if (!sessions || sessions.length === 0) {
+        return new Response(JSON.stringify({ success: true, sessions: [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get messages for these sessions
+      const sessionIds = sessions.map(s => s.session_id);
+      const { data: messages } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .in("session_id", sessionIds)
+        .order("created_at", { ascending: true })
+        .limit(1000);
+
+      // Group messages by session
+      const messagesBySession: Record<string, any[]> = {};
+      for (const m of (messages || [])) {
+        if (!messagesBySession[m.session_id]) messagesBySession[m.session_id] = [];
+        messagesBySession[m.session_id].push(m);
+      }
+
+      const result = sessions.map(s => ({
+        ...s,
+        messages: messagesBySession[s.session_id] || [],
+      }));
+
+      return new Response(JSON.stringify({ success: true, sessions: result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (e) {
     console.error("Share chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

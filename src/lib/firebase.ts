@@ -41,32 +41,6 @@ export const signInWithEmail = async (email: string, password: string) => {
   }
 };
 
-// Sign in with Google (via Lovable Cloud managed OAuth)
-export const signInWithGoogle = async () => {
-  try {
-    const { lovable } = await import("@/integrations/lovable/index");
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-      extraParams: { prompt: "select_account" },
-    });
-
-    if (result.error) {
-      return { user: null, error: result.error instanceof Error ? result.error.message : String(result.error) };
-    }
-
-    if ((result as any).redirected) {
-      return { user: null, error: null };
-    }
-
-    // Session was set by lovable auth - get user
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    return { user: mapUser(currentUser), error: null };
-  } catch (error: any) {
-    console.error("Google sign-in error:", error);
-    return { user: null, error: error.message || "Google sign-in failed" };
-  }
-};
-
 // Register with email
 export const registerWithEmail = async (email: string, password: string) => {
   try {
@@ -86,7 +60,7 @@ export const registerWithEmail = async (email: string, password: string) => {
     return {
       user: mapUser(data.user),
       error: null,
-      message: "Account created successfully! You can now sign in.",
+      message: "Account created! Please verify with the code sent to your email.",
     };
   } catch (error: any) {
     return { user: null, error: error.message || "Failed to create account", message: null };
@@ -115,9 +89,9 @@ export const verifyPhoneOtp = async (phone: string, token: string) => {
   }
 };
 
-// Resend verification (not needed with auto-confirm, but kept for compatibility)
+// Resend verification
 export const resendVerificationEmail = async () => {
-  return { success: false, error: "Auto-confirm is enabled" };
+  return { success: false, error: "Use OTP verification instead" };
 };
 
 // Logout
