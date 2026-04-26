@@ -1,4 +1,12 @@
+# Robots policy for AqualibriaAI (https://aqualibrya.my.id)
+# Allow all major crawlers with full access. about.html is the canonical
+# profile page intended to power Google Knowledge Panel.
+
 User-agent: Googlebot
+Allow: /
+Allow: /about.html
+
+User-agent: Googlebot-Image
 Allow: /
 
 User-agent: Bingbot
@@ -10,5 +18,20 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
 User-agent: *
 Allow: /
+
+Sitemap: https://aqualibrya.my.id/sitemap.xml
+Host: https://aqualibrya.my.id
