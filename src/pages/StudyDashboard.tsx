@@ -410,17 +410,20 @@ INSTRUKSI FORMAT PENTING:
   const hasResults = showResult && (result || mindmapData || quizQuestions.length > 0 || flashcards.length > 0);
 
   return (
-    <div className="min-h-[100dvh] max-h-[100dvh] bg-background flex flex-col overflow-hidden">
+    <div className="min-h-[100dvh] max-h-[100dvh] bg-background flex flex-col overflow-hidden relative">
+      <div className="spotlight spotlight-violet" style={{ width: "36vw", height: "36vw", top: "-12%", left: "-12%", opacity: 0.14 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "28vw", height: "28vw", bottom: "-10%", right: "-10%", opacity: 0.12 }} />
+
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-border px-3 py-2.5 shrink-0">
+      <header className="sticky top-0 z-30 surface-glass border-b border-border/60 px-3 py-2.5 shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/chat")} className="p-1.5 -ml-1 rounded-xl hover:bg-accent transition-colors">
+            <button onClick={() => navigate("/chat")} className="p-1.5 -ml-1 rounded-xl hover:bg-accent transition-colors" aria-label="Back to chat">
               <ArrowLeft className="w-4 h-4 text-muted-foreground" />
             </button>
             <Logo size="sm" />
             <div>
-              <h1 className="font-bold text-xs text-foreground leading-tight">Learning Lab</h1>
+              <h1 className="font-display font-bold tracking-tight text-xs text-foreground leading-tight">Learning Lab</h1>
               <p className="text-[9px] text-muted-foreground">{getEducationLabel()} · {profile.age || "13+"}</p>
             </div>
           </div>

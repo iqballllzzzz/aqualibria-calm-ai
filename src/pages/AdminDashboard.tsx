@@ -70,17 +70,24 @@ const AdminDashboard: React.FC = () => {
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-gray-900"><div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white relative overflow-x-hidden">
+      <div className="spotlight spotlight-violet" style={{ width: "44vw", height: "44vw", top: "-15%", left: "-15%", opacity: 0.22 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "32vw", height: "32vw", bottom: "-10%", right: "-10%", opacity: 0.18 }} />
+      <header className="border-b border-gray-800/60 bg-gray-900/40 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3"><Shield className="w-6 h-6 text-primary" /><h1 className="text-lg font-bold">Admin Dashboard</h1></div>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-gradient flex items-center justify-center shadow-lg shadow-violet-500/30">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-lg font-display font-bold tracking-tight">Admin Dashboard</h1>
+          </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="text-green-400 border-green-500/30"><Activity className="w-3 h-3 mr-1" />{total} logs</Badge>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-400 hover:text-white"><LogOut className="w-4 h-4 mr-1" />Logout</Button>
           </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10 page-fade-in">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[{ icon: Users, color: "text-blue-400", val: new Set(logs.map(l => l.firebase_uid)).size, label: "Unique Users" },
             { icon: Activity, color: "text-green-400", val: total, label: "Total Activities" },

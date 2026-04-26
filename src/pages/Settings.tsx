@@ -176,21 +176,24 @@ const Settings: React.FC = () => {
 
   return (
     <>
-      <div className="h-screen-safe w-full bg-background flex flex-col overflow-hidden" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+      <div className="h-screen-safe w-full bg-background flex flex-col overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+        <div className="spotlight spotlight-violet" style={{ width: "40vw", height: "40vw", top: "-15%", left: "-15%", opacity: 0.14 }} />
+        <div className="spotlight spotlight-cyan" style={{ width: "32vw", height: "32vw", bottom: "-10%", right: "-10%", opacity: 0.12 }} />
+
         {/* Header */}
-        <header className="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-border bg-background">
-          <button onClick={() => navigate("/chat")} className="p-2 -ml-2 rounded-xl hover:bg-accent transition-colors">
+        <header className="h-14 shrink-0 surface-glass flex items-center gap-3 px-4 border-b border-border/60 z-30">
+          <button onClick={() => navigate("/chat")} className="p-2 -ml-2 rounded-xl hover:bg-accent transition-colors" aria-label="Back">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-base font-bold text-foreground">{t("settings.title")}</h1>
+          <h1 className="text-base font-display font-bold tracking-tight text-foreground">{t("settings.title")}</h1>
           {hasChanges && (
-            <button onClick={handleSave} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
+            <button onClick={handleSave} className="ml-auto btn-brand !px-3 !py-1.5 !text-xs">
               <Save className="w-3.5 h-3.5" />Save
             </button>
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto custom-scrollbar">
+        <main className="flex-1 overflow-y-auto custom-scrollbar relative z-10 page-fade-in">
           <div className="max-w-lg mx-auto p-5 space-y-6 pb-24">
             {/* Profile */}
             <Section title={t("settings.profile")} delay={0}>

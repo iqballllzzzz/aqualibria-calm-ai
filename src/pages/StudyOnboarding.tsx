@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { GraduationCap, ArrowRight, Sparkles } from "lucide-react";
-import Logo from "@/components/Logo";
+import ParticleBackground from "@/components/ParticleBackground";
 
 const AGE_OPTIONS = [
   { label: "12-", value: "12-", emoji: "🧒" },
@@ -47,15 +47,19 @@ const StudyOnboarding: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] bg-background flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(172, 66%, 40%)' }} />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[40vw] h-[40vw] rounded-full opacity-[0.04] blur-[80px] pointer-events-none" style={{ background: 'hsl(36, 95%, 55%)' }} />
+      <ParticleBackground color="#06b6d4" count={350} opacity={0.28} />
+      <div className="spotlight spotlight-cyan" style={{ width: "42vw", height: "42vw", top: "-15%", left: "-10%" }} />
+      <div className="spotlight spotlight-violet" style={{ width: "32vw", height: "32vw", bottom: "-12%", right: "-10%", opacity: 0.18 }} />
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md relative z-10">
         <AnimatePresence mode="wait">
           {step === 0 && (
             <motion.div key="welcome" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="text-center">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-primary/15 flex items-center justify-center">
-                <GraduationCap className="w-10 h-10 text-primary" />
+              <div className="relative w-24 h-24 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-3xl bg-brand-gradient opacity-30 blur-xl" />
+                <div className="relative w-24 h-24 rounded-3xl surface-glass flex items-center justify-center">
+                  <GraduationCap className="w-12 h-12 text-foreground" />
+                </div>
               </div>
               <h1 className="text-2xl font-bold text-foreground mb-3">Halo, selamat datang di Pembelajaran! 🎉</h1>
               <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm mx-auto">

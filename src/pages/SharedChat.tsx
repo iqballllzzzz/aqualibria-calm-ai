@@ -79,25 +79,28 @@ const SharedChat: React.FC = () => {
   const messages = Array.isArray(chat.messages) ? chat.messages : [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <div className="spotlight spotlight-violet" style={{ width: "44vw", height: "44vw", top: "-15%", left: "-15%", opacity: 0.14 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "36vw", height: "36vw", bottom: "-10%", right: "-10%", opacity: 0.12 }} />
+
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border">
+      <header className="sticky top-0 z-30 surface-glass border-b border-border/60">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Logo size="sm" />
             <div>
-              <h1 className="text-sm font-bold text-foreground truncate max-w-[200px]">{chat.title}</h1>
+              <h1 className="text-sm font-display font-bold tracking-tight text-foreground truncate max-w-[200px]">{chat.title}</h1>
               <p className="text-[10px] text-foreground-muted">Shared by {chat.shared_by_name}</p>
             </div>
           </div>
-          <Link to="/login" className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:shadow-md transition-all">
-            Try AquaLibria
+          <Link to="/login" className="btn-brand !px-3 !py-1.5 !text-xs">
+            Try AqualibriaAI
           </Link>
         </div>
       </header>
 
       {/* Messages */}
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="max-w-2xl mx-auto px-4 py-6 relative z-10 page-fade-in">
         <div className="space-y-6">
           {messages.map((message, index) => (
             <motion.div
