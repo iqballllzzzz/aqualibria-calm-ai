@@ -23,7 +23,15 @@ import PublishedApp from "./pages/PublishedApp";
 import StudyOnboarding from "./pages/StudyOnboarding";
 import StudyDashboard from "./pages/StudyDashboard";
 import AntiDevtools from "@/components/AntiDevtools";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+
+const AgentStudio = lazy(() => import("./pages/AgentStudio"));
+
+const StudioFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -92,6 +100,8 @@ const AppRoutes = () => {
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/shared/:shareId" element={<SharedChat />} />
       <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+      <Route path="/studio" element={<ProtectedRoute><Suspense fallback={<StudioFallback />}><AgentStudio /></Suspense></ProtectedRoute>} />
+      <Route path="/studio/:projectId" element={<ProtectedRoute><Suspense fallback={<StudioFallback />}><AgentStudio /></Suspense></ProtectedRoute>} />
       <Route path="/app/:slug" element={<PublishedApp />} />
       {/* Admin routes - role-based access */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
