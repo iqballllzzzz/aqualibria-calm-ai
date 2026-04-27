@@ -1,0 +1,31 @@
+services:
+  agent-backend:
+    build: .
+    image: aqualibria/agent-backend:latest
+    container_name: aqualibria-agent-backend
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    environment:
+      SANDBOX_MODE: docker
+      WORKSPACE_ROOT: /var/aqualibria/workspaces
+    volumes:
+      # Mount host docker socket so the backend can spawn sandbox containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - aqualibria_workspaces:/var/aqualibria/workspaces
+    networks:
+      - aqualibria
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8787/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  aqualibria_workspaces:
+
+networks:
+  aqualibria:
+    driver: bridge
