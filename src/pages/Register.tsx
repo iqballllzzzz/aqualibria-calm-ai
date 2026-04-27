@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { gsap } from "gsap";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
 import { registerWithEmail } from "@/lib/firebase";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import Logo from "@/components/Logo";
+import ParticleBackground from "@/components/ParticleBackground";
 
 type Step = "form" | "verify" | "done";
 
@@ -20,6 +22,13 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [otpCode, setOtpCode] = useState("");
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from("[data-gsap='reg-card']", { y: 24, opacity: 0, duration: 0.7, ease: "power3.out" });
+    });
+    return () => ctx.revert();
+  }, [step]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,14 +112,19 @@ const Register: React.FC = () => {
 
   if (step === "done") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <CheckCircle className="w-8 h-8 text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+        <ParticleBackground color="#10b981" count={300} opacity={0.3} />
+        <div className="spotlight spotlight-cyan" style={{ width: "40vw", height: "40vw", top: "10%", left: "20%" }} />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-sm text-center relative z-10 page-fade-in">
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-3xl bg-brand-gradient opacity-30 blur-xl" />
+            <div className="relative w-20 h-20 rounded-3xl surface-glass flex items-center justify-center">
+              <CheckCircle className="w-10 h-10 text-emerald-400" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Akun Terverifikasi! 🎉</h1>
-          <p className="text-muted-foreground text-sm mb-4">Kamu akan diarahkan ke halaman chat...</p>
-          <div className="w-8 h-8 mx-auto border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <h1 className="text-3xl font-display font-bold tracking-tight mb-2">Akun terverifikasi</h1>
+          <p className="text-muted-foreground text-sm mb-6">Mengarahkan ke chat...</p>
+          <div className="w-8 h-8 mx-auto border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
         </motion.div>
       </div>
     );
@@ -119,8 +133,10 @@ const Register: React.FC = () => {
   if (step === "verify") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-        <div className="absolute top-[-30%] right-[-10%] w-[60vw] h-[60vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="w-full max-w-sm relative z-10">
+        <ParticleBackground color="#06b6d4" count={350} opacity={0.28} />
+        <div className="spotlight spotlight-violet" style={{ width: "40vw", height: "40vw", top: "-10%", right: "-10%" }} />
+        <div className="spotlight spotlight-cyan" style={{ width: "30vw", height: "30vw", bottom: "-10%", left: "-5%", opacity: 0.18 }} />
+        <motion.div data-gsap="reg-card" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="w-full max-w-sm relative z-10">
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
               <ShieldCheck className="w-8 h-8 text-primary" />
@@ -181,9 +197,11 @@ const Register: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <div className="absolute top-[-30%] right-[-10%] w-[60vw] h-[60vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
+      <ParticleBackground color="#8b5cf6" count={350} opacity={0.28} />
+      <div className="spotlight spotlight-violet" style={{ width: "42vw", height: "42vw", top: "-12%", right: "-8%" }} />
+      <div className="spotlight spotlight-pink" style={{ width: "30vw", height: "30vw", bottom: "-12%", left: "-8%", opacity: 0.16 }} />
 
-      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="w-full max-w-sm relative z-10">
+      <motion.div data-gsap="reg-card" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
           <Logo size="lg" className="mx-auto mb-5" />
           <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("register.title")}</h1>

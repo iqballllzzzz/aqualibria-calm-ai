@@ -87,20 +87,23 @@ const Projects: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background overflow-y-auto">
+    <div className="min-h-screen bg-background overflow-y-auto relative">
+      <div className="spotlight spotlight-violet" style={{ width: "44vw", height: "44vw", top: "-15%", left: "-15%", opacity: 0.16 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "36vw", height: "36vw", bottom: "-10%", right: "-10%", opacity: 0.12 }} />
+
       {/* Header */}
-      <header className="h-14 flex items-center justify-between px-4 border-b border-border">
-        <button onClick={() => navigate("/chat")} className="p-2 rounded-2xl hover:bg-accent transition-colors">
+      <header className="h-14 surface-glass sticky top-0 z-30 flex items-center justify-between px-4 border-b border-border/60">
+        <button onClick={() => navigate("/chat")} className="p-2 rounded-2xl hover:bg-accent transition-colors" aria-label="Back to chat">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-display font-bold text-foreground">My Projects</span>
+          <span className="font-display font-bold tracking-tight text-foreground">My Projects</span>
         </div>
         <div className="w-9" />
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6 relative z-10 page-fade-in">
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />

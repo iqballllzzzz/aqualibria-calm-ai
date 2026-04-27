@@ -1,26 +1,36 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import AOS from "aos";
+import "aos/dist/aos.css";
 import { ArrowLeft, Shield, Lock, Eye, Database, MessageSquare, Phone } from "lucide-react";
 import Logo from "@/components/Logo";
 
 const PrivacyPolicy: React.FC = () => {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    AOS.init({ duration: 600, easing: "ease-out-cubic", once: true, offset: 30 });
+  }, []);
+
   return (
-    <div className="min-h-screen w-full bg-background">
+    <div className="min-h-screen w-full bg-background relative overflow-x-hidden">
+      <div className="spotlight spotlight-violet" style={{ width: "50vw", height: "50vw", top: "-15%", left: "-15%", opacity: 0.18 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "40vw", height: "40vw", bottom: "-10%", right: "-10%", opacity: 0.14 }} />
+
       {/* Header */}
-      <header className="h-14 border-b border-border flex items-center px-4 sticky top-0 bg-background z-10">
+      <header className="h-14 surface-glass flex items-center px-4 sticky top-0 z-20 border-b border-border/60">
         <button
           onClick={() => navigate(-1)}
           className="p-2 rounded-lg hover:bg-accent transition-colors"
+          aria-label="Kembali"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
-        <h1 className="ml-4 text-lg font-medium text-foreground">Kebijakan Privasi</h1>
+        <h1 className="ml-4 text-lg font-display font-semibold tracking-tight text-foreground">Kebijakan Privasi</h1>
       </header>
 
-      <main className="max-w-3xl mx-auto p-6 pb-24">
+      <main className="max-w-3xl mx-auto p-6 pb-24 relative z-10">
         {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

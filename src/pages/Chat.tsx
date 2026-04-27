@@ -512,8 +512,9 @@ const Chat: React.FC = () => {
     <div className="h-screen-safe w-screen overflow-hidden flex flex-col bg-background relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Ambient background orbs */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="ambient-orb w-[500px] h-[500px] -top-48 -right-48 bg-primary/20" />
-        <div className="ambient-orb w-[400px] h-[400px] -bottom-32 -left-32 bg-amber/15" style={{ animationDelay: '3s' }} />
+        <div className="spotlight spotlight-violet" style={{ width: "44vw", height: "44vw", top: "-15%", left: "-15%", opacity: 0.18 }} />
+        <div className="spotlight spotlight-cyan" style={{ width: "32vw", height: "32vw", bottom: "-10%", right: "-10%", opacity: 0.14 }} />
+        <div className="spotlight spotlight-pink" style={{ width: "26vw", height: "26vw", top: "30%", right: "10%", opacity: 0.10 }} />
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" multiple />
@@ -633,13 +634,15 @@ const Chat: React.FC = () => {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 relative z-10">
-        <button onClick={() => setShowSidebar(true)} className="p-2.5 -ml-1 rounded-2xl hover:bg-accent/80 transition-colors">
+      <header className="h-14 shrink-0 surface-glass flex items-center justify-between px-4 relative z-20 border-b border-border/40">
+        <button onClick={() => setShowSidebar(true)} className="p-2.5 -ml-1 rounded-2xl hover:bg-accent/80 transition-colors" aria-label="Open menu">
           <Menu className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-display font-bold text-foreground tracking-tight">AquaLibria</span>
+          <span className="font-display font-bold tracking-tight text-foreground">
+            Aqua<span className="text-brand-gradient">libria</span>
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {/* Upgrade Plan button */}
@@ -647,17 +650,18 @@ const Chat: React.FC = () => {
             onClick={() => setShowUpgradeModal(true)}
             className="p-2 rounded-2xl hover:bg-accent/80 transition-colors relative"
             title="Upgrade Plan"
+            aria-label="Upgrade Plan"
           >
             <Crown className="w-5 h-5 text-amber-500" />
             {subscription.plan === "junior" && (
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
             )}
           </button>
-          <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all">
+          <button onClick={() => navigate("/settings")} className="overflow-hidden rounded-full ring-2 ring-border hover:ring-primary/40 transition-all" aria-label="Open settings">
             {userPhotoURL ? (
               <img src={userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
             ) : (
-              <div className="w-9 h-9 rounded-full gradient-aqua flex items-center justify-center text-primary-foreground text-xs font-bold">{userInitial}</div>
+              <div className="w-9 h-9 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xs font-bold">{userInitial}</div>
             )}
           </button>
         </div>

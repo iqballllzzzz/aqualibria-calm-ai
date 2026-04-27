@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { gsap } from "gsap";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Phone } from "lucide-react";
 import { signInWithEmail, signInWithPhone, verifyPhoneOtp } from "@/lib/firebase";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { logActivity } from "@/lib/activity";
 import Logo from "@/components/Logo";
+import ParticleBackground from "@/components/ParticleBackground";
 
 type AuthMode = "email" | "phone";
 
@@ -21,6 +23,14 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from("[data-gsap='login-title']", { y: 20, opacity: 0, duration: 0.8, ease: "power3.out" });
+      gsap.from("[data-gsap='login-card']", { y: 30, opacity: 0, duration: 0.9, delay: 0.1, ease: "power3.out" });
+    });
+    return () => ctx.revert();
+  }, []);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +75,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <ParticleBackground color="#7c3aed" count={350} opacity={0.3} />
       <div className="absolute top-[-30%] left-[-10%] w-[60vw] h-[60vw] rounded-full opacity-[0.06] blur-[100px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full opacity-[0.04] blur-[80px] pointer-events-none" style={{ background: 'hsl(var(--primary))' }} />
 
@@ -74,7 +85,7 @@ const Login: React.FC = () => {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-sm relative z-10"
       >
-        <div className="text-center mb-8">
+        <div className="text-center mb-8" data-gsap="login-title">
           <Logo size="lg" className="mx-auto mb-5" />
           <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("login.title")}</h1>
           <p className="text-muted-foreground text-sm mt-1.5">{t("login.subtitle")}</p>
@@ -138,6 +149,24 @@ const Login: React.FC = () => {
           {t("login.noAccount")}{" "}
           <Link to="/register" className="text-primary font-semibold hover:underline">{t("login.register")}</Link>
         </p>
+
+        <div className="mt-6 flex items-center justify-center gap-4 text-xs text-muted-foreground">
+          <a href="/about.html" className="hover:text-primary hover:underline transition">Tentang</a>
+          <span aria-hidden="true">·</span>
+          <a
+            href="https://www.linkedin.com/in/muhammad-iqbal-a54628400?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+            target="_blank"
+            rel="noopener me author"
+            className="inline-flex items-center gap-1 hover:text-primary transition"
+          >
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor" aria-hidden="true">
+              <path d="M19 0h-14c-2.76 0-5 2.24-5 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5V5c0-2.76-2.24-5-5-5zM8 19H5V8h3v11zM6.5 6.7C5.5 6.7 4.7 5.9 4.7 4.9S5.5 3.1 6.5 3.1s1.8.8 1.8 1.8-.8 1.8-1.8 1.8zM20 19h-3v-5.6c0-1.3-.5-2.2-1.6-2.2-.9 0-1.4.6-1.6 1.2-.1.2-.1.5-.1.8V19h-3V8h3v1.3c.4-.6 1.1-1.5 2.7-1.5 2 0 3.6 1.3 3.6 4.1V19z" />
+            </svg>
+            LinkedIn
+          </a>
+          <span aria-hidden="true">·</span>
+          <Link to="/privacy" className="hover:text-primary hover:underline transition">Privasi</Link>
+        </div>
       </motion.div>
     </div>
   );

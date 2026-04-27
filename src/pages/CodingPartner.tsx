@@ -114,21 +114,23 @@ const CodingPartner: React.FC = () => {
   ];
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background relative">
+      <div className="spotlight spotlight-violet" style={{ width: "40vw", height: "40vw", top: "-15%", left: "-10%", opacity: 0.16 }} />
+      <div className="spotlight spotlight-cyan" style={{ width: "30vw", height: "30vw", bottom: "-10%", right: "-10%", opacity: 0.14 }} />
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
       {/* Header */}
-      <header className="h-13 shrink-0 border-b border-border flex items-center px-4 gap-3 bg-card/50 backdrop-blur-xl">
-        <button onClick={() => navigate("/chat")} className="p-2 -ml-1 rounded-xl hover:bg-accent transition-colors">
+      <header className="h-13 shrink-0 surface-glass border-b border-border/60 flex items-center px-4 gap-3 z-30">
+        <button onClick={() => navigate("/chat")} className="p-2 -ml-1 rounded-xl hover:bg-accent transition-colors" aria-label="Back to chat">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex items-center gap-2.5 flex-1">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center shadow-lg shadow-violet-500/20">
             <Terminal className="w-4 h-4 text-white" />
           </div>
           <div>
-            <span className="font-bold text-foreground text-sm">Coding Partner</span>
-            <p className="text-[10px] text-foreground-muted leading-tight">by AquaLibriaAI</p>
+            <span className="font-display font-bold tracking-tight text-foreground text-sm">Coding Partner</span>
+            <p className="text-[10px] text-foreground-muted leading-tight">by AqualibriaAI</p>
           </div>
         </div>
 

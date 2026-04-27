@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://aqualibrya.my.id/</loc>
+    <lastmod>2026-04-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="id" href="https://aqualibrya.my.id/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://aqualibrya.my.id/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://aqualibrya.my.id/" />
+  </url>
+  <url>
+    <loc>https://aqualibrya.my.id/about.html</loc>
+    <lastmod>2026-04-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="id" href="https://aqualibrya.my.id/about.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://aqualibrya.my.id/about.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://aqualibrya.my.id/about.html" />
+    <image:image>
+      <image:loc>https://mis-flame.vercel.app/assets/profile-DBobJbli.jpg</image:loc>
+      <image:title>Foto profil Muhammad Iqbal Sukarno — founder AqualibriaAI</image:title>
+      <image:caption>Muhammad Iqbal Sukarno, founder AqualibriaAI, di bawah Meiyuu Company.</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://files.catbox.moe/19j0px.jpg</image:loc>
+      <image:title>Logo Meiyuu Company / AqualibriaAI</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://aqualibrya.my.id/login</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://aqualibrya.my.id/register</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://aqualibrya.my.id/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+</urlset>

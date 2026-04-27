@@ -1,6 +1,8 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
-import { Home } from "lucide-react";
+import { motion } from "framer-motion";
+import { Home, ArrowLeft, Compass } from "lucide-react";
+import PageShell from "@/components/PageShell";
 
 const NotFound = () => {
   const location = useLocation();
@@ -8,31 +10,63 @@ const NotFound = () => {
   useEffect(() => {
     console.error(
       "404 Error: User attempted to access non-existent route:",
-      location.pathname
+      location.pathname,
     );
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="text-center">
-        <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center">
-          <span className="text-4xl font-light text-foreground-muted">404</span>
-        </div>
-        <h1 className="text-2xl font-medium text-foreground mb-3">
-          Page not found
-        </h1>
-        <p className="text-foreground-muted mb-8 max-w-sm">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-foreground text-background font-medium hover:bg-foreground/90 transition-all btn-press"
+    <PageShell withSpotlights padding="md">
+      <div className="min-h-screen flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center max-w-md w-full"
         >
-          <Home className="w-4 h-4" />
-          Go Home
-        </Link>
+          <div className="relative w-28 h-28 mx-auto mb-8">
+            <div className="absolute inset-0 rounded-3xl bg-brand-gradient opacity-20 blur-2xl" />
+            <div className="relative w-28 h-28 rounded-3xl surface-glass flex items-center justify-center">
+              <span className="text-5xl font-display font-bold text-brand-gradient tracking-tight">
+                404
+              </span>
+            </div>
+          </div>
+
+          <h1 className="text-3xl font-display font-bold tracking-tight mb-3">
+            Halaman tidak ditemukan
+          </h1>
+          <p className="text-muted-foreground mb-8 max-w-sm mx-auto">
+            Rute <code className="font-mono-display text-foreground/80">{location.pathname}</code>{" "}
+            tidak ada atau sudah dipindah. Yuk balik ke jalur utama.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link to="/" className="btn-brand">
+              <Home className="w-4 h-4" />
+              Beranda
+            </Link>
+            <Link to="/chat" className="btn-outline-soft">
+              <Compass className="w-4 h-4" />
+              Buka Chat
+            </Link>
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="btn-outline-soft"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Kembali
+            </button>
+          </div>
+
+          <p className="mt-8 text-xs text-muted-foreground">
+            <Link to="/about.html" className="hover:text-foreground transition">
+              Tentang AqualibriaAI
+            </Link>
+          </p>
+        </motion.div>
       </div>
-    </div>
+    </PageShell>
   );
 };
 

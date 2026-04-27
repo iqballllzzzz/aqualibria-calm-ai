@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Code, BookOpen, Image, Quote, ArrowRight, Sparkles } from "lucide-react";
+import { gsap } from "gsap";
+import AOS from "aos";
+import "aos/dist/aos.css";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { setWelcomeShown } from "@/lib/storage";
 import Logo from "@/components/Logo";
+import ParticleBackground from "@/components/ParticleBackground";
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +17,31 @@ const Welcome: React.FC = () => {
   const [showCursor, setShowCursor] = useState(true);
   const [typingComplete, setTypingComplete] = useState(false);
   const [showIntentSelection, setShowIntentSelection] = useState(false);
+  const heroRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    AOS.init({ duration: 700, easing: "ease-out-cubic", once: true, offset: 40 });
+  }, []);
+
+  useEffect(() => {
+    if (!heroRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.from("[data-gsap='hero-logo']", {
+        y: 24,
+        opacity: 0,
+        duration: 0.9,
+        ease: "power3.out",
+      });
+      gsap.from("[data-gsap='hero-cta']", {
+        y: 16,
+        opacity: 0,
+        duration: 0.7,
+        delay: 0.4,
+        ease: "power3.out",
+      });
+    }, heroRef);
+    return () => ctx.revert();
+  }, []);
 
   const greeting = t("welcome.greeting");
   const subtitle = t("welcome.subtitle");
@@ -49,9 +78,11 @@ const Welcome: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background p-6 relative overflow-hidden">
+    <div ref={heroRef} className="min-h-screen w-full flex items-center justify-center bg-background p-6 relative overflow-hidden">
+      <ParticleBackground color="#7c3aed" count={400} opacity={0.35} />
       {/* Ambient effects */}
-      <div className="absolute top-[10%] left-[20%] w-[40vw] h-[40vw] rounded-full opacity-[0.04] blur-[100px] pointer-events-none" style={{ background: 'hsl(217, 91%, 55%)' }} />
+      <div className="absolute top-[10%] left-[20%] w-[40vw] h-[40vw] rounded-full opacity-[0.06] blur-[120px] pointer-events-none" style={{ background: 'hsl(217, 91%, 55%)' }} />
+      <div className="absolute bottom-[10%] right-[10%] w-[30vw] h-[30vw] rounded-full opacity-[0.05] blur-[100px] pointer-events-none" style={{ background: 'hsl(280, 91%, 60%)' }} />
 
       <div className="w-full max-w-lg relative z-10">
         <AnimatePresence mode="wait">
@@ -64,7 +95,7 @@ const Welcome: React.FC = () => {
               transition={{ duration: 0.4 }}
               className="text-center"
             >
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }}>
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }} data-gsap="hero-logo">
                 <Logo size="xl" className="mx-auto mb-8" />
               </motion.div>
 
@@ -79,6 +110,7 @@ const Welcome: React.FC = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: typingComplete ? 1 : 0, y: typingComplete ? 0 : 10 }}
                 transition={{ duration: 0.4, delay: 0.3 }}
+                data-gsap="hero-cta"
               >
                 <button
                   onClick={() => setShowIntentSelection(true)}
@@ -119,6 +151,20 @@ const Welcome: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Crawlable about link for Googlebot + users */}
+        <div
+          data-aos="fade-up"
+          data-aos-delay="600"
+          className="mt-12 text-center text-xs text-muted-foreground"
+        >
+          <a
+            href="/about.html"
+            className="underline-offset-4 hover:underline hover:text-primary transition"
+          >
+            Tentang AqualibriaAI &amp; Muhammad Iqbal Sukarno
+          </a>
+        </div>
       </div>
     </div>
   );
