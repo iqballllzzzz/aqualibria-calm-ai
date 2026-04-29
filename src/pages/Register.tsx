@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { gsap } from "gsap";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
 import { registerWithEmail } from "@/lib/firebase";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,18 +20,6 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [otpCode, setOtpCode] = useState("");
-
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.from("[data-gsap='reg-card']", {
-        y: 22,
-        opacity: 0,
-        duration: 0.75,
-        ease: "power3.out",
-      });
-    });
-    return () => ctx.revert();
-  }, [step]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,7 +155,6 @@ const Register: React.FC = () => {
     return (
       <Backdrop>
         <motion.div
-          data-gsap="reg-card"
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -259,7 +245,6 @@ const Register: React.FC = () => {
   return (
     <Backdrop>
       <motion.div
-        data-gsap="reg-card"
         initial={{ opacity: 0, y: 22 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}

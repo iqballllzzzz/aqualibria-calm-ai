@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Code, BookOpen, Image, Quote, ArrowRight } from "lucide-react";
-import { gsap } from "gsap";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -20,33 +19,6 @@ const Welcome: React.FC = () => {
 
   useEffect(() => {
     AOS.init({ duration: 700, easing: "ease-out-cubic", once: true, offset: 40 });
-  }, []);
-
-  useEffect(() => {
-    if (!heroRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.from("[data-gsap='hero-mark']", {
-        y: 16,
-        opacity: 0,
-        duration: 0.9,
-        ease: "power3.out",
-      });
-      gsap.from("[data-gsap='hero-eyebrow']", {
-        y: 12,
-        opacity: 0,
-        duration: 0.7,
-        delay: 0.15,
-        ease: "power3.out",
-      });
-      gsap.from("[data-gsap='hero-cta']", {
-        y: 12,
-        opacity: 0,
-        duration: 0.7,
-        delay: 0.5,
-        ease: "power3.out",
-      });
-    }, heroRef);
-    return () => ctx.revert();
   }, []);
 
   const greeting = t("welcome.greeting");
@@ -117,11 +89,9 @@ const Welcome: React.FC = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
                 className="flex flex-col items-center gap-4"
-                data-gsap="hero-mark"
               >
                 <Logo size="lg" />
                 <span
-                  data-gsap="hero-eyebrow"
                   className="divider-dot w-56 mx-auto text-foreground-muted"
                 >
                   AqualibriaAI
@@ -142,7 +112,6 @@ const Welcome: React.FC = () => {
                   y: typingComplete ? 0 : 8,
                 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                data-gsap="hero-cta"
               >
                 <button
                   onClick={() => setShowIntentSelection(true)}

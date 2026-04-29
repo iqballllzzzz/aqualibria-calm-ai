@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { gsap } from "gsap";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Phone } from "lucide-react";
 import { signInWithEmail, signInWithPhone, verifyPhoneOtp } from "@/lib/firebase";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -22,25 +21,6 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.from("[data-gsap='login-title']", {
-        y: 18,
-        opacity: 0,
-        duration: 0.8,
-        ease: "power3.out",
-      });
-      gsap.from("[data-gsap='login-card']", {
-        y: 24,
-        opacity: 0,
-        duration: 0.85,
-        delay: 0.12,
-        ease: "power3.out",
-      });
-    });
-    return () => ctx.revert();
-  }, []);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,9 +83,8 @@ const Login: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-md relative z-10"
-        data-gsap="login-card"
       >
-        <div className="text-center mb-10" data-gsap="login-title">
+        <div className="text-center mb-10">
           <Logo size="md" className="mx-auto mb-6" />
           <span className="divider-dot w-48 mx-auto mb-5">Welcome back</span>
           <h1 className="font-serif text-4xl text-foreground tracking-tight leading-[1.1]">
