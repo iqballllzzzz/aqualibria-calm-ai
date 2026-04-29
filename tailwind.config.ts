@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["DM Sans", "system-ui", "-apple-system", "sans-serif"],
-        display: ["Space Grotesk", "DM Sans", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        serif: ["Fraunces", "Cormorant Garamond", "Georgia", "serif"],
+        display: ["Fraunces", "Cormorant Garamond", "Georgia", "serif"],
         mono: ["JetBrains Mono", "Menlo", "Monaco", "monospace"],
       },
       colors: {
@@ -73,6 +74,10 @@ export default {
         amber: {
           DEFAULT: "hsl(var(--amber))",
           light: "hsl(var(--amber-light))",
+        },
+        sage: {
+          DEFAULT: "hsl(var(--sage))",
+          light: "hsl(var(--sage-light))",
         },
         chat: {
           user: "hsl(var(--chat-user-bg))",

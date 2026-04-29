@@ -5,10 +5,12 @@ import ParticleBackground from "@/components/ParticleBackground";
 
 interface PageShellProps {
   children: React.ReactNode;
-  /** Show animated three.js particle backdrop. */
+  /** Show animated three.js particle backdrop. Off by default in Calm Hotel. */
   withParticles?: boolean;
-  /** Show diffuse spotlight orbs (cheap CSS, always safe). */
+  /** Show diffuse warm spotlight orbs. Off by default for a quieter feel. */
   withSpotlights?: boolean;
+  /** Show subtle paper-grain texture overlay. */
+  withGrain?: boolean;
   /** Padding preset. */
   padding?: "none" | "sm" | "md" | "lg";
   className?: string;
@@ -17,13 +19,18 @@ interface PageShellProps {
 }
 
 /**
- * Reusable page shell with consistent backdrop, spotlights and entrance animation.
- * Each page using this gets the same modern feel (Grok/ChatGPT/Blackbox blend).
+ * Reusable page shell — "Calm Hotel" backdrop.
+ *
+ * The default look is intentionally quiet: warm ivory background, no particles,
+ * no spotlight orbs, just generous whitespace and an optional paper grain.
+ * Pages that want the legacy livelier backdrop can opt back in via the
+ * `withParticles` / `withSpotlights` props.
  */
 const PageShell: React.FC<PageShellProps> = ({
   children,
   withParticles = false,
-  withSpotlights = true,
+  withSpotlights = false,
+  withGrain = false,
   padding = "md",
   className = "",
   scrollable = false,
@@ -45,25 +52,20 @@ const PageShell: React.FC<PageShellProps> = ({
     <div
       className={`relative min-h-screen w-full bg-background text-foreground overflow-x-hidden ${
         scrollable ? "overflow-y-auto scrollbar-thin" : ""
-      } ${padCls} ${className}`}
+      } ${padCls} ${className} ${withGrain ? "bg-grain" : ""}`}
     >
-      {withParticles && <ParticleBackground color="#8b5cf6" count={350} opacity={0.25} />}
+      {withParticles && <ParticleBackground color="#a98f6f" count={180} opacity={0.16} />}
       {withSpotlights && (
         <>
           <div
             aria-hidden="true"
             className="spotlight spotlight-violet"
-            style={{ width: "44vw", height: "44vw", top: "-10%", left: "-10%" }}
-          />
-          <div
-            aria-hidden="true"
-            className="spotlight spotlight-cyan"
-            style={{ width: "36vw", height: "36vw", bottom: "-12%", right: "-8%" }}
+            style={{ width: "44vw", height: "44vw", top: "-12%", left: "-12%" }}
           />
           <div
             aria-hidden="true"
             className="spotlight spotlight-pink"
-            style={{ width: "28vw", height: "28vw", top: "40%", right: "30%", opacity: 0.12 }}
+            style={{ width: "36vw", height: "36vw", bottom: "-14%", right: "-10%" }}
           />
         </>
       )}
