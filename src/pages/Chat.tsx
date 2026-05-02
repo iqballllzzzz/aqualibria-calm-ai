@@ -308,12 +308,44 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: SLIDES (generate slide images) =====
       if (agentMode === "slides") {
-        const slideResult = await generateSlideImage(messageText);
-        if (slideResult?.success && slideResult?.imageUrl) {
-          const persistedUrl = await persistImageToStorage(slideResult.imageUrl);
-          setMessages((prev) => [...prev, { role: "assistant", content: slideResult.response || "Here's your slide:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+        // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
+        const wantedCount: 2 | 3 | 4 = 4;
+        // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
+        if (subscription.plan !== "junior") {
+          const session = await supabase.auth.getSession();
+          const token = session.data.session?.access_token;
+          if (token) {
+            const cost = wantedCount * 20; // 20 credits per slide image
+            const credit = await consumeCredit("image", cost, subscription.plan, token);
+            if (!credit.ok) {
+              toast({ title: "Kredit gambar habis", description: `Sisa kredit tidak cukup (butuh ${cost}). Upgrade plan untuk top-up.`, variant: "destructive" });
+              setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+          }
         } else {
-          setMessages((prev) => [...prev, { role: "assistant", content: slideResult?.response || slideResult?.error || "Failed to generate slide", timestamp: new Date(), id: generateMessageId() }]);
+          toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
+          setShowUpgradeModal(true);
+          setIsLoading(false);
+          return;
+        }
+        const deck = await generateSlideDeck(messageText, wantedCount);
+        if (deck.success && deck.slides && deck.slides.some(s => s.imageUrl)) {
+          const urls = await Promise.all(
+            deck.slides
+              .filter(s => s.imageUrl)
+              .map(s => persistImageToStorage(s.imageUrl as string))
+          );
+          setMessages((prev) => [...prev, {
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            id: generateMessageId(),
+            imageUrls: urls,
+          }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: deck.error || "Gagal membuat slide deck.", timestamp: new Date(), id: generateMessageId() }]);
         }
         setIsLoading(false); return;
       }
