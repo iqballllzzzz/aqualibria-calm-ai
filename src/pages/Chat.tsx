@@ -869,9 +869,25 @@ const Chat: React.FC = () => {
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
                     {/* AI generated image */}
-                    {message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" && (
+                    {message.imageUrls && message.imageUrls.length > 0 && message.role === "assistant" ? (
+                      <div className={`mt-3 grid gap-2 ${message.imageUrls.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                        {message.imageUrls.map((u, i) => (
+                          <div key={i} className="relative group">
+                            <img
+                              src={u}
+                              alt={`Slide ${i + 1}`}
+                              className="rounded-2xl w-full aspect-video object-cover cursor-pointer hover:opacity-90 transition-opacity border border-border"
+                              onClick={() => setShowImageViewer(u)}
+                            />
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-background/85 backdrop-blur-sm text-[10px] font-bold text-foreground border border-border">
+                              {i + 1}/{message.imageUrls!.length}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" ? (
                       <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-2xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
-                    )}
+                    ) : null}
                     <div className="mt-2 flex justify-end">
                       <MessageControls 
                         messageId={message.id || `${index}`} 
