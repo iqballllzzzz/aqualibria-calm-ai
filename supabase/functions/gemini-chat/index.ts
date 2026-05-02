@@ -163,6 +163,51 @@ serve(async (req) => {
       });
     }
 
+    // ===== SLIDE DECK (2-4 connected slides, IMAGE ONLY) =====
+    if (action === "generate-slide-deck") {
+      const topic = (body.prompt || "Presentation").toString().slice(0, 500);
+      const requested = Math.max(2, Math.min(4, Number(body.slideCount ?? 4)));
+      const sequence = [
+        { role: "Title slide", instr: `the COVER / TITLE slide. Big bold title reading "${topic}". Subtitle, author placeholder, decorative geometric accents.` },
+        { role: "Content slide", instr: `the CONTENT / OVERVIEW slide for "${topic}". Bullet-style points (3-5), iconography, infographic style.` },
+        { role: "Definition slide", instr: `the DEFINITION / EXPLANATION slide for "${topic}". A large definition block, supporting illustration, callout numbers.` },
+        { role: "Closing slide", instr: `the CLOSING / THANK YOU slide for "${topic}". Bold "Thank You" message, summary points, contact placeholder, matching style.` },
+      ].slice(0, requested);
+
+      // Sequential generation so each slide can reference style of previous = visually coherent deck.
+      const slides: { index: number; role: string; imageUrl: string | null }[] = [];
+      const sharedStyle = `Design style: clean modern Canva-like presentation, 16:9, consistent dark navy + accent color palette, sans-serif typography, generous whitespace, subtle geometric decorative shapes. Keep the SAME color palette, fonts, and decorative motif across every slide so the deck looks like one cohesive presentation.`;
+
+      for (let i = 0; i < sequence.length; i++) {
+        const step = sequence[i];
+        const fullPrompt = `Create slide ${i + 1} of ${sequence.length} — ${step.role}: ${step.instr} ${sharedStyle} Output ONLY the slide image, no extra commentary.`;
+        try {
+          const r = await fetch(GATEWAY_URL, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-image",
+              messages: [{ role: "user", content: fullPrompt }],
+              modalities: ["image", "text"],
+            }),
+          });
+          if (!r.ok) {
+            slides.push({ index: i + 1, role: step.role, imageUrl: null });
+            continue;
+          }
+          const d = await r.json();
+          const url = d.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+          slides.push({ index: i + 1, role: step.role, imageUrl: url });
+        } catch (_e) {
+          slides.push({ index: i + 1, role: step.role, imageUrl: null });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, slides }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ===== DESIGN IMAGE GENERATION =====
     if (action === "generate-design") {
       const prompt = body.prompt || "A modern UI design";
