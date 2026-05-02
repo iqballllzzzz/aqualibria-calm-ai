@@ -431,6 +431,84 @@ export const generateSlideImage = async (prompt: string): Promise<{ success: boo
   }
 };
 
+// Slide Deck (2-4 connected image slides, image-only output)
+export interface SlideDeckResult {
+  success: boolean;
+  slides?: { index: number; role: string; imageUrl: string | null }[];
+  error?: string;
+}
+
+export const generateSlideDeck = async (
+  prompt: string,
+  slideCount: 2 | 3 | 4 = 4
+): Promise<SlideDeckResult> => {
+  try {
+    const data = await callGemini({ action: "generate-slide-deck", prompt, slideCount });
+    if (data.success && Array.isArray(data.slides)) {
+      return { success: true, slides: data.slides };
+    }
+    return { success: false, error: data.error || "Failed to generate slide deck" };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to generate slide deck" };
+  }
+};
+
+// Hybrid Credit System
+export interface CreditsRow {
+  plan: string;
+  image_credits: number;
+  fullstack_credits: number;
+  period_start: string;
+}
+
+const CREDIT_URL = `${SUPABASE_URL}/functions/v1/consume-credit`;
+
+export const fetchCreditStatus = async (
+  plan: string,
+  accessToken: string
+): Promise<{ ok: boolean; credits?: CreditsRow; error?: string }> => {
+  try {
+    const r = await fetch(CREDIT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action: "status", plan }),
+    });
+    const data = await r.json();
+    if (!r.ok) return { ok: false, error: data.error || `Status ${r.status}` };
+    return { ok: true, credits: data.credits };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+};
+
+export const consumeCredit = async (
+  kind: "image" | "fullstack",
+  amount: number,
+  plan: string,
+  accessToken: string
+): Promise<{ ok: boolean; credits?: CreditsRow; reason?: string; error?: string }> => {
+  try {
+    const r = await fetch(CREDIT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action: "consume", kind, amount, plan }),
+    });
+    const data = await r.json();
+    if (!r.ok) return { ok: false, error: data.error || `Status ${r.status}` };
+    return { ok: !!data.ok, credits: data.credits, reason: data.reason };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+};
+
 // Design Image Generation (AI Design agent)
 export const generateDesignImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; response?: string; error?: string }> => {
   try {
