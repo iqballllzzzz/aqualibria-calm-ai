@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.analyze-youtube]
 verify_jwt = false
+
+[functions.consume-credit]
+verify_jwt = false

@@ -12,7 +12,7 @@ import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -308,12 +308,44 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: SLIDES (generate slide images) =====
       if (agentMode === "slides") {
-        const slideResult = await generateSlideImage(messageText);
-        if (slideResult?.success && slideResult?.imageUrl) {
-          const persistedUrl = await persistImageToStorage(slideResult.imageUrl);
-          setMessages((prev) => [...prev, { role: "assistant", content: slideResult.response || "Here's your slide:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
+        // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
+        const wantedCount: 2 | 3 | 4 = 4;
+        // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
+        if (subscription.plan !== "junior") {
+          const session = await supabase.auth.getSession();
+          const token = session.data.session?.access_token;
+          if (token) {
+            const cost = wantedCount * 20; // 20 credits per slide image
+            const credit = await consumeCredit("image", cost, subscription.plan, token);
+            if (!credit.ok) {
+              toast({ title: "Kredit gambar habis", description: `Sisa kredit tidak cukup (butuh ${cost}). Upgrade plan untuk top-up.`, variant: "destructive" });
+              setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+          }
         } else {
-          setMessages((prev) => [...prev, { role: "assistant", content: slideResult?.response || slideResult?.error || "Failed to generate slide", timestamp: new Date(), id: generateMessageId() }]);
+          toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
+          setShowUpgradeModal(true);
+          setIsLoading(false);
+          return;
+        }
+        const deck = await generateSlideDeck(messageText, wantedCount);
+        if (deck.success && deck.slides && deck.slides.some(s => s.imageUrl)) {
+          const urls = await Promise.all(
+            deck.slides
+              .filter(s => s.imageUrl)
+              .map(s => persistImageToStorage(s.imageUrl as string))
+          );
+          setMessages((prev) => [...prev, {
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            id: generateMessageId(),
+            imageUrls: urls,
+          }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: deck.error || "Gagal membuat slide deck.", timestamp: new Date(), id: generateMessageId() }]);
         }
         setIsLoading(false); return;
       }
@@ -837,9 +869,25 @@ const Chat: React.FC = () => {
                       <p className="whitespace-pre-wrap leading-relaxed break-words text-sm text-foreground" style={{ overflowWrap: 'anywhere' }}>{message.content}</p>
                     )}
                     {/* AI generated image */}
-                    {message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" && (
+                    {message.imageUrls && message.imageUrls.length > 0 && message.role === "assistant" ? (
+                      <div className={`mt-3 grid gap-2 ${message.imageUrls.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                        {message.imageUrls.map((u, i) => (
+                          <div key={i} className="relative group">
+                            <img
+                              src={u}
+                              alt={`Slide ${i + 1}`}
+                              className="rounded-2xl w-full aspect-video object-cover cursor-pointer hover:opacity-90 transition-opacity border border-border"
+                              onClick={() => setShowImageViewer(u)}
+                            />
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-background/85 backdrop-blur-sm text-[10px] font-bold text-foreground border border-border">
+                              {i + 1}/{message.imageUrls!.length}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : message.imageUrl && message.role === "assistant" && message.imageUrl !== "[image]" ? (
                       <div className="mt-3"><img src={message.imageUrl} alt="Generated" className="rounded-2xl max-w-full cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowImageViewer(message.imageUrl!)} /></div>
-                    )}
+                    ) : null}
                     <div className="mt-2 flex justify-end">
                       <MessageControls 
                         messageId={message.id || `${index}`} 

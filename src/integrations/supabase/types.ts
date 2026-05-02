@@ -325,6 +325,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_credits: {
+        Row: {
+          created_at: string
+          fullstack_credits: number
+          id: string
+          image_credits: number
+          period_start: string
+          plan: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fullstack_credits?: number
+          id?: string
+          image_credits?: number
+          period_start?: string
+          plan?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fullstack_credits?: number
+          id?: string
+          image_credits?: number
+          period_start?: string
+          plan?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string
@@ -378,12 +411,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_credit: {
+        Args: { _amount: number; _kind: string; _user_id: string }
+        Returns: boolean
+      }
+      get_or_init_credits: {
+        Args: { _plan: string; _user_id: string }
+        Returns: {
+          created_at: string
+          fullstack_credits: number
+          id: string
+          image_credits: number
+          period_start: string
+          plan: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_credits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      plan_credit_quota: {
+        Args: { _plan: string }
+        Returns: {
+          fullstack_q: number
+          image_q: number
+        }[]
       }
     }
     Enums: {
