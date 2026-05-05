@@ -340,9 +340,24 @@ const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({ isOpen, onClose }) 
                             </div>
                             <h3 className="text-xl font-bold text-foreground">{plan.name}</h3>
                             <div className="mt-2">
+                              {plan.originalPriceDisplay && (
+                                <div className="flex items-center justify-center gap-2 mb-1">
+                                  <span className="text-sm text-muted-foreground line-through">{plan.originalPriceDisplay}</span>
+                                  {plan.discountPercent && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                                      -{plan.discountPercent}%
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               <span className="text-2xl sm:text-3xl font-bold text-foreground">{plan.priceDisplay}</span>
                               {plan.price > 0 && (
-                                <span className="text-muted-foreground text-sm">/lifetime</span>
+                                <span className="text-muted-foreground text-sm">/bulan</span>
+                              )}
+                              {plan.promoLabel && (
+                                <div className="mt-2 inline-block text-[10px] font-bold tracking-wide px-2 py-1 rounded-md bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-500 border border-orange-500/30">
+                                  🔥 {plan.promoLabel}
+                                </div>
                               )}
                             </div>
                           </div>

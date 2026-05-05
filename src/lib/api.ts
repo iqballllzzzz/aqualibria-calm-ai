@@ -35,6 +35,10 @@ export interface SubscriptionPlan {
   name: string;
   price: number;
   priceDisplay: string;
+  originalPrice?: number;
+  originalPriceDisplay?: string;
+  discountPercent?: number;
+  promoLabel?: string;
   dailyLimit: number | "unlimited";
   model: string;
   modelDisplay: string;
@@ -58,22 +62,30 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: "senior",
     name: "Senior",
     price: 8000,
-    priceDisplay: "Rp 8.000/bulan",
+    priceDisplay: "Rp 8.000",
+    originalPrice: 89000,
+    originalPriceDisplay: "Rp 89.000",
+    discountPercent: 91,
+    promoLabel: "PROMO LAUNCH 91% OFF",
     dailyLimit: 1000,
     model: "aqualibriav2",
-    modelDisplay: "AqualibriaV2",
-    features: ["1000 requests/day", "Enhanced AI model", "All Junior features", "LatentLeaf Unlimited", "Priority processing", "Extended memory", "Agent: 20 poin/hari"],
+    modelDisplay: "AqualibriaV2 Pro",
+    features: ["1000 requests/hari", "Model AqualibriaV2 Pro (reasoning lebih dalam)", "Semua fitur Junior", "LatentLeaf Unlimited", "Priority queue", "Extended memory 30 sesi", "300 kredit gambar / bulan", "200 kredit fullstack / bulan"],
     color: "from-foreground/10 to-foreground/20",
   },
   {
     id: "superior",
     name: "Superior",
     price: 18000,
-    priceDisplay: "Rp 18.000/bulan",
+    priceDisplay: "Rp 18.000",
+    originalPrice: 249000,
+    originalPriceDisplay: "Rp 249.000",
+    discountPercent: 92,
+    promoLabel: "PROMO LAUNCH 92% OFF",
     dailyLimit: "unlimited",
     model: "aqualibriav3",
-    modelDisplay: "AqualibriaV3",
-    features: ["Unlimited requests", "Premium AI model", "All Senior features", "LatentLeaf Unlimited", "Maximum context", "Full memory system", "Agent: 45 poin/hari", "Priority support"],
+    modelDisplay: "AqualibriaV3 Ultra",
+    features: ["Unlimited requests", "Model AqualibriaV3 Ultra (top-tier reasoning)", "Semua fitur Senior", "Memory penuh lintas sesi", "Konteks maksimum", "1500 kredit gambar / bulan", "1000 kredit fullstack / bulan", "Priority support 24/7"],
     color: "from-foreground/10 to-foreground/20",
   },
   {
