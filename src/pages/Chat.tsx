@@ -715,6 +715,20 @@ const Chat: React.FC = () => {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Live credits chip (for paid plans) */}
+          {creditsRow && subscription.plan !== "junior" && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold">
+              <span className="flex items-center gap-1 text-foreground" title="Image credits">
+                <ImageIcon className="w-3 h-3" />
+                {creditsRow.image_credits >= 999999 ? "∞" : creditsRow.image_credits}
+              </span>
+              <span className="w-px h-3 bg-border" />
+              <span className="flex items-center gap-1 text-foreground" title="Fullstack credits">
+                <Code className="w-3 h-3" />
+                {creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}
+              </span>
+            </div>
+          )}
           {/* Upgrade Plan button */}
           <button
             onClick={() => setShowUpgradeModal(true)}
