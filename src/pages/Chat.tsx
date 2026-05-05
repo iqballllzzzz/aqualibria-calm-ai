@@ -327,7 +327,7 @@ const Chat: React.FC = () => {
       // ===== AGENT MODE: SLIDES (generate slide images) =====
       if (agentMode === "slides") {
         // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
-        const wantedCount: 2 | 3 | 4 = 4;
+        const wantedCount: 2 | 3 | 4 = slideCount;
         // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
         if (subscription.plan !== "junior") {
           const session = await supabase.auth.getSession();
@@ -341,6 +341,7 @@ const Chat: React.FC = () => {
               setIsLoading(false);
               return;
             }
+            if (credit.credits) setCreditsRow(credit.credits);
           }
         } else {
           toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
@@ -370,6 +371,25 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: DESIGN (generate design images) =====
       if (agentMode === "design") {
+        // Credit gate: 25 credits/design for Senior+; Free not allowed.
+        if (subscription.plan === "junior") {
+          toast({ title: "Plan Free", description: "AI Designer hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
+          setShowUpgradeModal(true);
+          setIsLoading(false);
+          return;
+        }
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (token) {
+          const credit = await consumeCredit("image", 25, subscription.plan, token);
+          if (!credit.ok) {
+            toast({ title: "Kredit gambar habis", description: "Butuh 25 kredit untuk satu design.", variant: "destructive" });
+            setShowUpgradeModal(true);
+            setIsLoading(false);
+            return;
+          }
+          if (credit.credits) setCreditsRow(credit.credits);
+        }
         const designResult = await generateDesignImage(messageText);
         if (designResult?.success && designResult?.imageUrl) {
           const persistedUrl = await persistImageToStorage(designResult.imageUrl);
