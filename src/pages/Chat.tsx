@@ -929,7 +929,7 @@ const Chat: React.FC = () => {
                               src={u}
                               alt={`Slide ${i + 1}`}
                               className="rounded-2xl w-full aspect-video object-cover cursor-pointer hover:opacity-90 transition-opacity border border-border"
-                              onClick={() => setShowImageViewer(u)}
+                              onClick={() => setDeckViewer({ images: message.imageUrls!, index: i })}
                             />
                             <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-background/85 backdrop-blur-sm text-[10px] font-bold text-foreground border border-border">
                               {i + 1}/{message.imageUrls!.length}
