@@ -1084,6 +1084,8 @@ const Chat: React.FC = () => {
                     onClose={() => setShowAgentPanel(false)}
                     onSelectMode={(mode) => setAgentMode(agentMode === mode ? null : mode)}
                     activeMode={agentMode}
+                    slideCount={slideCount}
+                    onSlideCountChange={setSlideCount}
                   />
                 </div>
 
