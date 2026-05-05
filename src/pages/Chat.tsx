@@ -187,6 +187,20 @@ const Chat: React.FC = () => {
     if (inputRef.current) { inputRef.current.style.height = "auto"; inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 200)}px`; }
   }, [inputValue]);
 
+  // Fetch credit status (real-time chip)
+  const refreshCredits = useCallback(async () => {
+    if (subscription.plan === "junior") { setCreditsRow(null); return; }
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) return;
+      const res = await fetchCreditStatus(subscription.plan, token);
+      if (res.ok && res.credits) setCreditsRow(res.credits);
+    } catch {}
+  }, [subscription.plan]);
+
+  useEffect(() => { refreshCredits(); }, [refreshCredits]);
+
   useEffect(() => {
     if (messages.length > 0) {
       const session: ChatSession = { id: currentSessionId, title: generateSessionTitle(messages[0].content), messages, createdAt: new Date(), updatedAt: new Date() };
