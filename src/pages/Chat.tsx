@@ -12,7 +12,7 @@ import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,7 @@ import DualAgentView from "@/components/DualAgentView";
 import ImageGalleryModal from "@/components/ImageGalleryModal";
 import ArchivedChatsModal from "@/components/ArchivedChatsModal";
 import AgentPanel, { AgentMode } from "@/components/AgentPanel";
+import SlideDeckViewer from "@/components/SlideDeckViewer";
 import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/AgentWorkspace";
 import ThinkingBlock from "@/components/agent/ThinkingBlock";
 import { ProjectFile } from "@/components/agent/FileExplorer";
@@ -119,6 +120,9 @@ const Chat: React.FC = () => {
   const [editingMessageText, setEditingMessageText] = useState("");
   const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
+  const [slideCount, setSlideCount] = useState<2 | 3 | 4>(4);
+  const [creditsRow, setCreditsRow] = useState<CreditsRow | null>(null);
+  const [deckViewer, setDeckViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
   const [openWorkspaces, setOpenWorkspaces] = useState<Record<string, boolean>>({});
@@ -182,6 +186,20 @@ const Chat: React.FC = () => {
   useEffect(() => {
     if (inputRef.current) { inputRef.current.style.height = "auto"; inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 200)}px`; }
   }, [inputValue]);
+
+  // Fetch credit status (real-time chip)
+  const refreshCredits = useCallback(async () => {
+    if (subscription.plan === "junior") { setCreditsRow(null); return; }
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) return;
+      const res = await fetchCreditStatus(subscription.plan, token);
+      if (res.ok && res.credits) setCreditsRow(res.credits);
+    } catch {}
+  }, [subscription.plan]);
+
+  useEffect(() => { refreshCredits(); }, [refreshCredits]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -309,7 +327,7 @@ const Chat: React.FC = () => {
       // ===== AGENT MODE: SLIDES (generate slide images) =====
       if (agentMode === "slides") {
         // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
-        const wantedCount: 2 | 3 | 4 = 4;
+        const wantedCount: 2 | 3 | 4 = slideCount;
         // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
         if (subscription.plan !== "junior") {
           const session = await supabase.auth.getSession();
@@ -323,6 +341,7 @@ const Chat: React.FC = () => {
               setIsLoading(false);
               return;
             }
+            if (credit.credits) setCreditsRow(credit.credits);
           }
         } else {
           toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
@@ -352,6 +371,25 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: DESIGN (generate design images) =====
       if (agentMode === "design") {
+        // Credit gate: 25 credits/design for Senior+; Free not allowed.
+        if (subscription.plan === "junior") {
+          toast({ title: "Plan Free", description: "AI Designer hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
+          setShowUpgradeModal(true);
+          setIsLoading(false);
+          return;
+        }
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (token) {
+          const credit = await consumeCredit("image", 25, subscription.plan, token);
+          if (!credit.ok) {
+            toast({ title: "Kredit gambar habis", description: "Butuh 25 kredit untuk satu design.", variant: "destructive" });
+            setShowUpgradeModal(true);
+            setIsLoading(false);
+            return;
+          }
+          if (credit.credits) setCreditsRow(credit.credits);
+        }
         const designResult = await generateDesignImage(messageText);
         if (designResult?.success && designResult?.imageUrl) {
           const persistedUrl = await persistImageToStorage(designResult.imageUrl);
@@ -677,6 +715,20 @@ const Chat: React.FC = () => {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Live credits chip (for paid plans) */}
+          {creditsRow && subscription.plan !== "junior" && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold">
+              <span className="flex items-center gap-1 text-foreground" title="Image credits">
+                <ImageIcon className="w-3 h-3" />
+                {creditsRow.image_credits >= 999999 ? "∞" : creditsRow.image_credits}
+              </span>
+              <span className="w-px h-3 bg-border" />
+              <span className="flex items-center gap-1 text-foreground" title="Fullstack credits">
+                <Code className="w-3 h-3" />
+                {creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}
+              </span>
+            </div>
+          )}
           {/* Upgrade Plan button */}
           <button
             onClick={() => setShowUpgradeModal(true)}
@@ -877,7 +929,7 @@ const Chat: React.FC = () => {
                               src={u}
                               alt={`Slide ${i + 1}`}
                               className="rounded-2xl w-full aspect-video object-cover cursor-pointer hover:opacity-90 transition-opacity border border-border"
-                              onClick={() => setShowImageViewer(u)}
+                              onClick={() => setDeckViewer({ images: message.imageUrls!, index: i })}
                             />
                             <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-background/85 backdrop-blur-sm text-[10px] font-bold text-foreground border border-border">
                               {i + 1}/{message.imageUrls!.length}
@@ -1032,6 +1084,8 @@ const Chat: React.FC = () => {
                     onClose={() => setShowAgentPanel(false)}
                     onSelectMode={(mode) => setAgentMode(agentMode === mode ? null : mode)}
                     activeMode={agentMode}
+                    slideCount={slideCount}
+                    onSlideCountChange={setSlideCount}
                   />
                 </div>
 
@@ -1090,6 +1144,13 @@ const Chat: React.FC = () => {
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
       <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={(v) => { setSelectedVoice(v); localStorage.setItem("aqua-selected-voice", v); }} sessionId={currentSessionId} />
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      {deckViewer && (
+        <SlideDeckViewer
+          images={deckViewer.images}
+          initialIndex={deckViewer.index}
+          onClose={() => setDeckViewer(null)}
+        />
+      )}
       <LatentLeafModal isOpen={showLatentLeaf} onClose={() => setShowLatentLeaf(false)} />
       <MuseaModal isOpen={showMusea} onClose={() => setShowMusea(false)} />
       <ImageGalleryModal isOpen={showImageGallery} onClose={() => setShowImageGallery(false)} />

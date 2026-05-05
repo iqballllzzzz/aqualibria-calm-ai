@@ -8,9 +8,14 @@ const corsHeaders = {
 
 const ADMIN_EMAIL = "qwertyuiop@aqualibrya.id";
 
-function planForEmail(plan: string, email: string | null | undefined): string {
+const VALID_PLANS = ["junior", "senior", "superior", "nigown"] as const;
+
+function resolvePlan(requestedPlan: string, email: string | null | undefined): string {
+  // Admin always nigown — cannot be downgraded by client.
   if (email && email.toLowerCase() === ADMIN_EMAIL) return "nigown";
-  if (["junior", "senior", "superior", "nigown"].includes(plan)) return plan;
+  // Non-admin users CANNOT request nigown — strip it.
+  if (requestedPlan === "nigown") return "junior";
+  if ((VALID_PLANS as readonly string[]).includes(requestedPlan)) return requestedPlan;
   return "junior";
 }
 
@@ -23,30 +28,46 @@ Deno.serve(async (req) => {
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const authHeader = req.headers.get("Authorization") ?? "";
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData } = await userClient.auth.getUser();
-    const user = userData?.user;
-    if (!user) {
+    if (!authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const token = authHeader.replace("Bearer ", "").trim();
+    // Verify JWT via claims (signing-keys system).
+    const { data: claimsData, error: claimsErr } =
+      await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub as string;
+    const userEmail = (claimsData.claims as any).email as string | undefined;
 
     const body = await req.json().catch(() => ({}));
-    const action = body.action ?? "status"; // status | consume
-    const kind = body.kind ?? "image"; // image | fullstack
+    const action = String(body.action ?? "status");
+    if (!["status", "consume"].includes(action)) {
+      return new Response(JSON.stringify({ error: "invalid action" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const kind = String(body.kind ?? "image");
     const amount = Math.max(1, Math.min(100, Number(body.amount ?? 1)));
-    const requestedPlan = body.plan ?? "junior";
-    const plan = planForEmail(requestedPlan, user.email);
+    const requestedPlan = String(body.plan ?? "junior");
+    const plan = resolvePlan(requestedPlan, userEmail);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Init / reset credits
     const { data: row, error: initErr } = await admin.rpc("get_or_init_credits", {
-      _user_id: user.id,
+      _user_id: userId,
       _plan: plan,
     });
     if (initErr) {
@@ -58,7 +79,11 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       return new Response(JSON.stringify({ ok: true, credits: row }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
       });
     }
 
@@ -70,7 +95,7 @@ Deno.serve(async (req) => {
         });
       }
       const { data: ok, error: cErr } = await admin.rpc("consume_credit", {
-        _user_id: user.id,
+        _user_id: userId,
         _kind: kind,
         _amount: amount,
       });
@@ -83,11 +108,17 @@ Deno.serve(async (req) => {
       const { data: fresh } = await admin
         .from("user_credits")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
       return new Response(
         JSON.stringify({ ok: !!ok, credits: fresh, reason: ok ? null : "insufficient_credits" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+          },
+        },
       );
     }
 

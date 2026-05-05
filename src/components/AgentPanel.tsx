@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Presentation, Code, Palette, Bot, X, ChevronRight, Loader2, Lock } from "lucide-react";
+import { Presentation, Code, Palette, Bot, ChevronRight } from "lucide-react";
 import { getSubscription } from "@/lib/storage";
 
 export type AgentMode = "slides" | "fullstack" | "design";
@@ -10,6 +10,8 @@ interface AgentPanelProps {
   onClose: () => void;
   onSelectMode: (mode: AgentMode) => void;
   activeMode: AgentMode | null;
+  slideCount?: 2 | 3 | 4;
+  onSlideCountChange?: (n: 2 | 3 | 4) => void;
 }
 
 const AGENT_MODES = [
@@ -36,7 +38,7 @@ const AGENT_MODES = [
   },
 ];
 
-const AgentPanel: React.FC<AgentPanelProps> = ({ isOpen, onClose, onSelectMode, activeMode }) => {
+const AgentPanel: React.FC<AgentPanelProps> = ({ isOpen, onClose, onSelectMode, activeMode, slideCount = 4, onSlideCountChange }) => {
   const subscription = getSubscription();
 
   return (
@@ -95,6 +97,29 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ isOpen, onClose, onSelectMode, 
                 );
               })}
             </div>
+
+            {/* Slide count selector — visible when Slides agent active */}
+            {activeMode === "slides" && onSlideCountChange && (
+              <div className="mt-2 px-3 py-2 bg-accent/50 rounded-2xl">
+                <p className="text-[10px] text-foreground-muted mb-1.5 font-semibold">Jumlah slide</p>
+                <div className="flex gap-1">
+                  {[2, 3, 4].map((n) => (
+                    <button
+                      key={n}
+                      onClick={(e) => { e.stopPropagation(); onSlideCountChange(n as 2 | 3 | 4); }}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                        slideCount === n
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background hover:bg-accent text-foreground"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[9px] text-foreground-muted mt-1.5">{slideCount * 20} kredit / dek</p>
+              </div>
+            )}
 
             {/* Points info */}
             <div className="mt-2 px-3 py-2 bg-accent/50 rounded-2xl">
