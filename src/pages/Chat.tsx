@@ -12,7 +12,7 @@ import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow, generateFullstackCode } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -180,6 +180,20 @@ const Chat: React.FC = () => {
       if (session) { setMessages(session.messages); setCurrentSessionId(session.id); }
     }
     setTimeout(() => setIsLoadingHistory(false), 300);
+  }, [urlSessionId, user?.uid]);
+
+  // Re-load chat history when cloud-sync finishes restoring sessions (no manual reload needed)
+  useEffect(() => {
+    const handler = () => {
+      const fresh = getChatHistory();
+      setChatHistory(fresh);
+      if (urlSessionId) {
+        const session = fresh.find(s => s.id === urlSessionId);
+        if (session) setMessages(session.messages);
+      }
+    };
+    window.addEventListener("cloud-sync-restored", handler);
+    return () => window.removeEventListener("cloud-sync-restored", handler);
   }, [urlSessionId]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -189,7 +203,6 @@ const Chat: React.FC = () => {
 
   // Fetch credit status (real-time chip)
   const refreshCredits = useCallback(async () => {
-    if (subscription.plan === "junior") { setCreditsRow(null); return; }
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
@@ -328,26 +341,25 @@ const Chat: React.FC = () => {
       if (agentMode === "slides") {
         // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
         const wantedCount: 2 | 3 | 4 = slideCount;
-        // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
-        if (subscription.plan !== "junior") {
-          const session = await supabase.auth.getSession();
-          const token = session.data.session?.access_token;
+        // Credit gate: kind=slides (daily quota first, monthly fallback). Free 8/day.
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
           if (token) {
-            const cost = wantedCount * 20; // 20 credits per slide image
-            const credit = await consumeCredit("image", cost, subscription.plan, token);
+            const credit = await consumeCredit("slides", 1, subscription.plan, token);
             if (!credit.ok) {
-              toast({ title: "Kredit gambar habis", description: `Sisa kredit tidak cukup (butuh ${cost}). Upgrade plan untuk top-up.`, variant: "destructive" });
-              setShowUpgradeModal(true);
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota AI Slides habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
               setIsLoading(false);
               return;
             }
             if (credit.credits) setCreditsRow(credit.credits);
           }
-        } else {
-          toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
-          setShowUpgradeModal(true);
-          setIsLoading(false);
-          return;
         }
         const deck = await generateSlideDeck(messageText, wantedCount);
         if (deck.success && deck.slides && deck.slides.some(s => s.imageUrl)) {
@@ -371,24 +383,25 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: DESIGN (generate design images) =====
       if (agentMode === "design") {
-        // Credit gate: 25 credits/design for Senior+; Free not allowed.
-        if (subscription.plan === "junior") {
-          toast({ title: "Plan Free", description: "AI Designer hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
-          setShowUpgradeModal(true);
-          setIsLoading(false);
-          return;
-        }
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token;
-        if (token) {
-          const credit = await consumeCredit("image", 25, subscription.plan, token);
-          if (!credit.ok) {
-            toast({ title: "Kredit gambar habis", description: "Butuh 25 kredit untuk satu design.", variant: "destructive" });
-            setShowUpgradeModal(true);
-            setIsLoading(false);
-            return;
+        // Credit gate: kind=designer — Free 20/day. Daily-first, monthly fallback.
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const credit = await consumeCredit("designer", 1, subscription.plan, token);
+            if (!credit.ok) {
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota Designer habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+            if (credit.credits) setCreditsRow(credit.credits);
           }
-          if (credit.credits) setCreditsRow(credit.credits);
         }
         const designResult = await generateDesignImage(messageText);
         if (designResult?.success && designResult?.imageUrl) {
@@ -396,6 +409,38 @@ const Chat: React.FC = () => {
           setMessages((prev) => [...prev, { role: "assistant", content: designResult.response || "Here's your design:", timestamp: new Date(), id: generateMessageId(), imageUrl: persistedUrl }]);
         } else {
           setMessages((prev) => [...prev, { role: "assistant", content: designResult?.response || designResult?.error || "Failed to generate design", timestamp: new Date(), id: generateMessageId() }]);
+        }
+        setIsLoading(false); return;
+      }
+
+      // ===== AGENT MODE: FULLSTACK (LlamaCoder) =====
+      if (agentMode === "fullstack") {
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const credit = await consumeCredit("fullstack", 1, subscription.plan, token);
+            if (!credit.ok) {
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota Fullstack habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+            if (credit.credits) setCreditsRow(credit.credits);
+          }
+        }
+        const assistantId = generateMessageId();
+        setMessages((prev) => [...prev, { role: "assistant", content: "Membangun aplikasi dengan LlamaCoder (Qwen3-Coder)...", timestamp: new Date(), id: assistantId, isStreaming: true }]);
+        const fc = await generateFullstackCode(messageText, "qwen3-coder", "high");
+        if (fc.success && fc.code) {
+          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: fc.code as string, isStreaming: false } : m));
+        } else {
+          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Error: ${fc.error || "LlamaCoder gagal"}`, isStreaming: false } : m));
         }
         setIsLoading(false); return;
       }
@@ -715,17 +760,22 @@ const Chat: React.FC = () => {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          {/* Live credits chip (for paid plans) */}
-          {creditsRow && subscription.plan !== "junior" && (
+          {/* Live credits chip (all plans) */}
+          {creditsRow && (
             <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold">
-              <span className="flex items-center gap-1 text-foreground" title="Image credits">
-                <ImageIcon className="w-3 h-3" />
-                {creditsRow.image_credits >= 999999 ? "∞" : creditsRow.image_credits}
+              <span className="flex items-center gap-1 text-foreground" title="Fullstack (daily/monthly)">
+                <Code className="w-3 h-3" />
+                {(creditsRow.daily_fullstack ?? 0) >= 999999 ? "∞" : `${creditsRow.daily_fullstack ?? 0}+${creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}`}
               </span>
               <span className="w-px h-3 bg-border" />
-              <span className="flex items-center gap-1 text-foreground" title="Fullstack credits">
-                <Code className="w-3 h-3" />
-                {creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}
+              <span className="flex items-center gap-1 text-foreground" title="Slides (daily)">
+                <Presentation className="w-3 h-3" />
+                {(creditsRow.daily_slides ?? 0) >= 999999 ? "∞" : (creditsRow.daily_slides ?? 0)}
+              </span>
+              <span className="w-px h-3 bg-border" />
+              <span className="flex items-center gap-1 text-foreground" title="Designer (daily)">
+                <Palette className="w-3 h-3" />
+                {(creditsRow.daily_designer ?? 0) >= 999999 ? "∞" : (creditsRow.daily_designer ?? 0)}
               </span>
             </div>
           )}

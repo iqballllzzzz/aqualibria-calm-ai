@@ -17,9 +17,6 @@ export function useCloudSync(user: User | null) {
       if (restored.current) return;
       restored.current = true;
 
-      const localHistory = getChatHistory();
-      if (localHistory.length > 0) return; // Already have local data
-
       try {
         const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
         const { data: { session } } = await supabase.auth.getSession();
