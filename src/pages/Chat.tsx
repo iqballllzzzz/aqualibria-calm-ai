@@ -180,6 +180,20 @@ const Chat: React.FC = () => {
       if (session) { setMessages(session.messages); setCurrentSessionId(session.id); }
     }
     setTimeout(() => setIsLoadingHistory(false), 300);
+  }, [urlSessionId, user?.uid]);
+
+  // Re-load chat history when cloud-sync finishes restoring sessions (no manual reload needed)
+  useEffect(() => {
+    const handler = () => {
+      const fresh = getChatHistory();
+      setChatHistory(fresh);
+      if (urlSessionId) {
+        const session = fresh.find(s => s.id === urlSessionId);
+        if (session) setMessages(session.messages);
+      }
+    };
+    window.addEventListener("cloud-sync-restored", handler);
+    return () => window.removeEventListener("cloud-sync-restored", handler);
   }, [urlSessionId]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
