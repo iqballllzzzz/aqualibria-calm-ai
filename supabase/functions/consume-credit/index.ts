@@ -49,15 +49,9 @@ Deno.serve(async (req) => {
     }
     const userId = claimsData.claims.sub as string;
     const userEmail = (claimsData.claims as any).email as string | undefined;
-    const userRole = (claimsData.claims as any).role as string | undefined;
-    const userAud = (claimsData.claims as any).aud as string | undefined;
-    // Hard gate: must be a real authenticated end-user JWT.
-    if (userRole !== "authenticated" || userAud !== "authenticated") {
-      return new Response(JSON.stringify({ error: "forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Soft gate: trust valid JWT with sub. Role/aud claim format varies between
+    // signing-keys and legacy JWT, so we don't hard-fail on it (was causing
+    // false "kehabisan kredit" for paid users).
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "status");
@@ -97,7 +91,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "consume") {
-      if (!["image", "fullstack"].includes(kind)) {
+      if (!["image", "fullstack", "slides", "designer"].includes(kind)) {
         return new Response(JSON.stringify({ error: "invalid kind" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
