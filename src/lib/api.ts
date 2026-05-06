@@ -55,44 +55,48 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     dailyLimit: 200,
     model: "aqualibriav1",
     modelDisplay: "AqualibriaV1",
-    features: ["200 requests/hari", "AI responses", "Image upload & analysis", "Image generation", "LatentLeaf (15x/hari)", "File & PDF analysis", "YouTube analysis", "V2 (90x/2 hari)", "V3 (45x/2 hari)"],
+    features: ["Chat unlimited", "Fullstack 5x/hari", "AI Slides 8x/hari", "AI Designer 20x/hari", "LatentLeaf (15x/hari)", "Image upload & analysis", "File & PDF analysis", "YouTube analysis"],
     color: "from-muted to-muted",
   },
   {
     id: "senior",
     name: "Senior",
-    price: 8000,
-    priceDisplay: "Rp 8.000",
+    price: 19000,
+    priceDisplay: "Rp 19.000",
     originalPrice: 89000,
     originalPriceDisplay: "Rp 89.000",
-    discountPercent: 91,
-    promoLabel: "PROMO LAUNCH 91% OFF",
+    discountPercent: 78,
+    promoLabel: "PROMO LAUNCH 78% OFF",
     dailyLimit: 1000,
     model: "aqualibriav2",
     modelDisplay: "AqualibriaV2 Pro",
-    features: ["1000 requests/hari", "Model AqualibriaV2 Pro (reasoning lebih dalam)", "Semua fitur Junior", "LatentLeaf Unlimited", "Priority queue", "Extended memory 30 sesi", "300 kredit gambar / bulan", "200 kredit fullstack / bulan"],
+    features: ["V2 Pro (reasoning lebih dalam)", "Fullstack 20x/hari + 200 kredit/bulan", "AI Slides 30x/hari + 300 kredit gambar/bulan", "AI Designer 50x/hari", "LatentLeaf Unlimited", "Priority queue", "Extended memory 30 sesi"],
     color: "from-foreground/10 to-foreground/20",
   },
   {
     id: "superior",
     name: "Superior",
-    price: 18000,
-    priceDisplay: "Rp 18.000",
+    price: 49000,
+    priceDisplay: "Rp 49.000",
     originalPrice: 249000,
     originalPriceDisplay: "Rp 249.000",
-    discountPercent: 92,
-    promoLabel: "PROMO LAUNCH 92% OFF",
+    discountPercent: 80,
+    promoLabel: "PROMO LAUNCH 80% OFF",
     dailyLimit: "unlimited",
     model: "aqualibriav3",
     modelDisplay: "AqualibriaV3 Ultra",
-    features: ["Unlimited requests", "Model AqualibriaV3 Ultra (top-tier reasoning)", "Semua fitur Senior", "Memory penuh lintas sesi", "Konteks maksimum", "1500 kredit gambar / bulan", "1000 kredit fullstack / bulan", "Priority support 24/7"],
+    features: ["V3 Ultra (top-tier reasoning)", "Fullstack 50x/hari + 1000 kredit/bulan", "AI Slides 60x/hari + 1500 kredit gambar/bulan", "AI Designer 100x/hari", "Memory penuh lintas sesi", "Konteks maksimum", "Priority support 24/7"],
     color: "from-foreground/10 to-foreground/20",
   },
   {
     id: "nigown",
     name: "Nigown",
-    price: 0,
-    priceDisplay: "∞",
+    price: 99000,
+    priceDisplay: "Rp 99.000",
+    originalPrice: 499000,
+    originalPriceDisplay: "Rp 499.000",
+    discountPercent: 80,
+    promoLabel: "PROMO LAUNCH 80% OFF",
     dailyLimit: "unlimited",
     model: "aqualibriav3",
     modelDisplay: "AqualibriaV3 MAX",
@@ -471,9 +475,14 @@ export interface CreditsRow {
   image_credits: number;
   fullstack_credits: number;
   period_start: string;
+  daily_fullstack?: number;
+  daily_slides?: number;
+  daily_designer?: number;
+  daily_reset_at?: string;
 }
 
 const CREDIT_URL = `${SUPABASE_URL}/functions/v1/consume-credit`;
+const LLAMACODER_URL = `${SUPABASE_URL}/functions/v1/llamacoder`;
 
 export const fetchCreditStatus = async (
   plan: string,
@@ -498,7 +507,7 @@ export const fetchCreditStatus = async (
 };
 
 export const consumeCredit = async (
-  kind: "image" | "fullstack",
+  kind: "image" | "fullstack" | "slides" | "designer",
   amount: number,
   plan: string,
   accessToken: string
