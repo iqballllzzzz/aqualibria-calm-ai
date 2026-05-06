@@ -328,6 +328,10 @@ export type Database = {
       user_credits: {
         Row: {
           created_at: string
+          daily_designer: number
+          daily_fullstack: number
+          daily_reset_at: string
+          daily_slides: number
           fullstack_credits: number
           id: string
           image_credits: number
@@ -338,6 +342,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          daily_designer?: number
+          daily_fullstack?: number
+          daily_reset_at?: string
+          daily_slides?: number
           fullstack_credits?: number
           id?: string
           image_credits?: number
@@ -348,6 +356,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          daily_designer?: number
+          daily_fullstack?: number
+          daily_reset_at?: string
+          daily_slides?: number
           fullstack_credits?: number
           id?: string
           image_credits?: number
@@ -419,6 +431,10 @@ export type Database = {
         Args: { _plan: string; _user_id: string }
         Returns: {
           created_at: string
+          daily_designer: number
+          daily_fullstack: number
+          daily_reset_at: string
+          daily_slides: number
           fullstack_credits: number
           id: string
           image_credits: number
@@ -446,6 +462,14 @@ export type Database = {
         Returns: {
           fullstack_q: number
           image_q: number
+        }[]
+      }
+      plan_daily_quota: {
+        Args: { _plan: string }
+        Returns: {
+          d_designer: number
+          d_fullstack: number
+          d_slides: number
         }[]
       }
     }
