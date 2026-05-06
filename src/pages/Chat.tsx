@@ -413,6 +413,38 @@ const Chat: React.FC = () => {
         setIsLoading(false); return;
       }
 
+      // ===== AGENT MODE: FULLSTACK (LlamaCoder) =====
+      if (agentMode === "fullstack") {
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const credit = await consumeCredit("fullstack", 1, subscription.plan, token);
+            if (!credit.ok) {
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota Fullstack habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+            if (credit.credits) setCreditsRow(credit.credits);
+          }
+        }
+        const assistantId = generateMessageId();
+        setMessages((prev) => [...prev, { role: "assistant", content: "Membangun aplikasi dengan LlamaCoder (Qwen3-Coder)...", timestamp: new Date(), id: assistantId, isStreaming: true }]);
+        const fc = await generateFullstackCode(messageText, "qwen3-coder", "high");
+        if (fc.success && fc.code) {
+          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: fc.code as string, isStreaming: false } : m));
+        } else {
+          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Error: ${fc.error || "LlamaCoder gagal"}`, isStreaming: false } : m));
+        }
+        setIsLoading(false); return;
+      }
+
       // Auto-detect image generation request
       const imageGenPatterns = /^(buatkan?\s*(gambar|image|foto|picture|ilustrasi)|generate\s*(an?\s*)?(image|picture|photo|illustration)|create\s*(an?\s*)?(image|picture|photo)|draw\s|gambarin\s|bikin\s*gambar|buat\s*gambar)/i;
       const isImageRequest = activeMode === "image" || (imagesToAnalyze.length === 0 && !fileToAnalyze && !youtubeUrl && imageGenPatterns.test(messageText));
