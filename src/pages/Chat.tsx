@@ -342,26 +342,25 @@ const Chat: React.FC = () => {
       if (agentMode === "slides") {
         // Image-only deck (2-4 connected slides). No text output, no prompt commentary.
         const wantedCount: 2 | 3 | 4 = slideCount;
-        // Credit gate (skip for junior/free — they shouldn't reach here per plan, but be safe)
-        if (subscription.plan !== "junior") {
-          const session = await supabase.auth.getSession();
-          const token = session.data.session?.access_token;
+        // Credit gate: kind=slides (daily quota first, monthly fallback). Free 8/day.
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
           if (token) {
-            const cost = wantedCount * 20; // 20 credits per slide image
-            const credit = await consumeCredit("image", cost, subscription.plan, token);
+            const credit = await consumeCredit("slides", 1, subscription.plan, token);
             if (!credit.ok) {
-              toast({ title: "Kredit gambar habis", description: `Sisa kredit tidak cukup (butuh ${cost}). Upgrade plan untuk top-up.`, variant: "destructive" });
-              setShowUpgradeModal(true);
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota AI Slides habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
               setIsLoading(false);
               return;
             }
             if (credit.credits) setCreditsRow(credit.credits);
           }
-        } else {
-          toast({ title: "Plan Free", description: "AI Slides hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
-          setShowUpgradeModal(true);
-          setIsLoading(false);
-          return;
         }
         const deck = await generateSlideDeck(messageText, wantedCount);
         if (deck.success && deck.slides && deck.slides.some(s => s.imageUrl)) {
@@ -385,24 +384,25 @@ const Chat: React.FC = () => {
 
       // ===== AGENT MODE: DESIGN (generate design images) =====
       if (agentMode === "design") {
-        // Credit gate: 25 credits/design for Senior+; Free not allowed.
-        if (subscription.plan === "junior") {
-          toast({ title: "Plan Free", description: "AI Designer hanya untuk Senior+. Upgrade dulu.", variant: "destructive" });
-          setShowUpgradeModal(true);
-          setIsLoading(false);
-          return;
-        }
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token;
-        if (token) {
-          const credit = await consumeCredit("image", 25, subscription.plan, token);
-          if (!credit.ok) {
-            toast({ title: "Kredit gambar habis", description: "Butuh 25 kredit untuk satu design.", variant: "destructive" });
-            setShowUpgradeModal(true);
-            setIsLoading(false);
-            return;
+        // Credit gate: kind=designer — Free 20/day. Daily-first, monthly fallback.
+        {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const credit = await consumeCredit("designer", 1, subscription.plan, token);
+            if (!credit.ok) {
+              const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
+              toast({
+                title: isCreditOut ? "Kuota Designer habis" : "Gagal cek kredit",
+                description: isCreditOut ? "Kuota harian habis. Upgrade untuk lanjut." : (credit.error || ""),
+                variant: "destructive",
+              });
+              if (isCreditOut) setShowUpgradeModal(true);
+              setIsLoading(false);
+              return;
+            }
+            if (credit.credits) setCreditsRow(credit.credits);
           }
-          if (credit.credits) setCreditsRow(credit.credits);
         }
         const designResult = await generateDesignImage(messageText);
         if (designResult?.success && designResult?.imageUrl) {
