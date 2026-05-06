@@ -588,6 +588,33 @@ export const checkPaymentStatus = async (orderId: string, amount: number) => {
   }
 };
 
+// LlamaCoder Fullstack Generator
+export type LlamaCoderModel = "deepseek-v3.1" | "qwen3-coder" | "kimi-k2.1" | "glm-4.6";
+
+export const generateFullstackCode = async (
+  prompt: string,
+  model: LlamaCoderModel = "qwen3-coder",
+  quality: "low" | "high" = "high",
+): Promise<{ success: boolean; code?: string; model?: string; error?: string }> => {
+  try {
+    const r = await fetch(LLAMACODER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ prompt, model, quality }),
+      signal: AbortSignal.timeout(180000),
+    });
+    const data = await r.json();
+    if (!r.ok) return { success: false, error: data.error || `Status ${r.status}` };
+    return { success: !!data.success, code: data.code, model: data.model, error: data.error };
+  } catch (e: any) {
+    return { success: false, error: e.message || "LlamaCoder failed" };
+  }
+};
+
 // TTS
 export const textToSpeech = async (text: string, voice: VoiceOption = "aurora") => {
   try {
