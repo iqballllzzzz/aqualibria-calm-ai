@@ -617,10 +617,10 @@ export type LlamaCoderModel = "deepseek-v3.1" | "qwen3-coder" | "kimi-k2.1" | "g
 
 export const generateFullstackCode = async (
   prompt: string,
-  model: LlamaCoderModel = "qwen3-coder",
-  quality: "low" | "high" = "high",
   accessToken: string,
   plan: string,
+  model: LlamaCoderModel = "qwen3-coder",
+  quality: "low" | "high" = "high",
 ): Promise<{ success: boolean; code?: string; model?: string; error?: string }> => {
   try {
     const r = await fetch(LLAMACODER_URL, {
