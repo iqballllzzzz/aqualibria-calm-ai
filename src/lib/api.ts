@@ -542,7 +542,7 @@ export const consumeCredit = async (
 export const fetchCreditUsageLogs = async (): Promise<{ ok: boolean; logs: CreditUsageLog[]; error?: string }> => {
   try {
     const { supabase } = await import("@/integrations/supabase/client");
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("credit_usage_logs")
       .select("id, kind, amount, source, plan, created_at")
       .order("created_at", { ascending: false })
