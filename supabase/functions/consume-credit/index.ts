@@ -10,6 +10,16 @@ const ADMIN_EMAIL = "qwertyuiop@aqualibrya.id";
 
 const VALID_PLANS = ["junior", "senior", "superior", "nigown"] as const;
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1];
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(normalized));
+  } catch {
+    return null;
+  }
+}
+
 function resolvePlan(requestedPlan: string, email: string | null | undefined): string {
   // Admin always nigown — cannot be downgraded by client.
   if (email && email.toLowerCase() === ADMIN_EMAIL) return "nigown";
@@ -34,24 +44,24 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const token = authHeader.replace("Bearer ", "").trim();
-    // Verify JWT via claims (signing-keys system).
-    const { data: claimsData, error: claimsErr } =
-      await userClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) {
+    const jwtPayload = decodeJwtPayload(token);
+    if (jwtPayload?.role !== "authenticated" || jwtPayload?.aud !== "authenticated") {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claimsData.claims.sub as string;
-    const userEmail = (claimsData.claims as any).email as string | undefined;
-    // Soft gate: trust valid JWT with sub. Role/aud claim format varies between
-    // signing-keys and legacy JWT, so we don't hard-fail on it (was causing
-    // false "kehabisan kredit" for paid users).
+    const { data: userData, error: authErr } = await userClient.auth.getUser(token);
+    if (authErr || !userData?.user?.id) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = userData.user.id;
+    const userEmail = userData.user.email;
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "status");
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { data: ok, error: cErr } = await admin.rpc("consume_credit", {
+      const { data: result, error: cErr } = await admin.rpc("consume_credit", {
         _user_id: userId,
         _kind: kind,
         _amount: amount,
@@ -108,14 +118,11 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { data: fresh } = await admin
-        .from("user_credits")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const ok = !!result?.ok;
       return new Response(
-        JSON.stringify({ ok: !!ok, credits: fresh, reason: ok ? null : "insufficient_credits" }),
+        JSON.stringify({ ok, credits: result?.credits ?? row, reason: ok ? null : result?.reason ?? "insufficient_credits", source: result?.source ?? null }),
         {
+          status: ok ? 200 : 402,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",

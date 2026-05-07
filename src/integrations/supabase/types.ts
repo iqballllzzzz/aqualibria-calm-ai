@@ -220,6 +220,63 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_usage_logs: {
+        Row: {
+          amount: number
+          balance_after: Json
+          created_at: string
+          id: string
+          kind: string
+          plan: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after?: Json
+          created_at?: string
+          id?: string
+          kind: string
+          plan?: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: Json
+          created_at?: string
+          id?: string
+          kind?: string
+          plan?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      llamacoder_rate_limits: {
+        Row: {
+          blocked_until: string | null
+          request_count: number
+          updated_at: string
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          blocked_until?: string | null
+          request_count?: number
+          updated_at?: string
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          blocked_until?: string | null
+          request_count?: number
+          updated_at?: string
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       shared_chats: {
         Row: {
           created_at: string
@@ -423,9 +480,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_llamacoder_rate_limit: {
+        Args: { _plan: string; _user_id: string }
+        Returns: Json
+      }
       consume_credit: {
         Args: { _amount: number; _kind: string; _user_id: string }
-        Returns: boolean
+        Returns: Json
+      }
+      credit_regression_suite: {
+        Args: never
+        Returns: {
+          daily_before: number
+          kind: string
+          monthly_before: number
+          ok: boolean
+          plan: string
+          requested: number
+          source: string
+        }[]
       }
       get_or_init_credits: {
         Args: { _plan: string; _user_id: string }

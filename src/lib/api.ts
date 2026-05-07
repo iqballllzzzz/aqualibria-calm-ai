@@ -481,6 +481,15 @@ export interface CreditsRow {
   daily_reset_at?: string;
 }
 
+export interface CreditUsageLog {
+  id: string;
+  kind: "image" | "slides" | "designer" | "fullstack";
+  amount: number;
+  source: "daily" | "monthly";
+  plan: string;
+  created_at: string;
+}
+
 const CREDIT_URL = `${SUPABASE_URL}/functions/v1/consume-credit`;
 const LLAMACODER_URL = `${SUPABASE_URL}/functions/v1/llamacoder`;
 
@@ -523,10 +532,25 @@ export const consumeCredit = async (
       body: JSON.stringify({ action: "consume", kind, amount, plan }),
     });
     const data = await r.json();
-    if (!r.ok) return { ok: false, error: data.error || `Status ${r.status}` };
+    if (!r.ok) return { ok: false, credits: data.credits, reason: data.reason, error: data.error || (r.status === 402 ? undefined : `Status ${r.status}`) };
     return { ok: !!data.ok, credits: data.credits, reason: data.reason };
   } catch (e: any) {
     return { ok: false, error: e.message };
+  }
+};
+
+export const fetchCreditUsageLogs = async (): Promise<{ ok: boolean; logs: CreditUsageLog[]; error?: string }> => {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await (supabase as any)
+      .from("credit_usage_logs")
+      .select("id, kind, amount, source, plan, created_at")
+      .order("created_at", { ascending: false })
+      .limit(80);
+    if (error) return { ok: false, logs: [], error: error.message };
+    return { ok: true, logs: (data || []) as CreditUsageLog[] };
+  } catch (e: any) {
+    return { ok: false, logs: [], error: e.message };
   }
 };
 
@@ -593,6 +617,8 @@ export type LlamaCoderModel = "deepseek-v3.1" | "qwen3-coder" | "kimi-k2.1" | "g
 
 export const generateFullstackCode = async (
   prompt: string,
+  accessToken: string,
+  plan: string,
   model: LlamaCoderModel = "qwen3-coder",
   quality: "low" | "high" = "high",
 ): Promise<{ success: boolean; code?: string; model?: string; error?: string }> => {
@@ -602,9 +628,9 @@ export const generateFullstackCode = async (
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ prompt, model, quality }),
+      body: JSON.stringify({ prompt, model, quality, plan }),
       signal: AbortSignal.timeout(180000),
     });
     const data = await r.json();
