@@ -801,22 +801,21 @@ const Chat: React.FC = () => {
         <div className="flex items-center gap-1.5">
           {/* Live credits chip (all plans) */}
           {creditsRow && (
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold">
+            <button onClick={openCreditAudit} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold hover:bg-accent transition-colors" title="Audit kredit">
               <span className="flex items-center gap-1 text-foreground" title="Fullstack (daily/monthly)">
                 <Code className="w-3 h-3" />
                 {(creditsRow.daily_fullstack ?? 0) >= 999999 ? "∞" : `${creditsRow.daily_fullstack ?? 0}+${creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}`}
               </span>
-              <span className="w-px h-3 bg-border" />
-              <span className="flex items-center gap-1 text-foreground" title="Slides (daily)">
+              <span className="hidden xs:flex items-center gap-1 text-foreground" title="Slides (daily)">
                 <Presentation className="w-3 h-3" />
                 {(creditsRow.daily_slides ?? 0) >= 999999 ? "∞" : (creditsRow.daily_slides ?? 0)}
               </span>
-              <span className="w-px h-3 bg-border" />
-              <span className="flex items-center gap-1 text-foreground" title="Designer (daily)">
+              <span className="hidden sm:flex items-center gap-1 text-foreground" title="Designer (daily)">
                 <Palette className="w-3 h-3" />
                 {(creditsRow.daily_designer ?? 0) >= 999999 ? "∞" : (creditsRow.daily_designer ?? 0)}
               </span>
-            </div>
+              {creditsRow.plan !== "nigown" && <span className="hidden sm:flex items-center gap-1 text-foreground-muted"><Clock className="w-3 h-3" />{resetCountdown}</span>}
+            </button>
           )}
           {/* Upgrade Plan button */}
           <button
