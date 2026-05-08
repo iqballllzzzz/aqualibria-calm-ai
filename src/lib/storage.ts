@@ -693,8 +693,11 @@ export const getSubscription = (): UserSubscription => {
     const stored = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
     if (!stored) return { plan: "junior" };
     const parsed = JSON.parse(stored);
+    const normalizedPlan: PlanType = parsed.plan === "free" ? "junior" : parsed.plan === "pro" || parsed.plan === "high" ? "superior" : ["junior", "senior", "superior", "nigown"].includes(parsed.plan) ? parsed.plan : "junior";
+    if (normalizedPlan !== parsed.plan) localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify({ ...parsed, plan: normalizedPlan }));
     return {
       ...parsed,
+      plan: normalizedPlan,
       purchasedAt: parsed.purchasedAt ? new Date(parsed.purchasedAt) : undefined,
       expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt) : undefined,
     };
