@@ -635,6 +635,7 @@ const Chat: React.FC = () => {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "latentleaf": setShowLatentLeaf(true); break;
+      case "fullstack": setAgentMode("fullstack"); setInputValue("Buatkan aplikasi "); break;
       case "musea": setShowMusea(true); break;
       case "learn": setInputValue("Help me learn something new today"); break;
       case "write": setInputValue("Help me write "); break;
