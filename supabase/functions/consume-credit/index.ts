@@ -23,9 +23,10 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 function resolvePlan(requestedPlan: string, email: string | null | undefined): string {
   // Admin always nigown — cannot be downgraded by client.
   if (email && email.toLowerCase() === ADMIN_EMAIL) return "nigown";
+  const normalizedPlan = requestedPlan === "free" ? "junior" : requestedPlan === "pro" || requestedPlan === "high" ? "superior" : requestedPlan;
   // Non-admin users CANNOT request nigown — strip it.
-  if (requestedPlan === "nigown") return "junior";
-  if ((VALID_PLANS as readonly string[]).includes(requestedPlan)) return requestedPlan;
+  if (normalizedPlan === "nigown") return "junior";
+  if ((VALID_PLANS as readonly string[]).includes(normalizedPlan)) return normalizedPlan;
   return "junior";
 }
 
