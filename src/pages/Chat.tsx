@@ -131,6 +131,9 @@ const Chat: React.FC = () => {
   const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
   const [slideCount, setSlideCount] = useState<2 | 3 | 4>(4);
   const [creditsRow, setCreditsRow] = useState<CreditsRow | null>(null);
+  const [creditLogs, setCreditLogs] = useState<CreditUsageLog[]>([]);
+  const [showCreditAudit, setShowCreditAudit] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState("--:--");
   const [deckViewer, setDeckViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
