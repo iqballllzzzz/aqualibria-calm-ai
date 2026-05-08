@@ -6,13 +6,13 @@ import {
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Leaf, Crown, User, ImageIcon,
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone, GraduationCap,
-  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree,
+  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree, History, Clock, PenLine, BookOpen, Lightbulb, TerminalSquare,
 } from "lucide-react";
 import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow, generateFullstackCode } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow, generateFullstackCode, fetchCreditUsageLogs, CreditUsageLog } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
