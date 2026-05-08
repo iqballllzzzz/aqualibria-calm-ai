@@ -806,7 +806,7 @@ const Chat: React.FC = () => {
                 <Code className="w-3 h-3" />
                 {(creditsRow.daily_fullstack ?? 0) >= 999999 ? "∞" : `${creditsRow.daily_fullstack ?? 0}+${creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}`}
               </span>
-              <span className="hidden xs:flex items-center gap-1 text-foreground" title="Slides (daily)">
+              <span className="hidden min-[390px]:flex items-center gap-1 text-foreground" title="Slides (daily)">
                 <Presentation className="w-3 h-3" />
                 {(creditsRow.daily_slides ?? 0) >= 999999 ? "∞" : (creditsRow.daily_slides ?? 0)}
               </span>
