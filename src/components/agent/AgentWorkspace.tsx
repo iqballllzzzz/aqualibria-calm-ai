@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Code, Eye, Columns, Download, Save, FolderTree, ChevronLeft, ChevronRight, Globe } from "lucide-react";
+import { X, Code, Eye, Columns, Download, Save, FolderTree } from "lucide-react";
 import FileExplorer, { ProjectFile } from "./FileExplorer";
 import CodeViewer from "./CodeViewer";
 import LivePreview from "./LivePreview";
@@ -123,7 +123,7 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
 
         {/* Content */}
         <div className="flex-1 flex min-w-0">
-          {viewMode === "code" && <CodeViewer file={selectedFile} />}
+          {viewMode === "code" && <CodeViewer file={selectedFile} isStreaming={isStreaming} />}
           {viewMode === "preview" && <LivePreview files={files} projectId={projectId} />}
           {viewMode === "split" && (
             <>
