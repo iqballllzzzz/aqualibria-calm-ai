@@ -50,12 +50,11 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
   const [showExplorer, setShowExplorer] = useState(true);
 
   useEffect(() => {
-    if (!selectedFile && files[0]) setSelectedFile(files[0]);
-    if (selectedFile) {
-      const fresh = files.find((file) => file.path === selectedFile.path);
-      setSelectedFile(fresh || files[0] || null);
-    }
-  }, [files, selectedFile]);
+    setSelectedFile((current) => {
+      if (!current) return files[0] || null;
+      return files.find((file) => file.path === current.path) || files[0] || null;
+    });
+  }, [files]);
 
   return (
     <motion.div
