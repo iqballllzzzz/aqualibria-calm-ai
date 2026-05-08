@@ -372,7 +372,7 @@ const Chat: React.FC = () => {
           const sess = await supabase.auth.getSession();
           const token = sess.data.session?.access_token;
           if (token) {
-            const credit = await consumeCredit("slides", 1, subscription.plan, token);
+            const credit = await consumeCredit("slides", wantedCount, subscription.plan, token);
             if (!credit.ok) {
               const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
               toast({
@@ -458,15 +458,27 @@ const Chat: React.FC = () => {
               return;
             }
             if (credit.credits) setCreditsRow(credit.credits);
+          } else {
+            toast({ title: "Login diperlukan", description: "Masuk dulu untuk memakai Fullstack AI.", variant: "destructive" });
+            setIsLoading(false);
+            return;
           }
-        }
-        const assistantId = generateMessageId();
-        setMessages((prev) => [...prev, { role: "assistant", content: "Membangun aplikasi dengan LlamaCoder (Qwen3-Coder)...", timestamp: new Date(), id: assistantId, isStreaming: true }]);
-        const fc = await generateFullstackCode(messageText, "qwen3-coder", "high");
-        if (fc.success && fc.code) {
-          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: fc.code as string, isStreaming: false } : m));
-        } else {
-          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Error: ${fc.error || "LlamaCoder gagal"}`, isStreaming: false } : m));
+          const assistantId = generateMessageId();
+          setMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date(), id: assistantId, isStreaming: true }]);
+          const fc = await generateFullstackCode(messageText, token, subscription.plan, "qwen3-coder", "high");
+          if (fc.success && fc.code) {
+            const chunks = fc.code.match(/[\s\S]{1,48}/g) || [fc.code];
+            let typed = "";
+            for (const chunk of chunks) {
+              typed += chunk;
+              setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: typed } : m));
+              await new Promise((resolve) => window.setTimeout(resolve, 8));
+            }
+            setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, isStreaming: false } : m));
+          } else {
+            const rateText = fc.status === 429 && fc.retryAfterSeconds ? ` Coba lagi dalam ${fc.retryAfterSeconds} detik.` : "";
+            setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Fullstack AI gagal: ${fc.error || "request gagal"}.${rateText}`, isStreaming: false } : m));
+          }
         }
         setIsLoading(false); return;
       }
