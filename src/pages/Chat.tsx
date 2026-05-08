@@ -971,7 +971,7 @@ const Chat: React.FC = () => {
                       (() => {
                         const agentFiles = parseFilesFromResponse(message.content);
                         const hasFiles = agentFiles.length > 0;
-                        const cleanContent = hasFiles ? message.content.replace(/---FILE:\s*.+?---\n[\s\S]*?---END FILE---/g, "").trim() : message.content;
+                        const cleanContent = hasFiles ? message.content.replace(/---FILE:\s*.+?---\n[\s\S]*?---END FILE---/g, "").replace(/---FILE:\s*.+?---\n[\s\S]*$/g, "").trim() : message.content;
                         const isWsOpen = openWorkspaces[message.id || ""];
                         return (
                           <>
@@ -991,9 +991,9 @@ const Chat: React.FC = () => {
                               <span className="inline-block w-2 h-4 bg-foreground/40 animate-pulse rounded-sm" />
                             )}
                             {/* Agent workspace for fullstack files */}
-                            {hasFiles && !message.isStreaming && (
+                            {hasFiles && (
                               <>
-                                {!isWsOpen ? (
+                                {!isWsOpen && !message.isStreaming ? (
                                   <button
                                     onClick={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: true }))}
                                     className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold hover:bg-primary/15 transition-colors"
@@ -1008,6 +1008,7 @@ const Chat: React.FC = () => {
                                     onClose={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: false }))}
                                     onSave={() => handleSaveProject(message.id || "", agentFiles, messages.find(m => m.role === "user")?.content.slice(0, 40) || "Project")}
                                     isSaving={savingProject === message.id}
+                                    isStreaming={message.isStreaming}
                                   />
                                 )}
                               </>
