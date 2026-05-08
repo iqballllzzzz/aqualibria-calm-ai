@@ -227,6 +227,20 @@ const Chat: React.FC = () => {
   useEffect(() => { refreshCredits(); }, [refreshCredits]);
 
   useEffect(() => {
+    const updateCountdown = () => setResetCountdown(formatResetCountdown(creditsRow?.daily_reset_at));
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 60_000);
+    return () => window.clearInterval(timer);
+  }, [creditsRow?.daily_reset_at]);
+
+  const openCreditAudit = useCallback(async () => {
+    setShowCreditAudit(true);
+    const logs = await fetchCreditUsageLogs();
+    if (logs.ok) setCreditLogs(logs.logs);
+    else toast({ title: "Gagal memuat audit kredit", description: logs.error, variant: "destructive" });
+  }, [toast]);
+
+  useEffect(() => {
     if (messages.length > 0) {
       const session: ChatSession = { id: currentSessionId, title: generateSessionTitle(messages[0].content), messages, createdAt: new Date(), updatedAt: new Date() };
       saveChatSession(session);
