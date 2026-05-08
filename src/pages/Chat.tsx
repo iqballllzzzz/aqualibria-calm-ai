@@ -69,11 +69,20 @@ const GREETINGS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-  { icon: "edit", label: "Edit Image", action: "latentleaf", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "pen", label: "Write", action: "write", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "book", label: "Learn", action: "learn", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "lightbulb", label: "Ideas", action: "boost", color: "from-foreground/5 to-foreground/10 border-border" },
+  { icon: Leaf, label: "LatentLeaf", helper: "Edit visual", action: "latentleaf" },
+  { icon: PenLine, label: "Tulis", helper: "Draft cepat", action: "write" },
+  { icon: BookOpen, label: "Belajar", helper: "Tutor ringkas", action: "learn" },
+  { icon: TerminalSquare, label: "Fullstack", helper: "Kode + preview", action: "fullstack" },
 ];
+
+const formatResetCountdown = (resetAt?: string) => {
+  if (!resetAt) return "--:--";
+  const resetTime = new Date(resetAt).getTime() + 24 * 60 * 60 * 1000;
+  const remaining = Math.max(0, resetTime - Date.now());
+  const hours = Math.floor(remaining / 3_600_000);
+  const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+  return `${hours}j ${minutes.toString().padStart(2, "0")}m`;
+};
 
 const Chat: React.FC = () => {
   const { theme } = useTheme();
