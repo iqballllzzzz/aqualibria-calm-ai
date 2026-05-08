@@ -6,13 +6,13 @@ import {
   MessageSquare, ChevronDown, Loader2, Mic, MicOff, AudioLines, Leaf, Crown, User, ImageIcon,
   MoreVertical, Pin, Archive, Edit2, Share2, Trash2, Check,
   Camera, FileText, Youtube, Image as LucideImage, Settings, Code, Zap, Phone, GraduationCap,
-  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree,
+  Bot, Layout, Palette, Presentation, ChevronRight, Wand2, FolderTree, History, Clock, PenLine, BookOpen, Lightbulb, TerminalSquare,
 } from "lucide-react";
 import GeneratedImageViewer from "@/components/GeneratedImageViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow, generateFullstackCode } from "@/lib/api";
+import { sendChatMessage, sendResearchQuery, generateImage, generateSlideImage, generateSlideDeck, generateDesignImage, searchSpotify, uploadImage, analyzeImage, analyzeFile, analyzeYouTube, fileToBase64, extractTextFromDocx, extractTextFromFile, isVisionSupportedFile, ChatMessage, generateMessageId, VoiceOption, SUBSCRIPTION_PLANS, getDualAgentPerspectives, editImageLatentLeaf, streamChatMessage, consumeCredit, fetchCreditStatus, CreditsRow, generateFullstackCode, fetchCreditUsageLogs, CreditUsageLog } from "@/lib/api";
 import { ChatSession, saveChatSession, getChatHistory, deleteChatSession, generateSessionId, generateSessionTitle, getPreferences, extractMemoryFromMessage, getAIMemory, getSubscription, canUseFeature, incrementUsage, buildMemoryContext, getChatManagement, togglePinSession, toggleArchiveSession, renameSession, canUseLatentLeaf, canUseModel, incrementModelUsage, getModelUsage } from "@/lib/storage";
 import { logActivity } from "@/lib/activity";
 import { useToast } from "@/hooks/use-toast";
@@ -69,11 +69,20 @@ const GREETINGS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-  { icon: "edit", label: "Edit Image", action: "latentleaf", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "pen", label: "Write", action: "write", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "book", label: "Learn", action: "learn", color: "from-foreground/5 to-foreground/10 border-border" },
-  { icon: "lightbulb", label: "Ideas", action: "boost", color: "from-foreground/5 to-foreground/10 border-border" },
+  { icon: Leaf, label: "LatentLeaf", helper: "Edit visual", action: "latentleaf" },
+  { icon: PenLine, label: "Tulis", helper: "Draft cepat", action: "write" },
+  { icon: BookOpen, label: "Belajar", helper: "Tutor ringkas", action: "learn" },
+  { icon: TerminalSquare, label: "Fullstack", helper: "Kode + preview", action: "fullstack" },
 ];
+
+const formatResetCountdown = (resetAt?: string) => {
+  if (!resetAt) return "--:--";
+  const resetTime = new Date(resetAt).getTime() + 24 * 60 * 60 * 1000;
+  const remaining = Math.max(0, resetTime - Date.now());
+  const hours = Math.floor(remaining / 3_600_000);
+  const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+  return `${hours}j ${minutes.toString().padStart(2, "0")}m`;
+};
 
 const Chat: React.FC = () => {
   const { theme } = useTheme();
@@ -122,6 +131,9 @@ const Chat: React.FC = () => {
   const [agentMode, setAgentMode] = useState<AgentMode | null>(null);
   const [slideCount, setSlideCount] = useState<2 | 3 | 4>(4);
   const [creditsRow, setCreditsRow] = useState<CreditsRow | null>(null);
+  const [creditLogs, setCreditLogs] = useState<CreditUsageLog[]>([]);
+  const [showCreditAudit, setShowCreditAudit] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState("--:--");
   const [deckViewer, setDeckViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
@@ -213,6 +225,20 @@ const Chat: React.FC = () => {
   }, [subscription.plan]);
 
   useEffect(() => { refreshCredits(); }, [refreshCredits]);
+
+  useEffect(() => {
+    const updateCountdown = () => setResetCountdown(formatResetCountdown(creditsRow?.daily_reset_at));
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 60_000);
+    return () => window.clearInterval(timer);
+  }, [creditsRow?.daily_reset_at]);
+
+  const openCreditAudit = useCallback(async () => {
+    setShowCreditAudit(true);
+    const logs = await fetchCreditUsageLogs();
+    if (logs.ok) setCreditLogs(logs.logs);
+    else toast({ title: "Gagal memuat audit kredit", description: logs.error, variant: "destructive" });
+  }, [toast]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -346,7 +372,7 @@ const Chat: React.FC = () => {
           const sess = await supabase.auth.getSession();
           const token = sess.data.session?.access_token;
           if (token) {
-            const credit = await consumeCredit("slides", 1, subscription.plan, token);
+            const credit = await consumeCredit("slides", wantedCount, subscription.plan, token);
             if (!credit.ok) {
               const isCreditOut = credit.reason === "insufficient_credits" || !credit.error;
               toast({
@@ -432,15 +458,27 @@ const Chat: React.FC = () => {
               return;
             }
             if (credit.credits) setCreditsRow(credit.credits);
+          } else {
+            toast({ title: "Login diperlukan", description: "Masuk dulu untuk memakai Fullstack AI.", variant: "destructive" });
+            setIsLoading(false);
+            return;
           }
-        }
-        const assistantId = generateMessageId();
-        setMessages((prev) => [...prev, { role: "assistant", content: "Membangun aplikasi dengan LlamaCoder (Qwen3-Coder)...", timestamp: new Date(), id: assistantId, isStreaming: true }]);
-        const fc = await generateFullstackCode(messageText, "qwen3-coder", "high");
-        if (fc.success && fc.code) {
-          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: fc.code as string, isStreaming: false } : m));
-        } else {
-          setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Error: ${fc.error || "LlamaCoder gagal"}`, isStreaming: false } : m));
+          const assistantId = generateMessageId();
+          setMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date(), id: assistantId, isStreaming: true }]);
+          const fc = await generateFullstackCode(messageText, token, subscription.plan, "qwen3-coder", "high");
+          if (fc.success && fc.code) {
+            const chunks = fc.code.match(/[\s\S]{1,48}/g) || [fc.code];
+            let typed = "";
+            for (const chunk of chunks) {
+              typed += chunk;
+              setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: typed } : m));
+              await new Promise((resolve) => window.setTimeout(resolve, 8));
+            }
+            setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, isStreaming: false } : m));
+          } else {
+            const rateText = fc.status === 429 && fc.retryAfterSeconds ? ` Coba lagi dalam ${fc.retryAfterSeconds} detik.` : "";
+            setMessages((prev) => prev.map(m => m.id === assistantId ? { ...m, content: `Fullstack AI gagal: ${fc.error || "request gagal"}.${rateText}`, isStreaming: false } : m));
+          }
         }
         setIsLoading(false); return;
       }
@@ -609,6 +647,7 @@ const Chat: React.FC = () => {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "latentleaf": setShowLatentLeaf(true); break;
+      case "fullstack": setAgentMode("fullstack"); setInputValue("Buatkan aplikasi "); break;
       case "musea": setShowMusea(true); break;
       case "learn": setInputValue("Help me learn something new today"); break;
       case "write": setInputValue("Help me write "); break;
@@ -762,22 +801,21 @@ const Chat: React.FC = () => {
         <div className="flex items-center gap-1.5">
           {/* Live credits chip (all plans) */}
           {creditsRow && (
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold">
+            <button onClick={openCreditAudit} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-accent/60 border border-border text-[10px] font-bold hover:bg-accent transition-colors" title="Audit kredit">
               <span className="flex items-center gap-1 text-foreground" title="Fullstack (daily/monthly)">
                 <Code className="w-3 h-3" />
                 {(creditsRow.daily_fullstack ?? 0) >= 999999 ? "∞" : `${creditsRow.daily_fullstack ?? 0}+${creditsRow.fullstack_credits >= 999999 ? "∞" : creditsRow.fullstack_credits}`}
               </span>
-              <span className="w-px h-3 bg-border" />
-              <span className="flex items-center gap-1 text-foreground" title="Slides (daily)">
+              <span className="hidden min-[390px]:flex items-center gap-1 text-foreground" title="Slides (daily)">
                 <Presentation className="w-3 h-3" />
                 {(creditsRow.daily_slides ?? 0) >= 999999 ? "∞" : (creditsRow.daily_slides ?? 0)}
               </span>
-              <span className="w-px h-3 bg-border" />
-              <span className="flex items-center gap-1 text-foreground" title="Designer (daily)">
+              <span className="hidden sm:flex items-center gap-1 text-foreground" title="Designer (daily)">
                 <Palette className="w-3 h-3" />
                 {(creditsRow.daily_designer ?? 0) >= 999999 ? "∞" : (creditsRow.daily_designer ?? 0)}
               </span>
-            </div>
+              {creditsRow.plan !== "nigown" && <span className="hidden sm:flex items-center gap-1 text-foreground-muted"><Clock className="w-3 h-3" />{resetCountdown}</span>}
+            </button>
           )}
           {/* Upgrade Plan button */}
           <button
@@ -807,28 +845,38 @@ const Chat: React.FC = () => {
           {messages.length === 0 ? (
             <div className="flex flex-col justify-center" style={{ minHeight: 'calc((var(--vh, 1vh) * 100) - 180px)' }}>
               {/* Welcome */}
-              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="mb-10">
-                <p className="text-foreground-muted text-sm mb-2 font-medium tracking-wide uppercase">Hi {userName} 👋</p>
+              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="mb-8">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-1.5 text-[11px] font-bold text-foreground-muted mb-4">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  AquaLibriaAI Workspace
+                </div>
                 <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground leading-tight tracking-tight">
-                  <span className="gradient-aqua-text">{randomGreeting}</span>
+                  {randomGreeting}
                 </h1>
+                <p className="mt-3 text-sm text-foreground-muted leading-relaxed max-w-md">Mulai dari chat, kode fullstack, slide visual, sampai desain — semuanya dari satu input.</p>
               </motion.div>
 
-              {/* Quick Actions — card grid */}
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="grid grid-cols-2 gap-3 mb-6">
-                {QUICK_ACTIONS.map((qa, i) => (
-                  <motion.button
-                    key={qa.action}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + i * 0.08 }}
-                    onClick={() => handleQuickAction(qa.action)}
-                    className={`flex items-center gap-3 px-4 py-4 rounded-3xl border bg-gradient-to-br ${qa.color} hover:shadow-md transition-all hover:-translate-y-0.5`}
-                  >
-                    <span className="text-sm text-muted-foreground">{qa.icon === "edit" ? "✎" : qa.icon === "pen" ? "⌘" : qa.icon === "book" ? "◈" : "◆"}</span>
-                    <span className="text-sm font-semibold text-foreground">{qa.label}</span>
-                  </motion.button>
-                ))}
+              {/* Quick Actions — original Aqua command rail */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="mb-6 overflow-hidden rounded-3xl border border-border bg-card/80">
+                {QUICK_ACTIONS.map((qa, i) => {
+                  const Icon = qa.icon;
+                  return (
+                    <button
+                      key={qa.action}
+                      onClick={() => handleQuickAction(qa.action)}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-accent/70 transition-colors border-b border-border/50 last:border-b-0"
+                    >
+                      <span className="w-9 h-9 rounded-2xl bg-secondary flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-foreground" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-foreground">{qa.label}</span>
+                        <span className="block text-[11px] text-foreground-muted truncate">{qa.helper}</span>
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-foreground-muted" />
+                    </button>
+                  );
+                })}
               </motion.div>
 
               {/* Promo Card */}
@@ -923,7 +971,7 @@ const Chat: React.FC = () => {
                       (() => {
                         const agentFiles = parseFilesFromResponse(message.content);
                         const hasFiles = agentFiles.length > 0;
-                        const cleanContent = hasFiles ? message.content.replace(/---FILE:\s*.+?---\n[\s\S]*?---END FILE---/g, "").trim() : message.content;
+                        const cleanContent = hasFiles ? message.content.replace(/---FILE:\s*.+?---\n[\s\S]*?---END FILE---/g, "").replace(/---FILE:\s*.+?---\n[\s\S]*$/g, "").trim() : message.content;
                         const isWsOpen = openWorkspaces[message.id || ""];
                         return (
                           <>
@@ -943,9 +991,9 @@ const Chat: React.FC = () => {
                               <span className="inline-block w-2 h-4 bg-foreground/40 animate-pulse rounded-sm" />
                             )}
                             {/* Agent workspace for fullstack files */}
-                            {hasFiles && !message.isStreaming && (
+                            {hasFiles && (
                               <>
-                                {!isWsOpen ? (
+                                {!isWsOpen && !message.isStreaming ? (
                                   <button
                                     onClick={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: true }))}
                                     className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold hover:bg-primary/15 transition-colors"
@@ -960,6 +1008,7 @@ const Chat: React.FC = () => {
                                     onClose={() => setOpenWorkspaces(prev => ({ ...prev, [message.id || ""]: false }))}
                                     onSave={() => handleSaveProject(message.id || "", agentFiles, messages.find(m => m.role === "user")?.content.slice(0, 40) || "Project")}
                                     isSaving={savingProject === message.id}
+                                    isStreaming={message.isStreaming}
                                   />
                                 )}
                               </>
@@ -1191,6 +1240,43 @@ const Chat: React.FC = () => {
       </div>
 
       {/* Modals */}
+      <AnimatePresence>
+        {showCreditAudit && (
+          <motion.div className="fixed inset-0 z-[80] bg-background/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} className="w-full max-w-lg max-h-[80dvh] bg-popover border border-border rounded-3xl shadow-elevated overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <History className="w-4 h-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Riwayat kredit</p>
+                    {creditsRow?.plan !== "nigown" && <p className="text-[11px] text-foreground-muted">Reset harian dalam {resetCountdown}</p>}
+                  </div>
+                </div>
+                <button onClick={() => setShowCreditAudit(false)} className="p-2 rounded-2xl hover:bg-accent transition-colors"><X className="w-4 h-4" /></button>
+              </div>
+              <ScrollArea className="max-h-[62dvh]">
+                <div className="p-3 space-y-2">
+                  {creditLogs.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-foreground-muted">Belum ada konsumsi kredit.</div>
+                  ) : creditLogs.map((log) => {
+                    const Icon = log.kind === "fullstack" ? Code : log.kind === "slides" ? Presentation : Palette;
+                    return (
+                      <div key={log.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
+                        <span className="w-9 h-9 rounded-2xl bg-secondary flex items-center justify-center shrink-0"><Icon className="w-4 h-4 text-foreground" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold capitalize text-foreground">{log.kind}</p>
+                          <p className="text-[11px] text-foreground-muted">{new Date(log.created_at).toLocaleString("id-ID")} · {log.source}</p>
+                        </div>
+                        <span className="text-sm font-bold text-foreground">-{log.amount}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
       <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={(v) => { setSelectedVoice(v); localStorage.setItem("aqua-selected-voice", v); }} sessionId={currentSessionId} />
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />

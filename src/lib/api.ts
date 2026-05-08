@@ -621,7 +621,7 @@ export const generateFullstackCode = async (
   plan: string,
   model: LlamaCoderModel = "qwen3-coder",
   quality: "low" | "high" = "high",
-): Promise<{ success: boolean; code?: string; model?: string; error?: string }> => {
+): Promise<{ success: boolean; code?: string; model?: string; error?: string; status?: number; retryAfterSeconds?: number }> => {
   try {
     const r = await fetch(LLAMACODER_URL, {
       method: "POST",
@@ -634,7 +634,7 @@ export const generateFullstackCode = async (
       signal: AbortSignal.timeout(180000),
     });
     const data = await r.json();
-    if (!r.ok) return { success: false, error: data.error || `Status ${r.status}` };
+    if (!r.ok) return { success: false, error: data.error || `Status ${r.status}`, status: r.status, retryAfterSeconds: data.retry_after_seconds };
     return { success: !!data.success, code: data.code, model: data.model, error: data.error };
   } catch (e: any) {
     return { success: false, error: e.message || "LlamaCoder failed" };

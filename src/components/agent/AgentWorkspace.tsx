@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Code, Eye, Columns, Download, Save, FolderTree, ChevronLeft, ChevronRight, Globe } from "lucide-react";
+import { X, Code, Eye, Columns, Download, Save, FolderTree } from "lucide-react";
 import FileExplorer, { ProjectFile } from "./FileExplorer";
 import CodeViewer from "./CodeViewer";
 import LivePreview from "./LivePreview";
@@ -14,6 +14,7 @@ interface AgentWorkspaceProps {
   onClose: () => void;
   onSave?: () => void;
   isSaving?: boolean;
+  isStreaming?: boolean;
 }
 
 function parseFilesFromResponse(content: string): ProjectFile[] {
@@ -24,6 +25,10 @@ function parseFilesFromResponse(content: string): ProjectFile[] {
     const path = match[1].trim();
     const fileContent = match[2].trim();
     files.push({ path, content: fileContent });
+  }
+  const partial = content.match(/---FILE:\s*(.+?)---\n([\s\S]*)$/);
+  if (partial && !files.some((file) => file.path === partial[1].trim())) {
+    files.push({ path: partial[1].trim(), content: partial[2].replace(/---END FILE---[\s\S]*$/, "").trimEnd() });
   }
   return files;
 }
@@ -43,10 +48,17 @@ function downloadProject(files: ProjectFile[], title: string) {
   URL.revokeObjectURL(url);
 }
 
-const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, projectTitle = "Project", onClose, onSave, isSaving }) => {
+const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, projectTitle = "Project", onClose, onSave, isSaving, isStreaming }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(files[0] || null);
   const [showExplorer, setShowExplorer] = useState(true);
+
+  useEffect(() => {
+    setSelectedFile((current) => {
+      if (!current) return files[0] || null;
+      return files.find((file) => file.path === current.path) || files[0] || null;
+    });
+  }, [files]);
 
   return (
     <motion.div
@@ -54,7 +66,7 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       className="mt-3 rounded-2xl border border-border bg-card overflow-hidden shadow-lg"
-      style={{ height: "420px" }}
+      style={{ height: "min(62dvh, 560px)" }}
     >
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-secondary/30 shrink-0">
@@ -64,6 +76,7 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
           </button>
           <span className="text-xs font-bold text-foreground truncate">{projectTitle}</span>
           <span className="text-[10px] text-foreground-muted">{files.length} files</span>
+          {isStreaming && <span className="text-[10px] text-primary font-bold animate-pulse">typing</span>}
         </div>
         <div className="flex items-center gap-1">
           {/* View mode tabs */}
@@ -114,12 +127,12 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
 
         {/* Content */}
         <div className="flex-1 flex min-w-0">
-          {viewMode === "code" && <CodeViewer file={selectedFile} />}
+          {viewMode === "code" && <CodeViewer file={selectedFile} isStreaming={isStreaming} />}
           {viewMode === "preview" && <LivePreview files={files} projectId={projectId} />}
           {viewMode === "split" && (
             <>
               <div className="flex-1 flex flex-col min-w-0 border-r border-border">
-                <CodeViewer file={selectedFile} />
+                <CodeViewer file={selectedFile} isStreaming={isStreaming} />
               </div>
               <div className="flex-1 flex flex-col min-w-0">
                 <LivePreview files={files} projectId={projectId} />

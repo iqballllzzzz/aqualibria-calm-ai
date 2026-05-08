@@ -9,7 +9,7 @@ const LANG_MAP: Record<string, string> = {
   py: "Python", sh: "Shell",
 };
 
-const CodeViewer: React.FC<{ file: ProjectFile | null }> = ({ file }) => {
+const CodeViewer: React.FC<{ file: ProjectFile | null; isStreaming?: boolean }> = ({ file, isStreaming }) => {
   const [copied, setCopied] = React.useState(false);
 
   if (!file) {
@@ -35,6 +35,7 @@ const CodeViewer: React.FC<{ file: ProjectFile | null }> = ({ file }) => {
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">{langLabel}</span>
           <span className="text-xs text-foreground-muted truncate">{file.path}</span>
+          {isStreaming && <span className="text-[10px] text-primary font-bold animate-pulse">●</span>}
         </div>
         <button onClick={handleCopy} className="p-1.5 rounded-lg hover:bg-accent transition-colors shrink-0">
           {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-foreground-muted" />}
@@ -42,7 +43,7 @@ const CodeViewer: React.FC<{ file: ProjectFile | null }> = ({ file }) => {
       </div>
       <div className="flex-1 overflow-auto custom-scrollbar">
         <pre className="p-3 text-xs leading-relaxed">
-          <code className="text-foreground whitespace-pre">{file.content}</code>
+          <code className="text-foreground whitespace-pre">{file.content}{isStreaming ? "▌" : ""}</code>
         </pre>
       </div>
     </div>
