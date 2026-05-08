@@ -846,28 +846,38 @@ const Chat: React.FC = () => {
           {messages.length === 0 ? (
             <div className="flex flex-col justify-center" style={{ minHeight: 'calc((var(--vh, 1vh) * 100) - 180px)' }}>
               {/* Welcome */}
-              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="mb-10">
-                <p className="text-foreground-muted text-sm mb-2 font-medium tracking-wide uppercase">Hi {userName} 👋</p>
+              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="mb-8">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-1.5 text-[11px] font-bold text-foreground-muted mb-4">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  AquaLibriaAI Workspace
+                </div>
                 <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground leading-tight tracking-tight">
-                  <span className="gradient-aqua-text">{randomGreeting}</span>
+                  {randomGreeting}
                 </h1>
+                <p className="mt-3 text-sm text-foreground-muted leading-relaxed max-w-md">Mulai dari chat, kode fullstack, slide visual, sampai desain — semuanya dari satu input.</p>
               </motion.div>
 
-              {/* Quick Actions — card grid */}
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="grid grid-cols-2 gap-3 mb-6">
-                {QUICK_ACTIONS.map((qa, i) => (
-                  <motion.button
-                    key={qa.action}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + i * 0.08 }}
-                    onClick={() => handleQuickAction(qa.action)}
-                    className={`flex items-center gap-3 px-4 py-4 rounded-3xl border bg-gradient-to-br ${qa.color} hover:shadow-md transition-all hover:-translate-y-0.5`}
-                  >
-                    <span className="text-sm text-muted-foreground">{qa.icon === "edit" ? "✎" : qa.icon === "pen" ? "⌘" : qa.icon === "book" ? "◈" : "◆"}</span>
-                    <span className="text-sm font-semibold text-foreground">{qa.label}</span>
-                  </motion.button>
-                ))}
+              {/* Quick Actions — original Aqua command rail */}
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }} className="mb-6 overflow-hidden rounded-3xl border border-border bg-card/80">
+                {QUICK_ACTIONS.map((qa, i) => {
+                  const Icon = qa.icon;
+                  return (
+                    <button
+                      key={qa.action}
+                      onClick={() => handleQuickAction(qa.action)}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-accent/70 transition-colors border-b border-border/50 last:border-b-0"
+                    >
+                      <span className="w-9 h-9 rounded-2xl bg-secondary flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-foreground" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-foreground">{qa.label}</span>
+                        <span className="block text-[11px] text-foreground-muted truncate">{qa.helper}</span>
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-foreground-muted" />
+                    </button>
+                  );
+                })}
               </motion.div>
 
               {/* Promo Card */}
