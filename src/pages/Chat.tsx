@@ -1239,6 +1239,43 @@ const Chat: React.FC = () => {
       </div>
 
       {/* Modals */}
+      <AnimatePresence>
+        {showCreditAudit && (
+          <motion.div className="fixed inset-0 z-[80] bg-background/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} className="w-full max-w-lg max-h-[80dvh] bg-popover border border-border rounded-3xl shadow-elevated overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <History className="w-4 h-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Riwayat kredit</p>
+                    {creditsRow?.plan !== "nigown" && <p className="text-[11px] text-foreground-muted">Reset harian dalam {resetCountdown}</p>}
+                  </div>
+                </div>
+                <button onClick={() => setShowCreditAudit(false)} className="p-2 rounded-2xl hover:bg-accent transition-colors"><X className="w-4 h-4" /></button>
+              </div>
+              <ScrollArea className="max-h-[62dvh]">
+                <div className="p-3 space-y-2">
+                  {creditLogs.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-foreground-muted">Belum ada konsumsi kredit.</div>
+                  ) : creditLogs.map((log) => {
+                    const Icon = log.kind === "fullstack" ? Code : log.kind === "slides" ? Presentation : Palette;
+                    return (
+                      <div key={log.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
+                        <span className="w-9 h-9 rounded-2xl bg-secondary flex items-center justify-center shrink-0"><Icon className="w-4 h-4 text-foreground" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold capitalize text-foreground">{log.kind}</p>
+                          <p className="text-[11px] text-foreground-muted">{new Date(log.created_at).toLocaleString("id-ID")} · {log.source}</p>
+                        </div>
+                        <span className="text-sm font-bold text-foreground">-{log.amount}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <QuoteMaker isOpen={showQuoteMaker} onClose={() => setShowQuoteMaker(false)} onGenerate={handleQuoteGenerate} />
       <VoiceCallModal isOpen={showVoiceCall} onClose={(voiceMessages) => { setShowVoiceCall(false); if (voiceMessages?.length > 0) setMessages((prev) => [...prev, ...voiceMessages]); }} selectedVoice={selectedVoice} onSelectVoice={(v) => { setSelectedVoice(v); localStorage.setItem("aqua-selected-voice", v); }} sessionId={currentSessionId} />
       <UpgradePlanModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
