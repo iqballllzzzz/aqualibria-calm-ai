@@ -51,7 +51,10 @@ const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ files, projectId, proje
 
   useEffect(() => {
     if (!selectedFile && files[0]) setSelectedFile(files[0]);
-    if (selectedFile && !files.some((file) => file.path === selectedFile.path)) setSelectedFile(files[0] || null);
+    if (selectedFile) {
+      const fresh = files.find((file) => file.path === selectedFile.path);
+      setSelectedFile(fresh || files[0] || null);
+    }
   }, [files, selectedFile]);
 
   return (
