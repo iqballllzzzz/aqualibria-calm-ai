@@ -26,6 +26,10 @@ function parseFilesFromResponse(content: string): ProjectFile[] {
     const fileContent = match[2].trim();
     files.push({ path, content: fileContent });
   }
+  const partial = content.match(/---FILE:\s*(.+?)---\n([\s\S]*)$/);
+  if (partial && !files.some((file) => file.path === partial[1].trim())) {
+    files.push({ path: partial[1].trim(), content: partial[2].replace(/---END FILE---[\s\S]*$/, "").trimEnd() });
+  }
   return files;
 }
 
