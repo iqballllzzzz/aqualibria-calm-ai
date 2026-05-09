@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.llamacoder]
 verify_jwt = false
+
+[functions.felo-search]
+verify_jwt = false
