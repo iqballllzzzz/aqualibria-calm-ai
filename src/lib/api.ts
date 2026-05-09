@@ -7,6 +7,26 @@ const GEMINI_CHAT_URL = `${SUPABASE_URL}/functions/v1/gemini-chat`;
 const TTS_URL = `${SUPABASE_URL}/functions/v1/tts-google`;
 const DUAL_AGENT_URL = `${SUPABASE_URL}/functions/v1/dual-agent`;
 const ANALYZE_YT_URL = `${SUPABASE_URL}/functions/v1/analyze-youtube`;
+const FELO_SEARCH_URL = `${SUPABASE_URL}/functions/v1/felo-search`;
+
+export interface FeloSearchResult {
+  ok: boolean;
+  text?: string;
+  sources?: Array<{ index: number; title?: string; url?: string; snippet?: string }>;
+  error?: string;
+}
+export const feloSearch = async (query: string): Promise<FeloSearchResult> => {
+  try {
+    const res = await fetch(FELO_SEARCH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ query }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "felo_failed" };
+  }
+};
 
 // Voice Options
 export const VOICE_OPTIONS_LIST = ["aurora", "river", "luna", "ember", "atlas", "iris", "nova", "onyx"] as const;
