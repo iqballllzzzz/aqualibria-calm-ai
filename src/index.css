@@ -14,52 +14,53 @@
   :root {
     --vh: 1vh;
 
-    /* === Light mode — Ivory & Stone === */
-    --background: 36 30% 97%;          /* warm ivory */
-    --background-secondary: 36 22% 93%; /* soft sand */
-    --background-elevated: 40 40% 99%; /* near-white cream */
+    /* === Light mode — Soft Gray & Deep Navy ===
+       base #F3F4F6, surfaces near-white, ikon/aksen biru tua #1E3A8A */
+    --background: 220 14% 96%;          /* #F3F4F6 */
+    --background-secondary: 220 14% 92%;
+    --background-elevated: 0 0% 100%;
 
-    --foreground: 25 18% 14%;           /* espresso */
-    --foreground-secondary: 28 12% 32%; /* warm taupe */
-    --foreground-muted: 30 8% 48%;      /* stone */
+    --foreground: 222 47% 11%;          /* deep slate */
+    --foreground-secondary: 222 25% 28%;
+    --foreground-muted: 220 9% 46%;
 
-    --card: 36 28% 98%;
-    --card-foreground: 25 18% 14%;
-    --popover: 40 40% 99%;
-    --popover-foreground: 25 18% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 25 20% 16%;              /* deep espresso */
-    --primary-foreground: 36 30% 97%;
-    --secondary: 36 18% 90%;            /* soft sand */
-    --secondary-foreground: 25 18% 14%;
+    --primary: 224 76% 33%;             /* #1E3A8A navy */
+    --primary-foreground: 220 14% 96%;
+    --secondary: 220 14% 90%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 36 16% 91%;
-    --muted-foreground: 30 8% 46%;
-    --accent: 36 20% 88%;
-    --accent-foreground: 25 18% 14%;
+    --muted: 220 14% 92%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 88%;
+    --accent-foreground: 222 47% 11%;
 
-    /* Brand accents — kept names for backward compat, retoned to hotel palette */
-    --aqua: 25 20% 16%;                 /* primary espresso */
-    --aqua-light: 28 16% 28%;           /* warm umber */
-    --aqua-glow: 38 30% 55%;            /* brass shimmer */
-    --amber: 38 35% 52%;                /* muted brass */
-    --amber-light: 38 32% 64%;          /* light brass */
-    --sage: 90 12% 42%;                 /* secondary accent */
-    --sage-light: 90 10% 58%;
+    /* Brand accents (legacy names → mapped to navy palette) */
+    --aqua: 224 76% 33%;
+    --aqua-light: 222 60% 45%;
+    --aqua-glow: 217 91% 60%;
+    --amber: 224 76% 33%;
+    --amber-light: 222 60% 50%;
+    --sage: 220 30% 40%;
+    --sage-light: 220 25% 55%;
 
-    --destructive: 6 55% 48%;
-    --destructive-foreground: 36 30% 97%;
-    --success: 145 28% 38%;
-    --success-foreground: 36 30% 97%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 220 14% 96%;
+    --success: 152 56% 38%;
+    --success-foreground: 220 14% 96%;
 
-    --border: 36 14% 84%;
-    --border-subtle: 36 14% 90%;
-    --input: 36 14% 84%;
-    --ring: 38 35% 52%;                  /* brass focus ring */
+    --border: 220 13% 86%;
+    --border-subtle: 220 13% 91%;
+    --input: 220 13% 86%;
+    --ring: 224 76% 45%;
 
-    --chat-user-bg: 36 22% 92%;
-    --chat-ai-bg: 40 40% 99%;
-    --chat-input-bg: 36 22% 94%;
+    --chat-user-bg: 220 14% 90%;
+    --chat-ai-bg: 0 0% 100%;
+    --chat-input-bg: 220 14% 93%;
 
     --radius: 0.875rem;
     --radius-sm: 0.5rem;
@@ -68,81 +69,82 @@
     --radius-2xl: 2rem;
     --radius-full: 9999px;
 
-    --shadow-sm: 0 1px 2px 0 hsl(25 18% 14% / 0.04);
-    --shadow-md: 0 6px 18px -6px hsl(25 18% 14% / 0.08);
-    --shadow-lg: 0 18px 40px -12px hsl(25 18% 14% / 0.12);
-    --shadow-elevated: 0 32px 60px -20px hsl(25 18% 14% / 0.18);
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.04);
+    --shadow-md: 0 6px 18px -6px hsl(222 47% 11% / 0.08);
+    --shadow-lg: 0 18px 40px -12px hsl(222 47% 11% / 0.12);
+    --shadow-elevated: 0 32px 60px -20px hsl(222 47% 11% / 0.18);
 
-    --sidebar-background: 36 24% 95%;
-    --sidebar-foreground: 28 12% 32%;
-    --sidebar-primary: 25 20% 16%;
-    --sidebar-primary-foreground: 36 30% 97%;
-    --sidebar-accent: 36 20% 90%;
-    --sidebar-accent-foreground: 25 18% 14%;
-    --sidebar-border: 36 14% 86%;
-    --sidebar-ring: 38 35% 52%;
+    --sidebar-background: 220 14% 94%;
+    --sidebar-foreground: 222 25% 28%;
+    --sidebar-primary: 224 76% 33%;
+    --sidebar-primary-foreground: 220 14% 96%;
+    --sidebar-accent: 220 14% 88%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 86%;
+    --sidebar-ring: 224 76% 45%;
   }
 
   .dark {
-    /* === Dark mode — Cocoa & Brass === */
-    --background: 25 12% 8%;
-    --background-secondary: 25 10% 11%;
-    --background-elevated: 25 10% 13%;
+    /* === Dark mode — Hitam Kebiruan Tua / Slate Navy ===
+       base #0A0F1F, surface #111827, aksen #1E3A8A → light variant */
+    --background: 225 51% 8%;           /* #0A0F1F */
+    --background-secondary: 222 47% 11%;/* #111827 */
+    --background-elevated: 222 39% 14%;
 
-    --foreground: 36 22% 92%;
-    --foreground-secondary: 30 10% 70%;
-    --foreground-muted: 30 6% 52%;
+    --foreground: 220 14% 92%;
+    --foreground-secondary: 220 14% 75%;
+    --foreground-muted: 220 10% 56%;
 
-    --card: 25 10% 11%;
-    --card-foreground: 36 22% 92%;
-    --popover: 25 10% 12%;
-    --popover-foreground: 36 22% 92%;
+    --card: 222 47% 11%;
+    --card-foreground: 220 14% 92%;
+    --popover: 222 47% 12%;
+    --popover-foreground: 220 14% 92%;
 
-    --primary: 36 22% 92%;
-    --primary-foreground: 25 12% 8%;
-    --secondary: 25 8% 16%;
-    --secondary-foreground: 36 22% 92%;
+    --primary: 217 91% 60%;             /* bright navy/blue for contrast on dark */
+    --primary-foreground: 225 51% 8%;
+    --secondary: 222 39% 16%;
+    --secondary-foreground: 220 14% 92%;
 
-    --muted: 25 8% 14%;
-    --muted-foreground: 30 6% 52%;
-    --accent: 25 8% 18%;
-    --accent-foreground: 36 22% 92%;
+    --muted: 222 39% 14%;
+    --muted-foreground: 220 10% 56%;
+    --accent: 222 39% 18%;
+    --accent-foreground: 220 14% 92%;
 
-    --aqua: 36 22% 88%;
-    --aqua-light: 36 18% 78%;
-    --aqua-glow: 38 30% 60%;
-    --amber: 38 32% 58%;
-    --amber-light: 38 28% 68%;
-    --sage: 90 10% 55%;
-    --sage-light: 90 8% 65%;
+    --aqua: 217 91% 60%;
+    --aqua-light: 213 94% 68%;
+    --aqua-glow: 224 76% 50%;
+    --amber: 217 91% 60%;
+    --amber-light: 213 94% 68%;
+    --sage: 220 25% 55%;
+    --sage-light: 220 20% 70%;
 
-    --destructive: 6 48% 52%;
-    --destructive-foreground: 36 22% 92%;
-    --success: 145 25% 48%;
-    --success-foreground: 36 22% 92%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 220 14% 92%;
+    --success: 152 56% 48%;
+    --success-foreground: 220 14% 92%;
 
-    --border: 25 8% 18%;
-    --border-subtle: 25 8% 14%;
-    --input: 25 8% 18%;
-    --ring: 38 32% 58%;
+    --border: 222 39% 18%;
+    --border-subtle: 222 39% 14%;
+    --input: 222 39% 18%;
+    --ring: 217 91% 60%;
 
-    --chat-user-bg: 25 8% 14%;
-    --chat-ai-bg: 25 10% 10%;
-    --chat-input-bg: 25 8% 13%;
+    --chat-user-bg: 222 39% 16%;
+    --chat-ai-bg: 225 51% 8%;
+    --chat-input-bg: 222 47% 11%;
 
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.4);
-    --shadow-md: 0 6px 18px -6px hsl(0 0% 0% / 0.5);
-    --shadow-lg: 0 18px 40px -12px hsl(0 0% 0% / 0.6);
-    --shadow-elevated: 0 32px 60px -20px hsl(0 0% 0% / 0.7);
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.5);
+    --shadow-md: 0 6px 18px -6px hsl(0 0% 0% / 0.6);
+    --shadow-lg: 0 18px 40px -12px hsl(0 0% 0% / 0.7);
+    --shadow-elevated: 0 32px 60px -20px hsl(0 0% 0% / 0.8);
 
-    --sidebar-background: 25 12% 9%;
-    --sidebar-foreground: 30 10% 70%;
-    --sidebar-primary: 36 22% 92%;
-    --sidebar-primary-foreground: 25 12% 8%;
-    --sidebar-accent: 25 8% 14%;
-    --sidebar-accent-foreground: 36 22% 92%;
-    --sidebar-border: 25 8% 16%;
-    --sidebar-ring: 38 32% 58%;
+    --sidebar-background: 225 51% 9%;
+    --sidebar-foreground: 220 14% 75%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 225 51% 8%;
+    --sidebar-accent: 222 39% 14%;
+    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-border: 222 39% 16%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
