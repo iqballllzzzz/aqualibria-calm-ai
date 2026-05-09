@@ -7,7 +7,7 @@ interface LivePreviewProps {
   projectId?: string;
 }
 
-function buildPreviewHTML(files: ProjectFile[]): string {
+export function buildPreviewHTML(files: ProjectFile[]): string {
   const htmlFile = files.find(f => f.path.endsWith("index.html") || f.path.endsWith(".html"));
   const cssFiles = files.filter(f => f.path.endsWith(".css"));
   const jsFiles = files.filter(f => f.path.endsWith(".js") && !f.path.endsWith(".test.js"));
