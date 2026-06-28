@@ -72,3 +72,15 @@ AqualibriaAI is designed with a strictly modular, model-agnostic architecture. W
 * **Status:** Active Development
 * **License:** [MIT License](LICENSE)
 * **Target:** Fully open-source and free for the developer community. Non-commercial ecosystem.
+
+---
+
+### 📢 Project Status Notice
+> **Note to Reviewers & Contributors:**  
+> The core multi-modal full-stack dashboard is currently undergoing heavy front-end memory optimization and database migration to better handle large multi-media data streams (which may cause temporary client-side rendering blanks on the main domain).
+>
+> 🌐 **Explore Our Project Context:**  
+> To review the project's vision, architecture, and documentation, please visit our official landing page:  
+> 👉 **[AqualibriaAI Official About Page](https://aqualibrya.my.id/about)**
+
+---
