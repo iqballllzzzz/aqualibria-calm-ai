@@ -15,34 +15,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Timeout lebih pendek (1.5s) agar tidak stuck di blank screen
     const timeout = setTimeout(() => {
-      if (loading) {
-        console.log("Auth timeout - setting loading to false");
-        setLoading(false);
-      }
-    }, 3000);
+      console.warn("Auth timeout - forcing loading=false");
+      setLoading(false);
+    }, 1500);
 
-    const unsubscribe = onAuthChange((user) => {
-      console.log("Auth state changed:", user ? "User logged in" : "User logged out");
-      setUser(user);
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      unsubscribe = onAuthChange((authUser) => {
+        console.log("Auth state changed:", authUser ? "User logged in" : "User logged out");
+        setUser(authUser);
+        setLoading(false);
+        clearTimeout(timeout);
+        // Auto-set nigown plan for admin
+        if (authUser?.email === "qwertyuiop@aqualibrya.id") {
+          const sub = getSubscription();
+          if (sub.plan !== "nigown") {
+            saveSubscription({ plan: "nigown", purchasedAt: new Date() });
+          }
+        }
+      });
+    } catch (err) {
+      console.error("Auth init error:", err);
       setLoading(false);
       clearTimeout(timeout);
-      // Auto-set nigown plan for admin
-      if (user?.email === "qwertyuiop@aqualibrya.id") {
-        const sub = getSubscription();
-        if (sub.plan !== "nigown") {
-          saveSubscription({ plan: "nigown", purchasedAt: new Date() });
-        }
-      }
-    });
+    }
 
     return () => {
       clearTimeout(timeout);
-      unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 
-  // With Supabase, authenticated = has a session (auto-confirm enabled)
   const isAuthenticated = !!user;
 
   return (
