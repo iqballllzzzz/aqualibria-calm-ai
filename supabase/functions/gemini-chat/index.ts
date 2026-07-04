@@ -7,6 +7,112 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+// ===== HYDRA PROVIDERS (chat text only — fallback chain) =====
+// Order: OpenCode (primary, free "big pickle") → OpenRouter (free laguna) → Lovable Gateway.
+// Any non-2xx or network error triggers the next provider silently.
+interface HydraProvider {
+  name: string;
+  url: string;
+  apiKeyEnv: string;
+  model: string;
+  extraHeaders?: Record<string, string>;
+}
+const HYDRA_CHAT_PROVIDERS: HydraProvider[] = [
+  {
+    name: "opencode",
+    url: "https://api.opencode.ai/v1/chat/completions",
+    apiKeyEnv: "OPENCODE_API_KEY",
+    model: "bigpickle",
+  },
+  {
+    name: "openrouter",
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    model: "poolside/laguna-xs-2.1:free",
+    extraHeaders: {
+      "HTTP-Referer": "https://aqualibria.ai",
+      "X-Title": "AquaLibriaAI",
+    },
+  },
+  {
+    name: "lovable",
+    url: GATEWAY_URL,
+    apiKeyEnv: "LOVABLE_API_KEY",
+    model: "", // filled from MODEL_MAP at call time
+  },
+];
+
+interface HydraLog {
+  provider: string;
+  time: string;
+  endpoint: string;
+  user_id: string;
+  error_message: string;
+}
+function logHydraError(entry: HydraLog) {
+  // Server-side console — structured so admins can grep.
+  console.error(`[hydra] provider=${entry.provider} endpoint=${entry.endpoint} user=${entry.user_id} time=${entry.time} msg=${entry.error_message}`);
+}
+
+async function tryHydraChat(opts: {
+  messages: any[];
+  stream: boolean;
+  fallbackModel: string; // used only for lovable provider
+  reasoning?: any;
+  userId: string;
+}): Promise<{ ok: true; provider: string; response: Response } | { ok: false; errors: HydraLog[] }> {
+  const errors: HydraLog[] = [];
+  for (const p of HYDRA_CHAT_PROVIDERS) {
+    const key = Deno.env.get(p.apiKeyEnv);
+    if (!key) continue;
+    const body: any = {
+      model: p.name === "lovable" ? opts.fallbackModel : p.model,
+      messages: opts.messages,
+      stream: opts.stream,
+    };
+    if (opts.reasoning && p.name === "lovable") body.reasoning = opts.reasoning;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+      const res = await fetch(p.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          ...(p.extraHeaders || {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        errors.push({
+          provider: p.name,
+          time: new Date().toISOString(),
+          endpoint: p.url,
+          user_id: opts.userId,
+          error_message: `HTTP ${res.status}: ${txt.slice(0, 200)}`,
+        });
+        logHydraError(errors[errors.length - 1]);
+        continue;
+      }
+      return { ok: true, provider: p.name, response: res };
+    } catch (e) {
+      errors.push({
+        provider: p.name,
+        time: new Date().toISOString(),
+        endpoint: p.url,
+        user_id: opts.userId,
+        error_message: e instanceof Error ? e.message : String(e),
+      });
+      logHydraError(errors[errors.length - 1]);
+      continue;
+    }
+  }
+  return { ok: false, errors };
+}
+
 // ALL system prompts are server-side only — never exposed to client.
 // IDENTITY_CORE is the canonical, deep self-knowledge of AquaLibriaAI:
 // who it is, who its creator is, the business behind it, and how it thinks.
