@@ -250,7 +250,8 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, messages, promptType, model, youtubeUrl, memoryContext, stream } = body;
+    const { action, messages, promptType, model, youtubeUrl, memoryContext, stream, userId } = body;
+    const uid = (typeof userId === "string" && userId) ? userId : "anon";
 
     const gatewayModel = MODEL_MAP[model] || MODEL_MAP["aqualibriav1"];
 
@@ -491,65 +492,49 @@ serve(async (req) => {
 
     if (stream) {
       requestBody.stream = true;
-      const response = await fetch(GATEWAY_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+      const hydra = await tryHydraChat({
+        messages: gatewayMessages,
+        stream: true,
+        fallbackModel: gatewayModel,
+        reasoning: requestBody.reasoning,
+        userId: uid,
       });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("Stream error:", response.status, errText);
-        if (response.status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (response.status === 402) {
-          return new Response(JSON.stringify({ error: "Usage limit reached" }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!hydra.ok) {
+        return new Response(JSON.stringify({
+          error: "AI providers unavailable",
+          fallback: true,
+          attempts: hydra.errors,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
-      return new Response(response.body, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      return new Response(hydra.response.body, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "X-Hydra-Provider": hydra.provider,
+        },
       });
     }
 
     // Non-streaming
-    const response = await fetch(GATEWAY_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+    const hydra = await tryHydraChat({
+      messages: gatewayMessages,
+      stream: false,
+      fallbackModel: gatewayModel,
+      reasoning: requestBody.reasoning,
+      userId: uid,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Chat error:", response.status, errText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
-        status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!hydra.ok) {
+      return new Response(JSON.stringify({
+        error: "AI providers unavailable",
+        fallback: true,
+        attempts: hydra.errors,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
-    const data = await response.json();
+    const data = await hydra.response.json();
     const responseText = data.choices?.[0]?.message?.content || "No response generated.";
     const reasoning = data.choices?.[0]?.message?.reasoning_content || null;
 
-    return new Response(JSON.stringify({ success: true, response: responseText, reasoning }), {
+    return new Response(JSON.stringify({ success: true, response: responseText, reasoning, provider: hydra.provider }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
