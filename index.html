@@ -134,19 +134,61 @@
     <script type="module" src="/src/main.tsx"></script>
     
     <script>
-      // Remove loading screen after React mounts
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          const loadingScreen = document.getElementById('loading-screen');
-          if (loadingScreen) {
-            loadingScreen.style.opacity = '0';
-            loadingScreen.style.transition = 'opacity 0.3s';
-            setTimeout(function() {
-              loadingScreen.remove();
-            }, 300);
+      // WHITESCREEN FIX:
+      // 1) Only remove the loading screen once React has actually mounted into #root.
+      // 2) If nothing mounts within 8s, auto-recover: unregister service workers,
+      //    clear caches, and reload once (stale PWA cache is the usual culprit).
+      (function () {
+        function removeLoader() {
+          var el = document.getElementById('loading-screen');
+          if (!el) return;
+          el.style.opacity = '0';
+          el.style.transition = 'opacity 0.3s';
+          setTimeout(function () { el.remove(); }, 300);
+        }
+        var root = document.getElementById('root');
+        var obs = new MutationObserver(function () {
+          if (root.childNodes.length > 0) { removeLoader(); obs.disconnect(); }
+        });
+        obs.observe(root, { childList: true });
+        if (root.childNodes.length > 0) removeLoader();
+
+        async function hardRecover() {
+          try {
+            if ('serviceWorker' in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              for (var r of regs) { try { await r.unregister(); } catch (e) {} }
+            }
+            if (window.caches && caches.keys) {
+              var keys = await caches.keys();
+              for (var k of keys) { try { await caches.delete(k); } catch (e) {} }
+            }
+          } catch (e) {}
+        }
+
+        setTimeout(async function () {
+          if (root.childNodes.length > 0) return; // app mounted fine
+          var already = sessionStorage.getItem('aqua-recovered');
+          if (!already) {
+            sessionStorage.setItem('aqua-recovered', '1');
+            await hardRecover();
+            location.reload();
+          } else {
+            // Second failure — show manual recovery UI instead of blank white.
+            var el = document.getElementById('loading-screen');
+            var target = el || document.body;
+            target.innerHTML =
+              '<div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:24px;text-align:center">' +
+              '<p style="margin:0;font-size:15px">Gagal memuat aplikasi. Coba bersihkan cache & muat ulang.</p>' +
+              '<button id="aqua-fix-btn" style="padding:10px 20px;border-radius:12px;border:none;background:#1E3A8A;color:#fff;font-size:14px">Perbaiki & Muat Ulang</button></div>';
+            document.getElementById('aqua-fix-btn').onclick = async function () {
+              sessionStorage.removeItem('aqua-recovered');
+              await hardRecover();
+              location.reload();
+            };
           }
-        }, 100);
-      });
+        }, 8000);
+      })();
     </script>
   </body>
 </html>

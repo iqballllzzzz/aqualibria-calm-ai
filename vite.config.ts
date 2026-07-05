@@ -109,6 +109,11 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // Allow heavy lazy chunks (Monaco/Sandpack/xterm in /studio) to be precached.
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // WHITESCREEN FIX: aggressively replace stale service workers so old
+        // precached index.html never points at deleted chunk hashes.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}"],
         runtimeCaching: [

@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.felo-search]
 verify_jwt = false
+
+[functions.upload-image]
+verify_jwt = false

@@ -8,7 +8,8 @@ const corsHeaders = {
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ===== HYDRA PROVIDERS (chat text only — fallback chain) =====
-// Order: OpenCode (primary, free "big pickle") → OpenRouter (free laguna) → Lovable Gateway.
+// Order: Gemini 3.5 Flash direct (free key) → Gemini flash-latest (safety alias)
+//        → OpenCode "big pickle" → OpenRouter (free laguna) → Lovable Gateway.
 // Any non-2xx or network error triggers the next provider silently.
 interface HydraProvider {
   name: string;
@@ -18,6 +19,18 @@ interface HydraProvider {
   extraHeaders?: Record<string, string>;
 }
 const HYDRA_CHAT_PROVIDERS: HydraProvider[] = [
+  {
+    name: "gemini-3.5-flash",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    apiKeyEnv: "GEMINI_FREE_FLASH_KEY",
+    model: "gemini-3.5-flash",
+  },
+  {
+    name: "gemini-flash-latest",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    apiKeyEnv: "GEMINI_FREE_FLASH_KEY",
+    model: "gemini-flash-latest",
+  },
   {
     name: "opencode",
     url: "https://api.opencode.ai/v1/chat/completions",
