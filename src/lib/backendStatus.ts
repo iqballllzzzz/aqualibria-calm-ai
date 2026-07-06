@@ -36,10 +36,8 @@ export const probeBackend = async (): Promise<BackendProbe> => {
 
   // DB ping (lightweight head request)
   try {
-    const { error } = await withTimeout(
-      supabase.from("user_roles").select("user_id", { head: true, count: "exact" }).limit(1),
-      5000, "db"
-    ) as any;
+    const q = supabase.from("user_roles").select("user_id", { head: true, count: "exact" }).limit(1);
+    const { error } = await withTimeout(Promise.resolve(q as unknown as Promise<any>), 5000, "db");
     out.database = error ? "degraded" : "ok";
   } catch { out.database = "down"; }
 
@@ -55,9 +53,9 @@ export const probeBackend = async (): Promise<BackendProbe> => {
   // Storage bucket ping
   try {
     const { error } = await withTimeout(
-      supabase.storage.from("user-images").list("", { limit: 1 }),
+      supabase.storage.from("user-images").list("", { limit: 1 }) as unknown as Promise<any>,
       5000, "storage"
-    ) as any;
+    );
     out.storage = error ? "degraded" : "ok";
   } catch { out.storage = "down"; }
 
