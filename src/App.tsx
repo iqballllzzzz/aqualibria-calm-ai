@@ -22,6 +22,7 @@ import Projects from "./pages/Projects";
 import PublishedApp from "./pages/PublishedApp";
 import StudyOnboarding from "./pages/StudyOnboarding";
 import StudyDashboard from "./pages/StudyDashboard";
+import BackendStatus from "./pages/BackendStatus";
 import AntiDevtools from "@/components/AntiDevtools";
 import { lazy, Suspense, useEffect, useState } from "react";
 
@@ -98,6 +99,7 @@ const AppRoutes = () => {
       <Route path="/study/chat" element={<ProtectedRoute><StudyOnboarding /></ProtectedRoute>} />
       <Route path="/study/dashboard" element={<ProtectedRoute><StudyDashboard /></ProtectedRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/status" element={<BackendStatus />} />
       <Route path="/shared/:shareId" element={<SharedChat />} />
       <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
       <Route path="/studio" element={<ProtectedRoute><Suspense fallback={<StudioFallback />}><AgentStudio /></Suspense></ProtectedRoute>} />
