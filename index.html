@@ -176,6 +176,10 @@
           } catch (e) {}
         }
 
+        if (location.search.indexOf('sw=off') !== -1) {
+          hardRecover();
+        }
+
         setTimeout(async function () {
           if (removed) return;
           if (root.childNodes.length > 0) return; // app mounted fine
