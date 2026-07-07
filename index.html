@@ -9,7 +9,7 @@
     <meta name="author" content="Muhammad Iqbal Sukarno" />
     <meta name="publisher" content="Meiyuu Company" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
-    <meta name="theme-color" content="#7c3aed" />
+    <meta name="theme-color" content="#1E3A8A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AqualibriaAI" />
@@ -71,12 +71,12 @@
       body {
         margin: 0;
         padding: 0;
-        background-color: #fafafa;
+        background-color: #F3F4F6;
       }
       
       @media (prefers-color-scheme: dark) {
         body {
-          background-color: #121212;
+          background-color: #0A0F1F;
         }
       }
       
@@ -90,13 +90,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: #fafafa;
+        background-color: #F3F4F6;
         z-index: 9999;
       }
       
       @media (prefers-color-scheme: dark) {
         #loading-screen {
-          background-color: #121212;
+          background-color: #0A0F1F;
         }
       }
       
@@ -135,17 +135,20 @@
     
     <script>
       // WHITESCREEN FIX:
-      // 1) Only remove the loading screen once React has actually mounted into #root.
-      // 2) If nothing mounts within 8s, auto-recover: unregister service workers,
-      //    clear caches, and reload once (stale PWA cache is the usual culprit).
+      // 1) Remove the loading screen as soon as the React entrypoint starts or #root mutates.
+      // 2) If boot stalls, unregister stale app-shell service workers/caches with bounded timeouts.
       (function () {
+        var removed = false;
         function removeLoader() {
+          if (removed) return;
+          removed = true;
           var el = document.getElementById('loading-screen');
           if (!el) return;
           el.style.opacity = '0';
           el.style.transition = 'opacity 0.3s';
           setTimeout(function () { el.remove(); }, 300);
         }
+        window.addEventListener('aqua:react-started', removeLoader, { once: true });
         var root = document.getElementById('root');
         var obs = new MutationObserver(function () {
           if (root.childNodes.length > 0) { removeLoader(); obs.disconnect(); }
@@ -153,20 +156,28 @@
         obs.observe(root, { childList: true });
         if (root.childNodes.length > 0) removeLoader();
 
+        function withBootTimeout(promise, ms) {
+          return Promise.race([
+            promise,
+            new Promise(function (resolve) { setTimeout(resolve, ms); })
+          ]);
+        }
+
         async function hardRecover() {
           try {
             if ('serviceWorker' in navigator) {
-              var regs = await navigator.serviceWorker.getRegistrations();
-              for (var r of regs) { try { await r.unregister(); } catch (e) {} }
+              var regs = await withBootTimeout(navigator.serviceWorker.getRegistrations(), 1200) || [];
+              for (var r of regs) { try { await withBootTimeout(r.unregister(), 800); } catch (e) {} }
             }
             if (window.caches && caches.keys) {
-              var keys = await caches.keys();
+              var keys = await withBootTimeout(caches.keys(), 1200) || [];
               for (var k of keys) { try { await caches.delete(k); } catch (e) {} }
             }
           } catch (e) {}
         }
 
         setTimeout(async function () {
+          if (removed) return;
           if (root.childNodes.length > 0) return; // app mounted fine
           var already = sessionStorage.getItem('aqua-recovered');
           if (!already) {
@@ -175,12 +186,17 @@
             location.reload();
           } else {
             // Second failure — show manual recovery UI instead of blank white.
+            removeLoader();
             var el = document.getElementById('loading-screen');
-            var target = el || document.body;
+            var target = document.body;
             target.innerHTML =
-              '<div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:24px;text-align:center">' +
-              '<p style="margin:0;font-size:15px">Gagal memuat aplikasi. Coba bersihkan cache & muat ulang.</p>' +
-              '<button id="aqua-fix-btn" style="padding:10px 20px;border-radius:12px;border:none;background:#1E3A8A;color:#fff;font-size:14px">Perbaiki & Muat Ulang</button></div>';
+              '<div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:24px;text-align:center;background:#0A0F1F;color:#F3F4F6">' +
+              '<p style="margin:0;font-size:15px">Gagal memuat aplikasi dari cache lama.</p>' +
+              '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' +
+              '<button id="aqua-fix-btn" style="padding:10px 20px;border-radius:10px;border:none;background:#1E3A8A;color:#fff;font-size:14px">Perbaiki & Muat Ulang</button>' +
+              '<a href="/login?sw=off" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Masuk tanpa cache</a>' +
+              '<a href="/status?sw=off" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Cek backend</a>' +
+              '</div></div>';
             document.getElementById('aqua-fix-btn').onclick = async function () {
               sessionStorage.removeItem('aqua-recovered');
               await hardRecover();
