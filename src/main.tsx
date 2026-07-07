@@ -56,3 +56,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </ErrorBoundary>,
 );
+
+// Let the static boot screen know the React entrypoint executed. This avoids
+// an endless spinner if a provider suspends, redirects, or renders slowly.
+window.dispatchEvent(new Event("aqua:react-started"));
