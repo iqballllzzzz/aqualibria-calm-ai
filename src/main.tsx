@@ -3,6 +3,13 @@ import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./index.css";
 
+// The script tag executed — instantly clear stale recovery flags so a slow
+// but eventually-successful boot never traps the user on the fallback UI.
+try {
+  sessionStorage.removeItem("aqua-recovered");
+  sessionStorage.removeItem("aqua-chunk-recovered");
+} catch { /* ignore */ }
+
 // Global safety nets — prevent whitescreen on unhandled errors.
 window.addEventListener("error", (e) => {
   console.error("[global error]", e.error || e.message);
@@ -51,12 +58,34 @@ window.setTimeout(() => {
   }
 }, 4000);
 
-createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>,
-);
+function renderFatalError(err: unknown) {
+  const root = document.getElementById("root");
+  if (!root) return;
+  const msg = err instanceof Error ? err.message : String(err);
+  root.innerHTML =
+    '<div style="font-family:system-ui;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:#0A0F1F;color:#F3F4F6">' +
+    '<p style="margin:0;font-size:15px;max-width:360px">Gagal memuat aplikasi. Kemungkinan cache lama atau konfigurasi backend hilang.</p>' +
+    '<pre style="margin:0;padding:10px 14px;background:rgba(255,255,255,.05);border-radius:8px;font-size:11px;max-width:340px;overflow:auto">' +
+    msg.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!)) +
+    "</pre>" +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' +
+    '<button id="aqua-clear-cache" style="padding:10px 18px;border-radius:10px;border:none;background:#1E3A8A;color:#fff;font-size:14px">Bersihkan Cache</button>' +
+    '<a href="/status?sw=off" style="padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Cek Backend</a>' +
+    "</div></div>";
+  const btn = document.getElementById("aqua-clear-cache");
+  if (btn) btn.onclick = () => (window as any).__aquaHardRecover?.();
+}
 
-// Let the static boot screen know the React entrypoint executed. This avoids
-// an endless spinner if a provider suspends, redirects, or renders slowly.
-window.dispatchEvent(new Event("aqua:react-started"));
+try {
+  createRoot(document.getElementById("root")!).render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>,
+  );
+  // Let the static boot screen know React executed — removes spinner immediately.
+  window.dispatchEvent(new Event("aqua:react-started"));
+} catch (err) {
+  console.error("[boot fatal]", err);
+  renderFatalError(err);
+  window.dispatchEvent(new Event("aqua:react-started"));
+}
