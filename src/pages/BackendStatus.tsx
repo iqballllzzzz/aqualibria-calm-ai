@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, AlertTriangle, XCircle, Loader2, ArrowLeft, RefreshCw } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Loader2, ArrowLeft, RefreshCw, Trash2, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { probeBackend, setLastBackendProbe, type BackendProbe, type ProbeState } from "@/lib/backendStatus";
@@ -38,6 +38,17 @@ export default function BackendStatus() {
     updatedAt: Date.now(),
   });
   const [busy, setBusy] = useState(false);
+  const [sw, setSw] = useState<{ active: boolean; scriptURL?: string; caches: string[] }>({ active: false, caches: [] });
+
+  const readSw = async () => {
+    try {
+      const regs = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistrations() : [];
+      const active = regs.length > 0;
+      const scriptURL = regs[0]?.active?.scriptURL;
+      const caches = window.caches ? await window.caches.keys() : [];
+      setSw({ active, scriptURL, caches });
+    } catch { setSw({ active: false, caches: [] }); }
+  };
 
   const run = async () => {
     setBusy(true);
@@ -45,12 +56,31 @@ export default function BackendStatus() {
       const p = await probeBackend();
       setProbe(p);
       setLastBackendProbe(p);
+      await readSw();
     } finally { setBusy(false); }
   };
 
   useEffect(() => { run(); }, []);
 
   const anyDown = [probe.auth, probe.database, probe.aiChat, probe.storage].includes("down");
+  const buildTime = import.meta.env.VITE_BUILD_TIME || "dev";
+  const buildMode = import.meta.env.MODE;
+
+  const clearCache = async () => {
+    if (!confirm("Bersihkan service worker & cache lalu muat ulang?")) return;
+    const fn = (window as any).__aquaHardRecover;
+    if (fn) return fn();
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
+      }
+      if (window.caches?.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k).catch(() => false)));
+      }
+    } finally { location.reload(); }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground p-6">
@@ -59,10 +89,15 @@ export default function BackendStatus() {
           <Link to="/chat" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4" /> Kembali
           </Link>
-          <Button size="sm" variant="outline" onClick={run} disabled={busy}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${busy ? "animate-spin" : ""}`} />
-            Periksa ulang
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/test-ai"><TestTube2 className="w-4 h-4 mr-2" />Test AI</Link>
+            </Button>
+            <Button size="sm" variant="outline" onClick={run} disabled={busy}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${busy ? "animate-spin" : ""}`} />
+              Periksa ulang
+            </Button>
+          </div>
         </div>
 
         <div>
@@ -78,6 +113,18 @@ export default function BackendStatus() {
           <Row name="Database" state={probe.database} hint="Baca/tulis metadata & preferensi" />
           <Row name="AI Gateway" state={probe.aiChat} hint="Rantai Gemini → BigPickle → OpenRouter" />
           <Row name="Storage" state={probe.storage} hint="Bucket gambar (user-images)" />
+        </Card>
+
+        <Card className="p-4 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Build mode</span><span className="font-mono">{buildMode}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Build time</span><span className="font-mono text-xs">{buildTime}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Service worker</span><span className="font-mono">{sw.active ? "aktif" : "nonaktif"}</span></div>
+          {sw.scriptURL && <div className="text-xs text-muted-foreground truncate">↳ {sw.scriptURL}</div>}
+          <div className="flex justify-between"><span className="text-muted-foreground">Cache buckets</span><span className="font-mono">{sw.caches.length}</span></div>
+          {sw.caches.length > 0 && <div className="text-xs text-muted-foreground break-all">{sw.caches.join(", ")}</div>}
+          <Button size="sm" variant="destructive" className="w-full mt-2" onClick={clearCache}>
+            <Trash2 className="w-4 h-4 mr-2" /> Clear App Cache & Reload
+          </Button>
         </Card>
 
         {anyDown && (
