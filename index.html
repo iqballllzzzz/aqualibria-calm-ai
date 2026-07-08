@@ -137,6 +137,7 @@
       // WHITESCREEN FIX:
       // 1) Remove the loading screen as soon as the React entrypoint starts or #root mutates.
       // 2) If boot stalls, unregister stale app-shell service workers/caches with bounded timeouts.
+      // 3) Never destroy body again on the same session — offer a non-destructive recovery UI.
       (function () {
         var removed = false;
         function removeLoader() {
@@ -173,8 +174,14 @@
               var keys = await withBootTimeout(caches.keys(), 1200) || [];
               for (var k of keys) { try { await caches.delete(k); } catch (e) {} }
             }
+            try { localStorage.removeItem('aqua-recovered'); } catch (e) {}
+            try { sessionStorage.removeItem('aqua-recovered'); } catch (e) {}
+            try { sessionStorage.removeItem('aqua-chunk-recovered'); } catch (e) {}
           } catch (e) {}
         }
+
+        // Expose for the /status page "Clear App Cache" button.
+        window.__aquaHardRecover = async function () { await hardRecover(); location.reload(); };
 
         if (location.search.indexOf('sw=off') !== -1) {
           hardRecover();
@@ -185,28 +192,31 @@
           if (root.childNodes.length > 0) return; // app mounted fine
           var already = sessionStorage.getItem('aqua-recovered');
           if (!already) {
+            // First failure: silent recovery, one reload.
             sessionStorage.setItem('aqua-recovered', '1');
             await hardRecover();
             location.reload();
-          } else {
-            // Second failure — show manual recovery UI instead of blank white.
-            removeLoader();
-            var el = document.getElementById('loading-screen');
-            var target = document.body;
-            target.innerHTML =
-              '<div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:24px;text-align:center;background:#0A0F1F;color:#F3F4F6">' +
-              '<p style="margin:0;font-size:15px">Gagal memuat aplikasi dari cache lama.</p>' +
-              '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' +
-              '<button id="aqua-fix-btn" style="padding:10px 20px;border-radius:10px;border:none;background:#1E3A8A;color:#fff;font-size:14px">Perbaiki & Muat Ulang</button>' +
-              '<a href="/login?sw=off" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Masuk tanpa cache</a>' +
-              '<a href="/status?sw=off" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Cek backend</a>' +
-              '</div></div>';
-            document.getElementById('aqua-fix-btn').onclick = async function () {
-              sessionStorage.removeItem('aqua-recovered');
-              await hardRecover();
-              location.reload();
-            };
+            return;
           }
+          // Second failure: overlay ON TOP of #root (do NOT nuke body — that stopped React from ever mounting on retry).
+          removeLoader();
+          var overlay = document.createElement('div');
+          overlay.id = 'aqua-recovery-overlay';
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:#0A0F1F;color:#F3F4F6';
+          overlay.innerHTML =
+            '<p style="margin:0;font-size:15px;max-width:340px;line-height:1.5">Aplikasi belum termuat. Ini biasanya karena cache lama atau env backend hilang di hosting.</p>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:360px">' +
+            '<button id="aqua-clear-btn" style="padding:10px 18px;border-radius:10px;border:none;background:#1E3A8A;color:#fff;font-size:14px;font-weight:500">Bersihkan Cache & Muat Ulang</button>' +
+            '<a href="/status?sw=off" style="padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Cek Backend</a>' +
+            '<a href="/test-ai?sw=off" style="padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Test AI</a>' +
+            '</div>' +
+            '<p style="margin:0;font-size:11px;opacity:.6;max-width:320px">Kalau berulang, hosting perlu env <code>VITE_SUPABASE_URL</code> &amp; <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>.</p>';
+          document.body.appendChild(overlay);
+          document.getElementById('aqua-clear-btn').onclick = async function () {
+            sessionStorage.removeItem('aqua-recovered');
+            await hardRecover();
+            location.reload();
+          };
         }, 8000);
       })();
     </script>
