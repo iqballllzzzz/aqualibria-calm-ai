@@ -131,8 +131,6 @@
     <!-- React root -->
     <div id="root"></div>
     
-    <script type="module" src="/src/main.tsx"></script>
-    
     <script>
       // WHITESCREEN FIX:
       // 1) Remove the loading screen as soon as the React entrypoint starts or #root mutates.
@@ -187,38 +185,75 @@
           hardRecover();
         }
 
+        function renderEmergencyStatus(message) {
+          removeLoader();
+          if (document.getElementById('aqua-recovery-overlay')) return;
+          var overlay = document.createElement('div');
+          overlay.id = 'aqua-recovery-overlay';
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:48px 18px;text-align:left;background:#0A0F1F;color:#F3F4F6;overflow:auto';
+          overlay.innerHTML =
+            '<main style="width:min(680px,100%);display:grid;gap:16px">' +
+            '<section style="border:1px solid rgba(148,163,184,.24);background:rgba(15,23,42,.82);border-radius:16px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.28)">' +
+            '<p style="margin:0 0 8px;font-size:12px;color:#93C5FD;font-weight:700;letter-spacing:.08em;text-transform:uppercase">AqualibriaAI Recovery</p>' +
+            '<h1 style="margin:0 0 10px;font-size:24px;line-height:1.15;color:#F8FAFC">Aplikasi gagal boot sebelum React berjalan</h1>' +
+            '<p style="margin:0;color:#CBD5E1;font-size:14px;line-height:1.6">' + message + '</p>' +
+            '</section>' +
+            '<section style="border:1px solid rgba(148,163,184,.18);background:rgba(2,6,23,.72);border-radius:16px;padding:16px;display:grid;gap:12px">' +
+            '<div style="display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid rgba(148,163,184,.14);padding-bottom:10px"><span style="color:#94A3B8">Backend</span><strong id="aqua-static-backend">Memeriksa…</strong></div>' +
+            '<div style="display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid rgba(148,163,184,.14);padding-bottom:10px"><span style="color:#94A3B8">Penyebab paling mungkin</span><strong style="text-align:right">Konfigurasi build hilang</strong></div>' +
+            '<div style="display:flex;justify-content:space-between;gap:16px"><span style="color:#94A3B8">Service worker/cache</span><strong id="aqua-static-sw">Memeriksa…</strong></div>' +
+            '</section>' +
+            '<section style="display:flex;gap:10px;flex-wrap:wrap">' +
+            '<button id="aqua-clear-btn" style="padding:11px 16px;border-radius:10px;border:0;background:#1E3A8A;color:#fff;font-size:14px;font-weight:700">Bersihkan Cache & Reload</button>' +
+            '<button id="aqua-retry-btn" style="padding:11px 16px;border-radius:10px;border:1px solid rgba(148,163,184,.28);background:transparent;color:#F8FAFC;font-size:14px;font-weight:700">Coba Boot Lagi</button>' +
+            '</section>' +
+            '<p style="margin:0;color:#64748B;font-size:12px;line-height:1.5">Halaman ini sengaja dibuat tanpa React, jadi tetap muncul walau bundle utama crash.</p>' +
+            '</main>';
+          document.body.appendChild(overlay);
+          var retry = document.getElementById('aqua-retry-btn');
+          if (retry) retry.onclick = function () { location.reload(); };
+          var clear = document.getElementById('aqua-clear-btn');
+          if (clear) clear.onclick = async function () { await hardRecover(); location.reload(); };
+          (async function () {
+            try {
+              var regs = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistrations() : [];
+              var keys = window.caches && caches.keys ? await caches.keys() : [];
+              var swEl = document.getElementById('aqua-static-sw');
+              if (swEl) swEl.textContent = (regs.length ? regs.length + ' aktif' : 'nonaktif') + ' · cache ' + keys.length;
+            } catch (e) {}
+            try {
+              var r = await fetch('https://awkolliegwmdgpklqqwr.supabase.co/auth/v1/health', { method: 'GET', cache: 'no-store' });
+              var b = document.getElementById('aqua-static-backend');
+              if (b) { b.textContent = r.ok ? 'Aktif' : 'Terjangkau, HTTP ' + r.status; b.style.color = r.ok ? '#34D399' : '#FBBF24'; }
+            } catch (e) {
+              var be = document.getElementById('aqua-static-backend');
+              if (be) { be.textContent = 'Tidak terjangkau'; be.style.color = '#F87171'; }
+            }
+          })();
+        }
+
+        window.addEventListener('error', function (event) {
+          var msg = String(event.message || 'Terjadi error saat memuat bundle.');
+          if (/supabaseUrl is required|supabaseKey is required|Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk/i.test(msg)) {
+            renderEmergencyStatus('Crash terdeteksi: ' + msg + '. Build produksi sebelumnya dibuat tanpa konfigurasi backend publik, sehingga bundle berhenti sebelum route /status sempat dirender.');
+          }
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason && (event.reason.message || event.reason);
+          var msg = String(reason || 'Promise gagal saat boot.');
+          if (/supabaseUrl is required|supabaseKey is required|Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk/i.test(msg)) {
+            renderEmergencyStatus('Crash terdeteksi: ' + msg + '. Build produksi sebelumnya dibuat tanpa konfigurasi backend publik, sehingga bundle berhenti sebelum route /status sempat dirender.');
+          }
+        });
+
         setTimeout(async function () {
           if (removed) return;
           if (root.childNodes.length > 0) return; // app mounted fine
-          var already = sessionStorage.getItem('aqua-recovered');
-          if (!already) {
-            // First failure: silent recovery, one reload.
-            sessionStorage.setItem('aqua-recovered', '1');
-            await hardRecover();
-            location.reload();
-            return;
-          }
-          // Second failure: overlay ON TOP of #root (do NOT nuke body — that stopped React from ever mounting on retry).
-          removeLoader();
-          var overlay = document.createElement('div');
-          overlay.id = 'aqua-recovery-overlay';
-          overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:#0A0F1F;color:#F3F4F6';
-          overlay.innerHTML =
-            '<p style="margin:0;font-size:15px;max-width:340px;line-height:1.5">Aplikasi belum termuat. Ini biasanya karena cache lama atau env backend hilang di hosting.</p>' +
-            '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:360px">' +
-            '<button id="aqua-clear-btn" style="padding:10px 18px;border-radius:10px;border:none;background:#1E3A8A;color:#fff;font-size:14px;font-weight:500">Bersihkan Cache & Muat Ulang</button>' +
-            '<a href="/status?sw=off" style="padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Cek Backend</a>' +
-            '<a href="/test-ai?sw=off" style="padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.2);color:#F3F4F6;text-decoration:none;font-size:14px">Test AI</a>' +
-            '</div>' +
-            '<p style="margin:0;font-size:11px;opacity:.6;max-width:320px">Kalau berulang, hosting perlu env <code>VITE_SUPABASE_URL</code> &amp; <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>.</p>';
-          document.body.appendChild(overlay);
-          document.getElementById('aqua-clear-btn').onclick = async function () {
-            sessionStorage.removeItem('aqua-recovered');
-            await hardRecover();
-            location.reload();
-          };
-        }, 8000);
+          renderEmergencyStatus('Bundle utama belum mount setelah 4 detik. Ini bukan masalah halaman /status; ini berarti aplikasi crash sebelum router hidup.');
+        }, 4000);
       })();
     </script>
+
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
