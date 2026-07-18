@@ -5,47 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const VOICE_MAP: Record<string, string> = {
-  aurora: "Aoede",
-  river: "Charon",
-  luna: "Leda",
-  ember: "Kore",
-  atlas: "Orus",
-  iris: "Zephyr",
-  nova: "Puck",
-  onyx: "Fenrir",
-};
-
-// Get all available API keys for rotation
-function getApiKeys(): string[] {
-  const keys: string[] = [];
-  const k1 = Deno.env.get("GEMINI_API_KEY");
-  const k2 = Deno.env.get("GEMINI_API_KEY_2");
-  const k3 = Deno.env.get("GEMINI_API_KEY_3");
-  if (k1) keys.push(k1);
-  if (k2) keys.push(k2);
-  if (k3) keys.push(k3);
-  return keys;
-}
-
-async function tryTTS(apiKey: string, cleanText: string, geminiVoice: string): Promise<Response> {
-  const ttsUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-  return fetch(ttsUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: cleanText }] }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: geminiVoice },
-          },
-        },
-      },
-    }),
-  });
-}
+// Nexray public API (no key required) — see https://api.nexray.eu.cc/category/ai
+const NEXRAY_TTS_URL = "https://api.nexray.eu.cc/ai/gemini-tts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -53,65 +14,73 @@ serve(async (req) => {
   }
 
   try {
-    const apiKeys = getApiKeys();
-    if (apiKeys.length === 0) {
-      console.error("No GEMINI_API_KEY configured");
-      return new Response(JSON.stringify({ error: "API key not configured", fallback: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { text, voice = "aurora" } = await req.json();
+    const { text } = await req.json();
     if (!text || text.trim().length === 0) {
       return new Response(JSON.stringify({ error: "Text is required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const cleanText = text.slice(0, 1000);
-    const geminiVoice = VOICE_MAP[voice] || VOICE_MAP.aurora;
-    console.log(`TTS: voice=${voice}->${geminiVoice}, len=${cleanText.length}, keys=${apiKeys.length}`);
+    const cleanText = text
+      .replace(/\*\*/g, "").replace(/\*/g, "")
+      .replace(/`{1,3}[^`]*`{1,3}/g, "")
+      .slice(0, 1000);
 
-    // Try each API key in rotation
-    for (let i = 0; i < apiKeys.length; i++) {
-      try {
-        console.log(`Trying API key ${i + 1}/${apiKeys.length}...`);
-        const response = await tryTTS(apiKeys[i], cleanText, geminiVoice);
+    const url = `${NEXRAY_TTS_URL}?text=${encodeURIComponent(cleanText)}`;
+    console.log(`TTS (Nexray): len=${cleanText.length}`);
 
-        if (response.status === 429 || response.status === 403) {
-          const errText = await response.text();
-          console.warn(`Key ${i + 1} rate limited/forbidden: ${response.status} ${errText.slice(0, 200)}`);
-          continue; // Try next key
-        }
+    const response = await fetch(url, { method: "GET" });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`Key ${i + 1} error: ${response.status} ${errText.slice(0, 300)}`);
-          continue;
-        }
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error(`Nexray TTS error: ${response.status} ${errText.slice(0, 300)}`);
+      return new Response(JSON.stringify({ error: "TTS provider error", fallback: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-        const data = await response.json();
-        const audioPart = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    const contentType = response.headers.get("content-type") || "";
 
-        if (audioPart && audioPart.data) {
-          const mimeType = audioPart.mimeType || "audio/wav";
-          const audioDataUrl = `data:${mimeType};base64,${audioPart.data}`;
-          console.log(`TTS success with key ${i + 1}: ${mimeType}, len=${audioPart.data.length}`);
-          return new Response(JSON.stringify({ success: true, audioUrl: audioDataUrl, mimeType }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+    // Case 1: Nexray streams raw audio bytes directly.
+    if (contentType.startsWith("audio/")) {
+      const buf = await response.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const b64 = btoa(binary);
+      const audioUrl = `data:${contentType};base64,${b64}`;
+      console.log(`TTS success (raw audio): ${contentType}, ${bytes.length} bytes`);
+      return new Response(JSON.stringify({ success: true, audioUrl }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-        console.warn(`Key ${i + 1}: no audio in response`);
-      } catch (keyError) {
-        console.error(`Key ${i + 1} exception:`, keyError);
-        continue;
+    // Case 2: Nexray returns JSON with the audio URL/data nested somewhere.
+    const raw = await response.text();
+    let data: any = null;
+    try { data = JSON.parse(raw); } catch { /* not JSON, handled below */ }
+
+    if (data) {
+      const audioUrl =
+        data.url || data.result?.url || data.data?.url ||
+        data.audio || data.result?.audio || data.data?.audio ||
+        (typeof data.result === "string" ? data.result : undefined) ||
+        (typeof data.data === "string" ? data.data : undefined);
+
+      if (typeof audioUrl === "string" && audioUrl.length > 0) {
+        console.log(`TTS success (JSON), url head: ${audioUrl.slice(0, 60)}`);
+        return new Response(JSON.stringify({ success: true, audioUrl }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
-    // All keys failed
-    console.error("All API keys exhausted for TTS");
-    return new Response(JSON.stringify({ error: "All TTS keys exhausted", fallback: true }), {
+    console.error(`Nexray TTS: unrecognized response shape: ${raw.slice(0, 300)}`);
+    return new Response(JSON.stringify({
+      error: "Unrecognized TTS response from provider",
+      fallback: true,
+      raw: raw.slice(0, 300),
+    }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
