@@ -32,12 +32,17 @@ const HYDRA_CHAT_PROVIDERS: HydraProvider[] = [
     apiKeyEnv: "GEMINI_FREE_FLASH_KEY",
     model: "gemini-flash-latest",
   },
-  {
-    name: "opencode",
-    url: "https://api.opencode.ai/v1/chat/completions",
-    apiKeyEnv: "OPENCODE_API_KEY",
-    model: "bigpickle",
-  },
+  // NOTE: disabled — "https://api.opencode.ai/v1/chat/completions" is not a
+  // real OpenCode endpoint (their gateway lives under opencode.ai/zen/...),
+  // so this was silently returning HTTP 200 with body "Not Found" and
+  // crashing downstream JSON parsing. Re-enable once pointed at a verified
+  // OpenCode-compatible endpoint.
+  // {
+  //   name: "opencode",
+  //   url: "https://api.opencode.ai/v1/chat/completions",
+  //   apiKeyEnv: "OPENCODE_API_KEY",
+  //   model: "bigpickle",
+  // },
   {
     name: "openrouter",
     url: "https://openrouter.ai/api/v1/chat/completions",
