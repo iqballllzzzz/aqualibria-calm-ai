@@ -68,7 +68,7 @@ const TESTS: { id: string; name: string; run: () => Promise<string> }[] = [
       const r = await fetch(`${SUPABASE_URL}/functions/v1/gemini-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ mode: "image", prompt: "a small blue circle on white background" }),
+        body: JSON.stringify({ action: "generate-image", prompt: "a small blue circle on white background" }),
       });
       if (!r.ok && r.status !== 400) throw new Error(`HTTP ${r.status}`);
       return `HTTP ${r.status}`;
