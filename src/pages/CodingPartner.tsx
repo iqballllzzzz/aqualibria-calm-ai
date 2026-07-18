@@ -40,7 +40,7 @@ const CodingPartner: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [sessionId] = useState(generateSessionId());
-  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("aurora");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>("eva");
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [messageComplexity, setMessageComplexity] = useState<"simple" | "medium" | "complex">("medium");
   const [selectedLanguage, setSelectedLanguage] = useState("auto");
