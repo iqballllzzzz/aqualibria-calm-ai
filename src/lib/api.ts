@@ -436,6 +436,26 @@ export const analyzeImage = async (imageData: string, question: string, sessionI
 export const sendCodingMessage = async (message: string, sessionId: string, imageData?: string) => sendChatMessage(message, sessionId, { isCodingMode: true, imageData });
 export const analyzeFile = async (fileData: string, question: string, sessionId: string, fileTextContent?: string) => sendChatMessage(question, sessionId, { fileData, fileTextContent });
 
+// Fast path for voice calls — skips the thinking stream and the slower
+// OpenRouter hop, since a live voice conversation needs quick turnaround
+// above all else.
+export const sendVoiceChatMessage = async (message: string, sessionId: string) => {
+  try {
+    const data = await callGemini({
+      action: "voice-chat",
+      messages: [{ role: "user", content: message }],
+      promptType: "default",
+      model: "google/gemini-2.5-flash",
+      userId: sessionId,
+      stream: false,
+    });
+    if (data.fallback) return { success: false, error: data.error || "AI unavailable" };
+    return { success: true, response: data.response as string };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Voice chat failed" };
+  }
+};
+
 // Image Generation
 export const generateImage = async (prompt: string): Promise<{ success: boolean; imageUrl?: string; response?: string; error?: string }> => {
   try {
