@@ -46,7 +46,7 @@ const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className={VOICE_OPTIONS.length > 1 ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
               {VOICE_OPTIONS.map((voice) => {
                 const info = getVoiceInfo(voice);
                 return (
@@ -73,6 +73,10 @@ const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
                 );
               })}
             </div>
+
+            <p className="text-[11px] text-foreground-muted mt-3 leading-relaxed">
+              Fitur suara masih dalam tahap pengembangan, jadi baru ada 1 pilihan suara (Eva) untuk saat ini. Pilihan suara lainnya akan segera menyusul ✨
+            </p>
           </motion.div>
         </>
       )}
