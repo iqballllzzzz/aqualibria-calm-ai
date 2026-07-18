@@ -7,6 +7,203 @@ const corsHeaders = {
 };
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+
+// ===== GEMINI THINKING (Interactions API) =====
+// Real "thinking" via Google's Interactions API (released mid-2026). Streams
+// genuine thought_summary steps (variable length depending on how hard the
+// question is) translated into the same OpenAI-style
+// `choices[0].delta.reasoning_content` / `choices[0].delta.content` shape the
+// frontend's ThinkingBlock/streamChatMessage already consume — so no
+// frontend parsing changes are needed, just a real data source.
+function extractDeltaText(delta: any): string {
+  if (!delta) return "";
+  if (typeof delta.text === "string") return delta.text;
+  if (delta.content?.text) return delta.content.text;
+  if (Array.isArray(delta.summary)) {
+    return delta.summary.map((b: any) => b?.text || "").join("");
+  }
+  return "";
+}
+
+function buildInteractionsInput(systemInstruction: string, gatewayMessages: any[]): string | null {
+  // Interactions API takes a single `input` string (no official multi-turn
+  // message array in this minimal integration). Only handle plain text
+  // turns here — images/files fall back to the existing Hydra chain.
+  const turns: string[] = [];
+  for (const msg of gatewayMessages) {
+    if (msg.role === "system") continue;
+    if (typeof msg.content !== "string") return null; // multipart (image/file) — skip thinking path
+    const speaker = msg.role === "assistant" ? "Assistant" : "User";
+    turns.push(`${speaker}: ${msg.content}`);
+  }
+  if (turns.length === 0) return null;
+  return turns.join("\n");
+}
+
+async function streamGeminiThinking(
+  systemInstruction: string,
+  gatewayMessages: any[],
+  userId: string
+): Promise<Response | null> {
+  const apiKey = Deno.env.get("GEMINI_FREE_FLASH_KEY");
+  if (!apiKey) return null;
+
+  const input = buildInteractionsInput(systemInstruction, gatewayMessages);
+  if (!input) return null;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${GEMINI_INTERACTIONS_URL}?alt=sse`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+        "Api-Revision": "2026-05-20",
+      },
+      body: JSON.stringify({
+        model: "gemini-3.5-flash",
+        input,
+        system_instruction: systemInstruction,
+        generation_config: { thinking_summaries: "auto" },
+        stream: true,
+      }),
+    });
+  } catch (e) {
+    console.error("[thinking] network error:", e);
+    return null;
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    const errText = await upstream.text().catch(() => "");
+    console.error(`[thinking] upstream ${upstream.status}: ${errText.slice(0, 200)} user=${userId}`);
+    return null;
+  }
+
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const stepTypeByIndex: Record<number, string> = {};
+
+  const rebuilt = new ReadableStream({
+    async start(controller) {
+      let buffer = "";
+      let gotAnyContent = false;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let idx: number;
+          while ((idx = buffer.indexOf("\n\n")) !== -1) {
+            const rawEvent = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+
+            const dataLine = rawEvent.split("\n").find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+            const jsonStr = dataLine.slice(5).trim();
+            if (!jsonStr) continue;
+
+            let parsed: any;
+            try { parsed = JSON.parse(jsonStr); } catch { continue; }
+
+            const eventType = parsed.event_type;
+            if (eventType === "step.start" && parsed.step?.type && typeof parsed.index === "number") {
+              stepTypeByIndex[parsed.index] = parsed.step.type;
+            } else if (eventType === "step.delta" && typeof parsed.index === "number") {
+              const stepType = stepTypeByIndex[parsed.index];
+              const text = extractDeltaText(parsed.delta);
+              if (!text) continue;
+              if (stepType === "thought") {
+                gotAnyContent = true;
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: text } }] })}\n\n`
+                ));
+              } else if (stepType === "model_output") {
+                gotAnyContent = true;
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`
+                ));
+              }
+            } else if (eventType === "interaction.failed" || eventType === "error") {
+              console.error(`[thinking] interaction error event user=${userId}: ${jsonStr.slice(0, 200)}`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[thinking] stream read error:", e);
+      }
+      if (!gotAnyContent) {
+        // Nothing usable came through — let the caller know via a sentinel
+        // header isn't possible mid-stream, so we just close; the frontend
+        // will simply see an empty answer, which is rare given upstream.ok.
+        console.error(`[thinking] stream produced no content for user=${userId}`);
+      }
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+
+  return new Response(rebuilt, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Hydra-Provider": "gemini-thinking" },
+  });
+}
+
+// ===== VOICE-MODE FAST PATH =====
+// Voice calls need low latency above all else. OpenCode was meant to be the
+// fast path here but its endpoint is broken (see note above), so instead we
+// go straight Gemini flash → Lovable Gateway, skipping OpenRouter entirely to
+// avoid an extra slow hop when Gemini's free key is rate-limited.
+async function tryVoiceChatFast(opts: {
+  messages: any[];
+  fallbackModel: string;
+  userId: string;
+}): Promise<{ ok: true; provider: string; response: Response } | { ok: false; errors: HydraLog[] }> {
+  const fastProviders = HYDRA_CHAT_PROVIDERS.filter((p) => p.name !== "openrouter");
+  const errors: HydraLog[] = [];
+  for (const p of fastProviders) {
+    const key = Deno.env.get(p.apiKeyEnv);
+    if (!key) continue;
+    const body: any = {
+      model: p.name === "lovable" ? opts.fallbackModel : p.model,
+      messages: opts.messages,
+      stream: false,
+    };
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000); // tight timeout for voice
+      const res = await fetch(p.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+          ...(p.extraHeaders || {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        errors.push({ provider: p.name, time: new Date().toISOString(), endpoint: p.url, user_id: opts.userId, error_message: `HTTP ${res.status}: ${txt.slice(0, 200)}` });
+        continue;
+      }
+      const rawText = await res.text();
+      try {
+        JSON.parse(rawText);
+        return { ok: true, provider: p.name, response: new Response(rawText, { headers: res.headers, status: res.status }) };
+      } catch {
+        errors.push({ provider: p.name, time: new Date().toISOString(), endpoint: p.url, user_id: opts.userId, error_message: `Non-JSON response: ${rawText.slice(0, 200)}` });
+        continue;
+      }
+    } catch (e) {
+      errors.push({ provider: p.name, time: new Date().toISOString(), endpoint: p.url, user_id: opts.userId, error_message: e instanceof Error ? e.message : "fetch failed" });
+      continue;
+    }
+  }
+  return { ok: false, errors };
+}
 
 // ===== HYDRA PROVIDERS (chat text only — fallback chain) =====
 // Order: Gemini 3.5 Flash direct (free key) → Gemini flash-latest (safety alias)
@@ -587,6 +784,14 @@ serve(async (req) => {
 
     if (stream) {
       requestBody.stream = true;
+
+      // Try real Gemini thinking first (text-only turns). Falls straight
+      // through to the existing, already-hardened Hydra chain on any issue.
+      if (action !== "voice-chat") {
+        const thinkingResp = await streamGeminiThinking(systemInstruction, gatewayMessages, uid);
+        if (thinkingResp) return thinkingResp;
+      }
+
       const hydra = await tryHydraChat({
         messages: gatewayMessages,
         stream: true,
@@ -611,13 +816,15 @@ serve(async (req) => {
     }
 
     // Non-streaming
-    const hydra = await tryHydraChat({
-      messages: gatewayMessages,
-      stream: false,
-      fallbackModel: gatewayModel,
-      reasoning: requestBody.reasoning,
-      userId: uid,
-    });
+    const hydra = action === "voice-chat"
+      ? await tryVoiceChatFast({ messages: gatewayMessages, fallbackModel: gatewayModel, userId: uid })
+      : await tryHydraChat({
+          messages: gatewayMessages,
+          stream: false,
+          fallbackModel: gatewayModel,
+          reasoning: requestBody.reasoning,
+          userId: uid,
+        });
     if (!hydra.ok) {
       return new Response(JSON.stringify({
         error: "AI providers unavailable",
