@@ -21,7 +21,7 @@ const MessageControls: React.FC<MessageControlsProps> = ({
   content,
   className = "",
   isAssistant = false,
-  selectedVoice = "aurora",
+  selectedVoice = "eva",
   onEdit,
 }) => {
   const [copied, setCopied] = useState(false);
