@@ -111,6 +111,48 @@ async function tryHydraChat(opts: {
         logHydraError(errors[errors.length - 1]);
         continue;
       }
+
+      // Some providers return HTTP 200 with a non-JSON body (e.g. plain
+      // "Not Found" from a misconfigured endpoint/model). Validate before
+      // trusting this provider, otherwise downstream .json() parsing crashes
+      // the whole edge function with a 500.
+      if (!opts.stream) {
+        const rawText = await res.text();
+        try {
+          JSON.parse(rawText);
+          return {
+            ok: true,
+            provider: p.name,
+            response: new Response(rawText, { headers: res.headers, status: res.status }),
+          };
+        } catch (_parseErr) {
+          errors.push({
+            provider: p.name,
+            time: new Date().toISOString(),
+            endpoint: p.url,
+            user_id: opts.userId,
+            error_message: `Non-JSON response: ${rawText.slice(0, 200)}`,
+          });
+          logHydraError(errors[errors.length - 1]);
+          continue;
+        }
+      } else {
+        // Streaming: validate content-type looks like an event stream before trusting it.
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("text/event-stream") && !contentType.includes("stream")) {
+          const rawText = await res.text().catch(() => "");
+          errors.push({
+            provider: p.name,
+            time: new Date().toISOString(),
+            endpoint: p.url,
+            user_id: opts.userId,
+            error_message: `Unexpected non-stream response: ${rawText.slice(0, 200)}`,
+          });
+          logHydraError(errors[errors.length - 1]);
+          continue;
+        }
+      }
+
       return { ok: true, provider: p.name, response: res };
     } catch (e) {
       errors.push({
@@ -544,7 +586,16 @@ serve(async (req) => {
         attempts: hydra.errors,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const data = await hydra.response.json();
+    let data: any;
+    try {
+      data = await hydra.response.json();
+    } catch (parseErr) {
+      console.error("gemini-chat: failed to parse provider response as JSON:", parseErr);
+      return new Response(JSON.stringify({
+        error: "AI provider returned an unreadable response",
+        fallback: true,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const responseText = data.choices?.[0]?.message?.content || "No response generated.";
     const reasoning = data.choices?.[0]?.message?.reasoning_content || null;
 
