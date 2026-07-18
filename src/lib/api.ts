@@ -29,18 +29,11 @@ export const feloSearch = async (query: string): Promise<FeloSearchResult> => {
 };
 
 // Voice Options
-export const VOICE_OPTIONS_LIST = ["aurora", "river", "luna", "ember", "atlas", "iris", "nova", "onyx"] as const;
+export const VOICE_OPTIONS_LIST = ["eva"] as const;
 export type VoiceOption = typeof VOICE_OPTIONS_LIST[number];
 
 export const VOICE_OPTIONS_MAP: Record<VoiceOption, { displayName: string; gender: "male" | "female"; description: string }> = {
-  aurora: { displayName: "Aurora", gender: "female", description: "Warm & natural" },
-  river: { displayName: "River", gender: "male", description: "Deep & calm" },
-  luna: { displayName: "Luna", gender: "female", description: "Soft & elegant" },
-  ember: { displayName: "Ember", gender: "female", description: "Bold & energetic" },
-  atlas: { displayName: "Atlas", gender: "male", description: "Strong & confident" },
-  iris: { displayName: "Iris", gender: "female", description: "Bright & friendly" },
-  nova: { displayName: "Nova", gender: "female", description: "Modern & expressive" },
-  onyx: { displayName: "Onyx", gender: "male", description: "Rich & smooth" },
+  eva: { displayName: "Eva", gender: "female", description: "Warm & natural" },
 };
 
 export const VOICE_OPTIONS = Object.keys(VOICE_OPTIONS_MAP) as VoiceOption[];
@@ -662,7 +655,7 @@ export const generateFullstackCode = async (
 };
 
 // TTS
-export const textToSpeech = async (text: string, voice: VoiceOption = "aurora") => {
+export const textToSpeech = async (text: string, voice: VoiceOption = "eva") => {
   try {
     const cleanText = text
       .replace(/\*\*/g, "").replace(/\*/g, "")
