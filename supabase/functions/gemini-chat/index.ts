@@ -142,23 +142,57 @@ async function tryHydraChat(opts: {
           continue;
         }
       } else {
-        // Streaming: validate content-type looks like an event stream before trusting it.
-        const contentType = res.headers.get("content-type") || "";
-        if (!contentType.includes("text/event-stream") && !contentType.includes("stream")) {
-          const rawText = await res.text().catch(() => "");
+        // Streaming: a content-type header alone can lie (e.g. a "Not Found"
+        // page served with a stream-ish header). Peek the first chunk of the
+        // actual body and confirm it looks like real SSE data (starts with
+        // "data:") before trusting this provider. If valid, splice that first
+        // chunk back onto the stream so nothing is lost downstream.
+        if (!res.body) {
           errors.push({
             provider: p.name,
             time: new Date().toISOString(),
             endpoint: p.url,
             user_id: opts.userId,
-            error_message: `Unexpected non-stream response: ${rawText.slice(0, 200)}`,
+            error_message: "Empty response body",
           });
           logHydraError(errors[errors.length - 1]);
           continue;
         }
+        const reader = res.body.getReader();
+        const { value: firstChunk, done } = await reader.read();
+        const firstText = firstChunk ? new TextDecoder().decode(firstChunk) : "";
+        const looksLikeSSE = !done && firstText.trimStart().startsWith("data:");
+        if (!looksLikeSSE) {
+          try { await reader.cancel(); } catch (_e) { /* ignore */ }
+          errors.push({
+            provider: p.name,
+            time: new Date().toISOString(),
+            endpoint: p.url,
+            user_id: opts.userId,
+            error_message: `Invalid stream start: ${firstText.slice(0, 200)}`,
+          });
+          logHydraError(errors[errors.length - 1]);
+          continue;
+        }
+        // Reconstruct the stream: replay the chunk we already consumed, then
+        // keep forwarding the rest of the original reader untouched.
+        const rebuilt = new ReadableStream({
+          async start(controller) {
+            controller.enqueue(firstChunk);
+            while (true) {
+              const { value, done: readerDone } = await reader.read();
+              if (readerDone) break;
+              controller.enqueue(value);
+            }
+            controller.close();
+          },
+        });
+        return {
+          ok: true,
+          provider: p.name,
+          response: new Response(rebuilt, { headers: res.headers, status: res.status }),
+        };
       }
-
-      return { ok: true, provider: p.name, response: res };
     } catch (e) {
       errors.push({
         provider: p.name,
