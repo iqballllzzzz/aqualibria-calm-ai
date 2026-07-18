@@ -108,7 +108,7 @@ const Chat: React.FC = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption>(() => {
     const saved = localStorage.getItem("aqua-selected-voice");
-    return (saved && ["aurora","river","luna","ember","atlas","iris","nova","onyx"].includes(saved)) ? saved as VoiceOption : "aurora";
+    return (saved && ["eva"].includes(saved)) ? saved as VoiceOption : "eva";
   });
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
