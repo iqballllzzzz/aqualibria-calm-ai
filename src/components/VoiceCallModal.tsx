@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mic, MicOff, Volume2, ChevronDown, Phone, PhoneOff, Play, ArrowRight } from "lucide-react";
-import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, getVoiceInfo, textToSpeech, sendChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
+import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, getVoiceInfo, textToSpeech, sendVoiceChatMessage, ChatMessage, generateMessageId } from "@/lib/api";
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { parsePcmDataUrl, pcmToWavUrl } from "@/lib/audioUtils";
@@ -154,7 +154,11 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     const recognition = new SpeechRecognitionAPI();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "";
+    // Empty string caused Chrome to default to en-US phonetics regardless of
+    // what language the user actually spoke (e.g. "apa kabar" → "Apple gabbar").
+    // Use the device's own language setting instead — this covers many
+    // languages since it reflects what the user actually has their phone/browser set to.
+    recognition.lang = navigator.language || "id-ID";
 
     recognition.onresult = (event: any) => {
       let finalTranscript = "";
@@ -251,7 +255,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     setCallState("processing");
     extractMemoryFromMessage(input);
     try {
-      const result = await sendChatMessage(input, sessionId);
+      const result = await sendVoiceChatMessage(input, sessionId);
       if (result.success && result.response) {
         setAiResponse(result.response);
         const aiMsg: ConversationMessage = { role: "assistant", content: result.response, id: generateMessageId() };
@@ -356,7 +360,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
           currentHeight *= 1 - (distanceFromCenter * 0.1);
           return (
             <motion.div key={index}
-              className={`w-2 rounded-full transition-colors duration-300 ${callState === "speaking" ? "bg-gradient-to-t from-purple-600 to-purple-400" : callState === "listening" ? "bg-gradient-to-t from-blue-600 to-blue-400" : callState === "processing" ? "bg-gradient-to-t from-amber-600 to-amber-400" : "bg-muted-foreground/30"}`}
+              className={`w-2 rounded-full transition-colors duration-300 ${callState === "speaking" ? "bg-gradient-to-t from-indigo-600 via-purple-500 to-blue-400" : callState === "listening" ? "bg-gradient-to-t from-blue-600 via-indigo-500 to-purple-400" : callState === "processing" ? "bg-gradient-to-t from-amber-600 to-amber-400" : "bg-muted-foreground/30"}`}
               animate={{ height: currentHeight }}
               transition={{ duration: callState === "speaking" ? 0.05 : 0.2, ease: "linear" }}
             />
