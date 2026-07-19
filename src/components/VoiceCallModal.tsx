@@ -5,6 +5,7 @@ import { VoiceOption, VOICE_OPTIONS, VOICE_OPTIONS_MAP, getVoiceDisplayName, get
 import { extractMemoryFromMessage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { parsePcmDataUrl, pcmToWavUrl } from "@/lib/audioUtils";
+import VoiceWave from "@/components/VoiceWave";
 
 interface VoiceCallModalProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
-  const [audioData, setAudioData] = useState<number[]>(new Array(7).fill(0));
+  const [audioData, setAudioData] = useState<number[]>(new Array(9).fill(0));
   const [callDuration, setCallDuration] = useState(0);
   
   const recognitionRef = useRef<any>(null);
@@ -216,7 +217,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
     analyserRef.current.getByteFrequencyData(dataArray);
-    const bands = 7;
+    const bands = 9;
     const bandSize = Math.floor(dataArray.length / bands);
     const newData = [];
     for (let i = 0; i < bands; i++) {
@@ -346,29 +347,9 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
     }
   };
 
-  const renderSoundWave = () => {
-    const barCount = 7;
-    return (
-      <div className="flex items-center justify-center gap-1 h-40">
-        {Array.from({ length: barCount }).map((_, index) => {
-          let baseHeight = 16, maxHeight = 120, currentHeight = baseHeight;
-          if (callState === "speaking") currentHeight = baseHeight + (audioData[index] || 0) * (maxHeight - baseHeight);
-          else if (callState === "processing") currentHeight = baseHeight + Math.sin(Date.now() / 200 + index * 0.5) * 40 + 40;
-          else if (callState === "listening") currentHeight = baseHeight + Math.sin(Date.now() / 500 + index * 0.3) * 15 + 10;
-          const centerIndex = Math.floor(barCount / 2);
-          const distanceFromCenter = Math.abs(index - centerIndex);
-          currentHeight *= 1 - (distanceFromCenter * 0.1);
-          return (
-            <motion.div key={index}
-              className={`w-2 rounded-full transition-colors duration-300 ${callState === "speaking" ? "bg-gradient-to-t from-indigo-600 via-purple-500 to-blue-400" : callState === "listening" ? "bg-gradient-to-t from-blue-600 via-indigo-500 to-purple-400" : callState === "processing" ? "bg-gradient-to-t from-amber-600 to-amber-400" : "bg-muted-foreground/30"}`}
-              animate={{ height: currentHeight }}
-              transition={{ duration: callState === "speaking" ? 0.05 : 0.2, ease: "linear" }}
-            />
-          );
-        })}
-      </div>
-    );
-  };
+  const renderSoundWave = () => (
+    <VoiceWave levels={audioData} state={callState} />
+  );
 
   const getStatusText = () => {
     switch (callState) {
