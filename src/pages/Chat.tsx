@@ -36,6 +36,7 @@ import AgentPanel, { AgentMode } from "@/components/AgentPanel";
 import SlideDeckViewer from "@/components/SlideDeckViewer";
 import AgentWorkspace, { parseFilesFromResponse } from "@/components/agent/AgentWorkspace";
 import ThinkingBlock from "@/components/agent/ThinkingBlock";
+import AIThinking from "@/components/agent/AIThinking";
 import { ProjectFile } from "@/components/agent/FileExplorer";
 import { supabase } from "@/integrations/supabase/client";
 import { useCloudSync } from "@/hooks/useCloudSync";
@@ -975,16 +976,9 @@ const Chat: React.FC = () => {
                         const isWsOpen = openWorkspaces[message.id || ""];
                         return (
                           <>
-                            {/* Collapsible reasoning/thinking */}
+                            {/* Real AI thinking process (live, streamed) */}
                             {message.reasoning && (
-                              <details className="mb-2 text-xs">
-                                <summary className="cursor-pointer text-foreground-muted hover:text-foreground transition-colors font-medium py-1">
-                                  {message.isStreaming ? "⟳ Thinking..." : "◆ Thought Process"}
-                                </summary>
-                                <div className="mt-1 pl-3 border-l-2 border-border text-foreground-muted whitespace-pre-wrap text-[11px] leading-relaxed">
-                                  {message.reasoning}
-                                </div>
-                              </details>
+                              <AIThinking content={message.reasoning} isThinking={!!message.isStreaming} />
                             )}
                             {cleanContent && <MarkdownRenderer content={cleanContent} />}
                             {message.isStreaming && !message.content && (
@@ -1056,7 +1050,7 @@ const Chat: React.FC = () => {
               {activeMode === "research" ? (
                 <ResearchIndicator isLoading={isLoading} />
               ) : (
-                <SmartThinkingIndicator isLoading={isLoading} messageComplexity={messageComplexity} />
+                isLoading && <AIThinking content="" isThinking={true} />
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1112,7 +1106,7 @@ const Chat: React.FC = () => {
           )}
 
           {/* Input box */}
-          <div className="relative bg-card border border-border rounded-3xl overflow-visible shadow-md input-glow transition-all">
+          <div className="relative bg-card border border-border rounded-3xl overflow-visible shadow-md input-glow transition-all divide-y divide-border">
             <textarea
               ref={inputRef}
               value={inputValue}
@@ -1120,10 +1114,10 @@ const Chat: React.FC = () => {
               onKeyDown={handleKeyDown}
               placeholder={`Message AquaLibria ${modelDisplayName}...`}
               rows={1}
-              className="w-full bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none px-5 pt-4 pb-14 max-h-[200px] text-sm"
+              className="w-full bg-transparent text-foreground placeholder:text-foreground-muted resize-none focus:outline-none px-5 py-4 max-h-[200px] text-sm"
             />
 
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2.5">
+            <div className="flex items-center justify-between px-3 py-2">
               <div className="flex items-center gap-0.5">
                 {/* Plus menu */}
                 <div className="relative">
