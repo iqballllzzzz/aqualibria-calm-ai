@@ -1,258 +1,247 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Globe, Loader2, Paperclip, Plus, Send } from "lucide-react";
+'use client';
 
-import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
-import { uploadToRyzumiCDN } from "@/lib/cdn"; // now uploads to Supabase Storage
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { Children, useCallback, useEffect, useRef } from 'react';
+import type {
+  ComponentProps,
+  HTMLAttributes,
+  KeyboardEventHandler,
+} from 'react';
 
-interface UseAutoResizeTextareaProps {
+type UseAutoResizeTextareaProps = {
   minHeight: number;
   maxHeight?: number;
-}
+};
 
-function useAutoResizeTextarea({ minHeight, maxHeight }: UseAutoResizeTextareaProps) {
+const useAutoResizeTextarea = ({
+  minHeight,
+  maxHeight,
+}: UseAutoResizeTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const adjustHeight = useCallback(
     (reset?: boolean) => {
       const textarea = textareaRef.current;
-      if (!textarea) return;
+      if (!textarea) {
+        return;
+      }
+
       if (reset) {
         textarea.style.height = `${minHeight}px`;
         return;
       }
+
+      // Temporarily shrink to get the right scrollHeight
       textarea.style.height = `${minHeight}px`;
+
+      // Calculate new height
       const newHeight = Math.max(
         minHeight,
-        Math.min(textarea.scrollHeight, maxHeight ?? Number.POSITIVE_INFINITY),
+        Math.min(textarea.scrollHeight, maxHeight ?? Number.POSITIVE_INFINITY)
       );
+
       textarea.style.height = `${newHeight}px`;
     },
-    [minHeight, maxHeight],
+    [minHeight, maxHeight]
   );
 
   useEffect(() => {
+    // Set initial height
     const textarea = textareaRef.current;
-    if (textarea) textarea.style.height = `${minHeight}px`;
+    if (textarea) {
+      textarea.style.height = `${minHeight}px`;
+    }
   }, [minHeight]);
 
+  // Adjust height on window resize
   useEffect(() => {
     const handleResize = () => adjustHeight();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [adjustHeight]);
 
   return { textareaRef, adjustHeight };
-}
+};
 
-const MIN_HEIGHT = 48;
-const MAX_HEIGHT = 164;
+export type AIInputProps = HTMLAttributes<HTMLFormElement>;
 
-const AnimatedPlaceholder = ({ showSearch }: { showSearch: boolean }) => (
-  <AnimatePresence mode="wait">
-    <motion.p
-      key={showSearch ? "search" : "ask"}
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -5 }}
-      transition={{ duration: 0.1 }}
-      className="pointer-events-none w-[180px] text-sm absolute text-foreground/60"
-    >
-      {showSearch ? "Cari di web..." : "Tanya AquaLibria..."}
-    </motion.p>
-  </AnimatePresence>
+export const AIInput = ({ className, ...props }: AIInputProps) => (
+  <form
+    className={cn(
+      'w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm',
+      className
+    )}
+    {...props}
+  />
 );
 
-export interface AiInputProps {
-  /** Called on submit. imageUrl is a permanent Supabase Storage URL (or null). */
-  onSend?: (value: string, imageUrl: string | null, useWebSearch: boolean) => void;
-  disabled?: boolean;
-}
+export type AIInputTextareaProps = ComponentProps<typeof Textarea> & {
+  minHeight?: number;
+  maxHeight?: number;
+};
 
-export function AiInput({ onSend, disabled }: AiInputProps) {
-  const [value, setValue] = useState("");
+export const AIInputTextarea = ({
+  onChange,
+  className,
+  placeholder = 'What would you like to know?',
+  minHeight = 48,
+  maxHeight = 164,
+  ...props
+}: AIInputTextareaProps) => {
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-    minHeight: MIN_HEIGHT,
-    maxHeight: MAX_HEIGHT,
+    minHeight,
+    maxHeight,
   });
-  const [showSearch, setShowSearch] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handelClose = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    setImagePreview(null);
-    setImageFile(null);
-  };
-
-  const handelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files ? e.target.files[0] : null;
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      const form = e.currentTarget.form;
+      if (form) {
+        form.requestSubmit();
+      }
     }
   };
-
-  const handleSubmit = async () => {
-    if (disabled || uploading) return;
-    const text = value.trim();
-    if (!text && !imageFile) return;
-
-    let imageUrl: string | null = null;
-    if (imageFile) {
-      setUploading(true);
-      const result = await uploadToRyzumiCDN(imageFile, imageFile.name);
-      setUploading(false);
-      if (result.success && result.url) imageUrl = result.url;
-    }
-
-    onSend?.(text, imageUrl, showSearch);
-    setValue("");
-    adjustHeight(true);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    setImagePreview(null);
-    setImageFile(null);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
-    };
-  }, [imagePreview]);
 
   return (
-    <div className="w-full py-4">
-      <div className="relative max-w-xl border rounded-[22px] border-border/40 p-1 w-full mx-auto">
-        <div className="relative rounded-2xl border border-border/40 bg-secondary/40 flex flex-col">
-          <div className="overflow-y-auto" style={{ maxHeight: `${MAX_HEIGHT}px` }}>
-            <div className="relative">
-              <Textarea
-                id="ai-input-04"
-                value={value}
-                placeholder=""
-                className="w-full rounded-2xl rounded-b-none px-4 py-3 bg-black/5 dark:bg-white/5 border-none text-foreground resize-none focus-visible:ring-0 leading-[1.2]"
-                ref={textareaRef}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                  adjustHeight();
-                }}
-              />
-              {!value && (
-                <div className="absolute left-4 top-3">
-                  <AnimatedPlaceholder showSearch={showSearch} />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="h-12 bg-black/5 dark:bg-white/5 rounded-b-xl">
-            <div className="absolute left-3 bottom-3 flex items-center gap-2">
-              <label
-                className={cn(
-                  "cursor-pointer relative rounded-full p-2",
-                  imagePreview
-                    ? "bg-primary/15 border border-primary text-primary"
-                    : "bg-black/5 dark:bg-white/5 text-foreground/40 hover:text-foreground",
-                )}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handelChange}
-                  className="hidden"
-                />
-                <Paperclip
-                  className={cn(
-                    "w-4 h-4 transition-colors",
-                    imagePreview ? "text-primary" : "text-foreground/40 hover:text-foreground",
-                  )}
-                />
-                {imagePreview && (
-                  <div className="absolute w-[100px] h-[100px] top-14 -left-4 z-10">
-                    <img
-                      className="object-cover rounded-2xl w-full h-full"
-                      src={imagePreview}
-                      alt="lampiran"
-                    />
-                    <button
-                      onClick={handelClose}
-                      className="bg-secondary text-foreground absolute -top-1 -left-1 shadow rounded-full rotate-45 p-0.5"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowSearch(!showSearch)}
-                className={cn(
-                  "rounded-full transition-all flex items-center gap-2 px-1.5 py-1 border h-8",
-                  showSearch
-                    ? "bg-primary/15 border-primary text-primary"
-                    : "bg-black/5 dark:bg-white/5 border-transparent text-foreground/40 hover:text-foreground",
-                )}
-              >
-                <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showSearch ? 180 : 0, scale: showSearch ? 1.1 : 1 }}
-                    whileHover={{
-                      rotate: showSearch ? 180 : 15,
-                      scale: 1.1,
-                      transition: { type: "spring", stiffness: 300, damping: 10 },
-                    }}
-                    transition={{ type: "spring", stiffness: 260, damping: 25 }}
-                  >
-                    <Globe className={cn("w-4 h-4", showSearch ? "text-primary" : "text-inherit")} />
-                  </motion.div>
-                </div>
-                <AnimatePresence>
-                  {showSearch && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-sm overflow-hidden whitespace-nowrap text-primary flex-shrink-0"
-                    >
-                      Search
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            </div>
-            <div className="absolute right-3 bottom-3">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={disabled || uploading}
-                className={cn(
-                  "rounded-full p-2 transition-colors",
-                  value || imagePreview
-                    ? "bg-primary/15 text-primary"
-                    : "bg-black/5 dark:bg-white/5 text-foreground/40 hover:text-foreground",
-                )}
-              >
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <Textarea
+      name="message"
+      ref={textareaRef}
+      placeholder={placeholder}
+      className={cn(
+        'w-full resize-none rounded-none border-none bg-transparent p-3 shadow-none outline-none ring-0',
+        'focus-visible:ring-0',
+        className
+      )}
+      onChange={(e) => {
+        adjustHeight();
+        onChange?.(e);
+      }}
+      onKeyDown={handleKeyDown}
+      {...props}
+    />
   );
-}
+};
 
-export default AiInput;
+export type AIInputToolbarProps = HTMLAttributes<HTMLDivElement>;
+
+export const AIInputToolbar = ({
+  className,
+  ...props
+}: AIInputToolbarProps) => (
+  <div
+    className={cn('flex items-center justify-between p-1', className)}
+    {...props}
+  />
+);
+
+export type AIInputToolsProps = HTMLAttributes<HTMLDivElement>;
+
+export const AIInputTools = ({ className, ...props }: AIInputToolsProps) => (
+  <div className={cn('flex items-center gap-1', className)} {...props} />
+);
+
+export type AIInputButtonProps = ComponentProps<typeof Button>;
+
+export const AIInputButton = ({
+  variant = 'ghost',
+  className,
+  size,
+  ...props
+}: AIInputButtonProps) => {
+  const newSize =
+    (size ?? Children.count(props.children) > 1) ? 'default' : 'icon';
+
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      size={newSize}
+      className={cn(
+        'shrink-0 gap-1.5 text-muted-foreground',
+        newSize === 'default' && 'px-3',
+        className
+      )}
+      {...props}
+    />
+  );
+};
+
+export type AIInputSubmitProps = ComponentProps<typeof Button>;
+
+export const AIInputSubmit = ({
+  className,
+  variant = 'ghost',
+  size = 'icon',
+  ...props
+}: AIInputSubmitProps) => (
+  <Button
+    type="submit"
+    variant={variant}
+    size={size}
+    className={cn('gap-1.5 text-muted-foreground', className)}
+    {...props}
+  />
+);
+
+export type AIInputModelSelectProps = ComponentProps<typeof Select>;
+
+export const AIInputModelSelect = (props: AIInputModelSelectProps) => (
+  <Select {...props} />
+);
+
+export type AIInputModelSelectTriggerProps = ComponentProps<
+  typeof SelectTrigger
+>;
+
+export const AIInputModelSelectTrigger = ({
+  className,
+  ...props
+}: AIInputModelSelectTriggerProps) => (
+  <SelectTrigger
+    className={cn(
+      'border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors',
+      'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
+      className
+    )}
+    {...props}
+  />
+);
+
+export type AIInputModelSelectContentProps = ComponentProps<
+  typeof SelectContent
+>;
+
+export const AIInputModelSelectContent = ({
+  className,
+  ...props
+}: AIInputModelSelectContentProps) => (
+  <SelectContent className={cn(className)} {...props} />
+);
+
+export type AIInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
+
+export const AIInputModelSelectItem = ({
+  className,
+  ...props
+}: AIInputModelSelectItemProps) => (
+  <SelectItem className={cn(className)} {...props} />
+);
+
+export type AIInputModelSelectValueProps = ComponentProps<typeof SelectValue>;
+
+export const AIInputModelSelectValue = ({
+  className,
+  ...props
+}: AIInputModelSelectValueProps) => (
+  <SelectValue className={cn(className)} {...props} />
+);
